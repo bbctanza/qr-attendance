@@ -33,6 +33,7 @@
         
         const segment = path.split('/')[1];
         if (!segment) return 'Overview';
+        if (segment === 'members') return 'Member';
         return segment.charAt(0).toUpperCase() + segment.slice(1);
     });
 </script>
@@ -63,7 +64,7 @@
             </header>
 
             <!-- Custom Mobile Header -->
-            <MobileHeader />
+            <MobileHeader title={currentPageName} />
 
             <main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
                 {@render children()}

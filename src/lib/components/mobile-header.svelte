@@ -3,6 +3,8 @@
   import { useSidebar } from "$lib/components/ui/sidebar/index.js";
   import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
 
+  export let title: string = 'Overview';
+
   const sidebar = useSidebar();
 </script>
 
@@ -10,11 +12,11 @@
   <div class="flex items-center gap-4">
     <button 
       class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/50 text-foreground active:scale-95 transition-transform"
-      on:click={() => sidebar.toggle()}
+      onclick={() => sidebar.toggle()}
     >
       <Menu class="h-5 w-5" />
     </button>
-    <h1 class="text-xl font-bold tracking-tight">Overview</h1>
+    <h1 class="text-xl font-bold tracking-tight">{title}</h1>
   </div>
 
   <div class="flex items-center gap-3">

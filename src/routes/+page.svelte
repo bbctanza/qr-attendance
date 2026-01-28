@@ -138,7 +138,7 @@
         </button>
 
         <button class="flex items-center gap-3 p-4 rounded-3xl bg-card border border-border/40 text-left active:scale-[0.98] transition-all">
-            <div class="p-3 rounded-2xl bg-purple-500/10 text-purple-500">
+            <div class="p-3 rounded-2xl" style="background: color-mix(in oklch, var(--stat-secondary) 10%, transparent); color: var(--stat-secondary)">
                 <UserPlus class="h-6 w-6" />
             </div>
             <div>
@@ -199,12 +199,12 @@
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
 				<CardTitle class="text-sm font-medium">Present</CardTitle>
-				<UserCheck class="h-4 w-4 text-green-500" />
-			</CardHeader>
-			<CardContent>
-				<div class="text-3xl font-bold text-green-500">{statsData.present}</div>
+			<UserCheck class="h-4 w-4" style="color: var(--stat-success)" />
+		</CardHeader>
+		<CardContent>
+			<div class="text-3xl font-bold" style="color: var(--stat-success)">{statsData.present}</div>
 				<div class="mt-1 h-1 w-full rounded-full bg-secondary">
-                    <div class="h-1 rounded-full bg-green-500" style="width: {(statsData.present / statsData.total) * 100}%"></div>
+                    <div class="h-1 rounded-full" style="background-color: var(--stat-success); width: {(statsData.present / statsData.total) * 100}%"></div>
                 </div>
 			</CardContent>
 		</Card>
@@ -276,7 +276,7 @@
 
             <Card class="flex flex-col justify-center bg-secondary/20 hover:bg-secondary/40 transition-colors cursor-pointer border-dashed">
                 <CardHeader class="items-center pb-2">
-                    <div class="flex h-12 w-12 items-center justify-center rounded-full bg-purple-500/20 text-purple-500 mb-2">
+                    <div class="flex h-12 w-12 items-center justify-center rounded-full mb-2" style="background: color-mix(in oklch, var(--stat-secondary) 20%, transparent); color: var(--stat-secondary)">
                         <UserPlus class="h-6 w-6" />
                     </div>
                     <CardTitle class="text-lg">Add Member</CardTitle>
