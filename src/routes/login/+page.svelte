@@ -4,7 +4,7 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { Checkbox } from '$lib/components/ui/checkbox';
-	import { QrCode, Eye, EyeOff, Loader2, Mail, Lock } from 'lucide-svelte';
+	import { QrCode, Eye, EyeOff, Loader2, Mail, Lock } from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
 

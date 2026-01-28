@@ -3,7 +3,7 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { QrCode, Mail, Loader2, ArrowLeft } from 'lucide-svelte';
+	import { QrCode, Mail, Loader2, ArrowLeft } from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
 
 	// State
