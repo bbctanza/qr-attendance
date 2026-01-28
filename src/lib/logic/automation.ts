@@ -2,9 +2,9 @@ import { eventsApi } from '$lib/api/events';
 import type { AttendanceEvent, EventType } from '$lib/types';
 
 export class AutomationEngine {
-	private creationIntervalId: any;
-	private statusIntervalId: any;
-	private archivalIntervalId: any;
+	private creationIntervalId: ReturnType<typeof setInterval> | undefined;
+	private statusIntervalId: ReturnType<typeof setInterval> | undefined;
+	private archivalIntervalId: ReturnType<typeof setInterval> | undefined;
 
 	constructor() {}
 

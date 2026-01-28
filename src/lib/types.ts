@@ -75,3 +75,27 @@ export interface AttendanceAbsent {
   event_id: number;
   created_at?: string;
 }
+
+// Joined Types for API Responses
+export interface AttendanceScanWithMember extends AttendanceScan {
+  members: {
+    first_name: string;
+    last_name: string;
+    member_id: string;
+  };
+}
+
+export interface AttendancePresentWithMember extends AttendancePresent {
+  members: {
+    first_name: string;
+    last_name: string;
+    member_id: string;
+  };
+}
+
+export interface AttendanceHistoryWithEvent extends AttendancePresent {
+  events: {
+    event_name: string;
+    event_date: string;
+  };
+}

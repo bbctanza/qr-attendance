@@ -1,11 +1,10 @@
 import { supabase } from '$lib/supabase';
-import type { AttendanceEvent, AttendanceScan } from '$lib/types';
-import { v4 as uuidv4 } from 'uuid'; // We might need a UUID generator if scan_id isn't auto-generated, but usually client generates or DB default.
-// The schema says scan_id TEXT PRIMARY KEY. It doesn't say DEFAULT gen_random_uuid().
-// We should probably generate it here.
-// But wait, I don't have uuid installed. I can use crypto.randomUUID() if environment supports it, or just let supabase handle it if I change schema?
-// user said "Read Schema.sql". Schema: scan_id TEXT PRIMARY KEY. No default.
-// I will use crypto.randomUUID() (native in modern generic JS/Browsers/Node/Vite).
+import type { 
+	AttendanceEvent, 
+	AttendanceScanWithMember, 
+	AttendancePresentWithMember, 
+	AttendanceHistoryWithEvent 
+} from '$lib/types';
 
 export const attendanceApi = {
 	/**
@@ -106,7 +105,7 @@ export const attendanceApi = {
 			.order('scan_datetime', { ascending: false });
 
 		if (error) throw error;
-		return data; // Typed as any with join, strictly we'd define a Joined type
+		return data as AttendanceScanWithMember[];
 	},
 
 	/**
@@ -126,7 +125,7 @@ export const attendanceApi = {
 			.eq('event_id', eventId);
 
 		if (error) throw error;
-		return data;
+		return data as AttendancePresentWithMember[];
 	},
 
 	/**
@@ -145,6 +144,6 @@ export const attendanceApi = {
 			.eq('member_id', memberId);
 
 		if (error) throw error;
-		return data;
+		return data as AttendanceHistoryWithEvent[];
 	}
 };
