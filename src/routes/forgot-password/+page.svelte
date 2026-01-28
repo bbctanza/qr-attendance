@@ -40,7 +40,7 @@
 </script>
 
 <div class="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground font-sans">
-	<div class="flex w-full max-w-[400px] flex-col items-center space-y-6">
+	<div class="flex w-full max-w-100 flex-col items-center space-y-6">
 		
 		<!-- Logo Section -->
 		<div class="flex flex-col items-center space-y-2 text-center">

@@ -17,6 +17,8 @@
         BreadcrumbSeparator,
     } from "$lib/components/ui/breadcrumb";
     import { page } from '$app/stores';
+    import MobileNav from '$lib/components/mobile-nav.svelte';
+    import MobileHeader from '$lib/components/mobile-header.svelte';
 
     let { children } = $props();
 
@@ -27,10 +29,10 @@
     // Compute breadcrumb based on current path
     let currentPageName = $derived.by(() => {
         const path = $page.url.pathname;
-        if (path === '/') return 'Dashboard';
+        if (path === '/') return 'Overview';
         
         const segment = path.split('/')[1];
-        if (!segment) return 'Dashboard';
+        if (!segment) return 'Overview';
         return segment.charAt(0).toUpperCase() + segment.slice(1);
     });
 </script>
@@ -40,8 +42,9 @@
 {#if showSidebar}
     <SidebarProvider>
         <AppSidebar />
-        <SidebarInset>
-            <header class="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12 border-b border-border/40">
+        <SidebarInset class="bg-background">
+            <!-- Desktop Header -->
+            <header class="hidden md:flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12 border-b border-border/40">
                 <div class="flex items-center gap-2 px-4">
                     <SidebarTrigger class="-ml-1" />
                     <Separator orientation="vertical" class="mr-2 h-4" />
@@ -58,9 +61,15 @@
                     </Breadcrumb>
                 </div>
             </header>
-            <main class="flex flex-1 flex-col gap-4 p-4 pt-0">
+
+            <!-- Custom Mobile Header -->
+            <MobileHeader />
+
+            <main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
                 {@render children()}
             </main>
+            <!-- Mobile bottom navigation -->
+            <MobileNav class="md:hidden" />
         </SidebarInset>
     </SidebarProvider>
 {:else}

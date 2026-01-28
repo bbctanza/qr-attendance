@@ -33,11 +33,12 @@
   } from "$lib/components/ui/dropdown-menu";
   import { Avatar, AvatarFallback, AvatarImage } from "$lib/components/ui/avatar";
   import { siteConfig } from '$lib/config/site';
+  import { goto } from '$app/navigation';
 
   // Menu items
   const items = [
     {
-      title: "Dashboard",
+      title: "Overview",
       url: "/",
       icon: LayoutDashboard,
     },
@@ -88,14 +89,12 @@
         <SidebarMenu>
           {#each items as item}
             <SidebarMenuItem>
-              <SidebarMenuButton 
+              <SidebarMenuButton
                 isActive={$page.url.pathname === item.url}
-                asChild
+                onclick={() => goto(item.url)}
               >
-                <a href={item.url}>
-                  <item.icon />
-                  <span>{item.title}</span>
-                </a>
+                <item.icon class="size-4" />
+                <span>{item.title}</span>
               </SidebarMenuButton>
             </SidebarMenuItem>
           {/each}
@@ -108,8 +107,8 @@
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            {#snippet children({ props })}
+          <DropdownMenuTrigger>
+            {#snippet child({ props })}
                 <SidebarMenuButton
                     size="lg"
                     class="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground"
@@ -137,10 +136,10 @@
             <DropdownMenuItem>
               <span>Billing</span>
             </DropdownMenuItem>
-            <DropdownMenuItem class="text-destructive focus:text-destructive">
+            <!-- <DropdownMenuItem class="text-destructive focus:text-destructive">
               <LogOut class="mr-2 h-4 w-4" />
               <span>Sign out</span>
-            </DropdownMenuItem>
+            </DropdownMenuItem> -->
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
