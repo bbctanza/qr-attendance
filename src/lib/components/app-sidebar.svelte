@@ -70,12 +70,12 @@
     <SidebarMenu>
         <SidebarMenuItem>
             <div class="flex items-center gap-2 px-2 py-2">
-                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                     <QrCode class="size-4" />
                 </div>
                 <div class="grid flex-1 text-left text-sm leading-tight">
-                    <span class="truncate font-semibold">{siteConfig.name}</span>
-                    <span class="truncate text-xs text-muted-foreground">Admin Panel</span>
+                    <span class="truncate font-semibold text-sidebar-foreground">{siteConfig.name}</span>
+                    <span class="truncate text-xs text-sidebar-foreground/70">Admin Panel</span>
                 </div>
             </div>
         </SidebarMenuItem>
@@ -128,7 +128,7 @@
           </DropdownMenuTrigger>
           <DropdownMenuContent
             side="top"
-            class="w-[--sidebar-width] min-w-56 rounded-lg"
+            class="w-[--sidebar-width] min-w-56 rounded-lg bg-popover text-popover-foreground shadow-lg"
           >
             <DropdownMenuItem>
               <span>Account</span>

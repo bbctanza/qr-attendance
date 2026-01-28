@@ -19,7 +19,7 @@
   <div class="flex items-center justify-between max-w-lg mx-auto">
     <button 
       class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/') ? 'text-primary' : 'text-muted-foreground'}" 
-      onclick={() => goto('/') }
+      onclick={() => goto('/dashboard') }
     >
       <LayoutGrid class="h-6 w-6" />
       <span class="text-[10px] font-medium">Home</span>

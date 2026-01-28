@@ -41,7 +41,7 @@
             <input
                 type="search"
                 placeholder="Search events..."
-                class="w-full bg-card border border-border/40 rounded-2xl py-3 pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 shadow-sm"
+                class="w-full bg-card/20 border-2 border-border/20 rounded-2xl py-3 pl-10 pr-4 text-sm focus:ring-2 focus:border-primary ring-primary/20 shadow-sm"
                 bind:value={query}
             />
         </div>

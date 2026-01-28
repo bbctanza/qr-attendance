@@ -5,10 +5,36 @@
     import { Label } from "$lib/components/ui/label";
     import { Checkbox } from "$lib/components/ui/checkbox";
     import { Separator } from "$lib/components/ui/separator";
+    import { onMount } from 'svelte';
+    import { Moon, Sun } from '@lucide/svelte';
 
-    let churchName = "Grace Community Church";
-    let defaultTime = "09:00";
-    let autoCheckIn = true;
+    let churchName = $state("Grace Community Church");
+    let defaultTime = $state("09:00");
+    let autoCheckIn = $state(true);
+
+    // Dark mode state (client-only)
+    let isDark = $state(false);
+
+    function applyDark(d: boolean) {
+        isDark = d;
+        if (typeof document !== 'undefined') {
+            document.documentElement.classList.toggle('dark', d);
+        }
+        try { localStorage.setItem('theme', d ? 'dark' : 'light'); } catch(e) {}
+    }
+
+    onMount(() => {
+        try {
+            const saved = localStorage.getItem('theme');
+            if (saved === 'dark') return applyDark(true);
+            if (saved === 'light') return applyDark(false);
+        } catch(e) {}
+
+        // Respect OS preference if no saved value
+        if (typeof window !== 'undefined' && window.matchMedia) {
+            applyDark(window.matchMedia('(prefers-color-scheme: dark)').matches);
+        }
+    });
 </script>
 
 <div class="flex flex-col gap-6 p-4 lg:p-6 max-w-4xl">
@@ -27,11 +53,11 @@
         </CardHeader>
         <CardContent class="grid gap-4">
             <div class="grid gap-2">
-                <Label htmlFor="church-name">Organization Name</Label>
+                <Label for="church-name">Organization Name</Label>
                 <Input id="church-name" bind:value={churchName} />
             </div>
             <div class="grid gap-2">
-                <Label htmlFor="address">Address</Label>
+                <Label for="address">Address</Label>
                 <Input id="address" placeholder="123 Main St, City, Country" />
             </div>
         </CardContent>
@@ -48,12 +74,12 @@
         </CardHeader>
         <CardContent class="grid gap-4">
             <div class="grid gap-2">
-                <Label htmlFor="default-time">Default Start Time</Label>
-                <Input type="time" id="default-time" bind:value={defaultTime} class="w-full md:w-[200px]" />
+                <Label for="default-time">Default Start Time</Label>
+                <Input type="time" id="default-time" bind:value={defaultTime} class="w-full md:w-50" />
             </div>
             <div class="flex items-center space-x-2">
                 <Checkbox id="auto-checkin" checked={autoCheckIn} />
-                <Label htmlFor="auto-checkin" class="font-normal">
+                <Label for="auto-checkin" class="font-normal">
                     Enable partial name matching for manual entry
                 </Label>
             </div>
@@ -61,5 +87,28 @@
         <CardFooter class="border-t bg-muted/50 px-6 py-4">
             <Button variant="secondary">Update Defaults</Button>
         </CardFooter>
+    </Card>
+
+    <!-- Appearance -->
+    <Card>
+        <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>Toggle dark mode for the UI (temporary toggle).</CardDescription>
+        </CardHeader>
+        <CardContent class="flex items-center justify-between">
+            <div>
+                <div class="text-sm font-medium">Dark Mode</div>
+                <div class="text-xs text-muted-foreground">Toggle between light and dark themes for testing.</div>
+            </div>
+            <div class="flex items-center gap-2">
+                <Button variant="outline" size="sm" onclick={() => applyDark(!isDark)}>
+                    {#if isDark}
+                        <Sun class="mr-2 h-4 w-4" /> Light
+                    {:else}
+                        <Moon class="mr-2 h-4 w-4" /> Dark
+                    {/if}
+                </Button>
+            </div>
+        </CardContent>
     </Card>
 </div>

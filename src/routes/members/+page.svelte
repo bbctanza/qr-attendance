@@ -1,10 +1,12 @@
 <script lang="ts">
     import { Input } from "$lib/components/ui/input";
     import { Button } from "$lib/components/ui/button";
+    import * as Select from "$lib/components/ui/select";
     import * as Table from "$lib/components/ui/table";
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Badge } from "$lib/components/ui/badge";
-    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus } from "@lucide/svelte";
+    import { Label } from "$lib/components/ui/label";
+    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X } from "@lucide/svelte";
     import {
         DropdownMenu,
         DropdownMenuContent,
@@ -14,14 +16,34 @@
         DropdownMenuTrigger,
     } from "$lib/components/ui/dropdown-menu";
 
+    // Modal state
+    let showAddMemberModal = $state(false);
+    let formData = $state({
+        lastName: "",
+        firstName: "",
+        middleInitial: "",
+        group: ""
+    });
+
     // Mock Data
-    let members = [
+    let members = $state([
         { id: 1, name: "Mike Ross", email: "mike@example.com", role: "Engineering Lead", group: "ENGINEERING", qrId: "ENG-8821", status: "Active", avatar: "" },
         { id: 2, name: "James Wilson", email: "james@example.com", role: "Backend Dev", group: "ENGINEERING", qrId: "ENG-4192", status: "Active", avatar: "" },
         { id: 3, name: "Sarah Jenkins", email: "sarah@example.com", role: "Product Designer", group: "PRODUCT DESIGN", qrId: "DSG-1029", status: "Active", avatar: "" },
         { id: 4, name: "Emily Chen", email: "emily@example.com", role: "UX Researcher", group: "PRODUCT DESIGN", qrId: "DSG-3391", status: "Active", avatar: "" },
         { id: 5, name: "David Chen", email: "david@example.com", role: "Specialist", group: "MARKETING", qrId: "MKT-1102", status: "Active", avatar: "" },
-    ];
+    ]);
+
+    const groupOptions = ["ENGINEERING", "PRODUCT DESIGN", "MARKETING"];
+
+    const groupItems = groupOptions.map(group => ({
+        value: group,
+        label: group
+    }));
+
+    const groupTriggerContent = $derived(
+        groupItems.find((g) => g.value === formData.group)?.label ?? "Select Group..."
+    );
 
     let searchQuery = $state("");
 
@@ -49,6 +71,48 @@
         "MARKETING": "border-purple-500"
     };
 
+    function handleAddMember() {
+        // Validate form
+        if (!formData.lastName || !formData.firstName || !formData.group) {
+            alert("Please fill in all required fields");
+            return;
+        }
+
+        // Generate QR ID based on group
+        const groupCode = formData.group === "ENGINEERING" ? "ENG" : 
+                         formData.group === "PRODUCT DESIGN" ? "DSG" : "MKT";
+        const newId = Math.floor(Math.random() * 9000) + 1000;
+        const qrId = `${groupCode}-${newId}`;
+
+        // Add new member
+        const newMember = {
+            id: members.length + 1,
+            name: `${formData.firstName} ${formData.lastName}`,
+            email: "",
+            role: "",
+            group: formData.group,
+            qrId: qrId,
+            status: "Active",
+            avatar: ""
+        };
+
+        members = [...members, newMember];
+
+        // Reset form and close modal
+        formData = {
+            lastName: "",
+            firstName: "",
+            middleInitial: "",
+            group: ""
+        };
+        showAddMemberModal = false;
+    }
+
+    function handleMiddleInitialChange(e: Event) {
+        const input = e.target as HTMLInputElement;
+        formData.middleInitial = input.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1);
+    }
+
     function getInitials(name: string) {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     }
@@ -65,7 +129,7 @@
                 type="text" 
                 placeholder="Search members..." 
                 bind:value={searchQuery}
-                class="w-full bg-card/20 border border-border/10 rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 ring-primary/20 outline-none placeholder:text-muted-foreground/30"
+                class="w-full bg-card/20 border-2 border-border/20 rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:border-primary ring-primary/20 outline-none placeholder:text-muted-foreground/30"
             />
         </div>
         <button class="bg-primary aspect-square h-14 flex items-center justify-center rounded-[22px] shadow-lg shadow-primary/10 active:scale-95 transition-all">
@@ -154,7 +218,7 @@
             <Button variant="outline" size="sm" class="hidden sm:flex">
                 <FileDown class="mr-2 h-4 w-4" /> Export
             </Button>
-            <Button size="sm">
+            <Button size="sm" onclick={() => (showAddMemberModal = true)}>
                 <Plus class="mr-2 h-4 w-4" /> Add Member
             </Button>
         </div>
@@ -166,7 +230,7 @@
             <Input
                 type="search"
                 placeholder="Search members..."
-                class="pl-8"
+                class="pl-8 border-2 border-border/20 rounded-xl focus:ring-2 focus:border-primary ring-primary/20"
                 bind:value={searchQuery}
             />
         </div>
@@ -244,3 +308,102 @@
     </div>
 </div>
 
+<!-- Add Member Modal -->
+{#if showAddMemberModal}
+    <div class="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
+        <div class="bg-background w-full md:w-96 rounded-t-3xl md:rounded-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between mb-6">
+                <div class="flex items-center gap-3">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <UserPlus size={20} class="text-primary" />
+                    </div>
+                    <h2 class="text-xl font-bold">ADD MEMBER</h2>
+                </div>
+                <button onclick={() => (showAddMemberModal = false)} class="p-1 hover:bg-muted rounded-lg transition-colors">
+                    <X size={20} />
+                </button>
+            </div>
+
+            <p class="text-sm text-muted-foreground mb-6">Enter details to generate a unique QR ID.</p>
+
+            <!-- Form Fields -->
+            <div class="space-y-5">
+                <!-- Last Name -->
+                <div>
+                    <Label for="lastName" class="text-xs font-bold tracking-wider uppercase">Last Name</Label>
+                    <Input 
+                        id="lastName"
+                        type="text"
+                        placeholder="e.g. Doe"
+                        bind:value={formData.lastName}
+                        class="mt-2 bg-card/50 border-border/40 rounded-xl py-3"
+                    />
+                </div>
+
+                <!-- First Name -->
+                <div>
+                    <Label for="firstName" class="text-xs font-bold tracking-wider uppercase">First Name</Label>
+                    <Input 
+                        id="firstName"
+                        type="text"
+                        placeholder="e.g. John"
+                        bind:value={formData.firstName}
+                        class="mt-2 bg-card/50 border-border/40 rounded-xl py-3"
+                    />
+                </div>
+
+                <!-- Middle Initial & Group -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <Label for="middleInitial" class="text-xs font-bold tracking-wider uppercase">M.I.</Label>
+                        <Input 
+                            id="middleInitial"
+                            type="text"
+                            placeholder="A"
+                            value={formData.middleInitial}
+                            onchange={handleMiddleInitialChange}
+                            class="mt-2 bg-card/50 border-border/40 rounded-xl py-3 text-center font-bold"
+                        />
+                    </div>
+                    <div>
+                        <Label for="groupSelect" class="text-xs font-bold tracking-wider uppercase">Group</Label>
+                        <div class="mt-2">
+                            <Select.Root type="single" bind:value={formData.group}>
+                                <Select.Trigger id="groupSelect" class="w-full h-12 bg-card/50 border-border/40 rounded-xl px-4 font-medium flex items-center justify-between">
+                                    {groupTriggerContent}
+                                </Select.Trigger>
+                                <Select.Content class="bg-popover border-border/40 rounded-xl">
+                                    <Select.Group>
+                                        <Select.Label class="text-xs font-bold tracking-wider uppercase px-2 py-1.5 text-muted-foreground/60">Groups</Select.Label>
+                                        {#each groupItems as group}
+                                            <Select.Item
+                                                value={group.value}
+                                                label={group.label}
+                                                class="rounded-lg focus:bg-primary/10 focus:text-primary transition-colors cursor-pointer"
+                                            >
+                                                {group.label}
+                                            </Select.Item>
+                                        {/each}
+                                    </Select.Group>
+                                </Select.Content>
+                            </Select.Root>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons -->
+                <div class="flex gap-3 mt-8">
+                <Button 
+                    size="lg"
+                    class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
+                    onclick={handleAddMember}
+                >
+                    SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                </Button>
+            </div>
+            <Button variant="outline" size="lg" class="w-full mt-3 border-button-border/60 dark:border-button-border/60 bg-card/5 dark:bg-button-outline-bg/10">Cancel</Button>
+        </div>
+    </div>
+</div>
+{/if}

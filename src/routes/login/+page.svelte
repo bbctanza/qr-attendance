@@ -30,7 +30,7 @@
 				errorMessage = error.message;
 			} else {
 				// Login successful
-				goto('/'); // Redirect to dashboard
+				goto('/dashboard'); // Redirect to dashboard
 			}
 		} catch (e) {
 			errorMessage = 'An unexpected error occurred.';
