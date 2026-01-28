@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { LayoutGrid, Users, QrCode, History, Settings } from 'lucide-svelte';
+  import { LayoutGrid, Users, QrCode, ListChecks, Settings } from 'lucide-svelte';
   import { cn } from '$lib/utils';
 
   let { class: className = "" } = $props();
@@ -15,10 +15,10 @@
   }
 </script>
 
-<nav class={cn("fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2 bg-background/80 backdrop-blur-xl border-t border-border/10 md:hidden", className)}>
+<nav data-mobile-nav="true" class={cn("fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2 bg-background/80 backdrop-blur-xl border-t border-border/10 md:hidden", className)}>
   <div class="flex items-center justify-between max-w-lg mx-auto">
     <button 
-      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/') ? 'text-primary' : 'text-muted-foreground'}" 
+      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
       onclick={() => goto('/dashboard') }
     >
       <LayoutGrid class="h-6 w-6" />
@@ -26,7 +26,7 @@
     </button>
 
     <button 
-      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/members') ? 'text-primary' : 'text-muted-foreground'}" 
+      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/members') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
       onclick={() => goto('/members') }
     >
       <Users class="h-6 w-6" />
@@ -41,15 +41,15 @@
     </button>
 
     <button 
-      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/history') ? 'text-primary' : 'text-muted-foreground'}" 
+      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/history') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
       onclick={() => goto('/history') }
     >
-      <History class="h-6 w-6" />
-      <span class="text-[10px] font-medium">History</span>
+      <ListChecks class="h-6 w-6" />
+      <span class="text-[10px] font-medium">Attendance</span>
     </button>
 
     <button 
-      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/settings') ? 'text-primary' : 'text-muted-foreground'}" 
+      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/settings') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
       onclick={() => goto('/settings') }
     >
       <Settings class="h-6 w-6" />

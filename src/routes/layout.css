@@ -23,6 +23,8 @@ body {
   --secondary-foreground: oklch(0.208 0.042 265.755);
   --muted: oklch(0.968 0.007 247.896);
   --muted-foreground: oklch(0.554 0.046 257.417);
+  /* Mobile-specific muted token (can be tuned independently) */
+  --muted-foreground-mobile: var(--muted-foreground);
   --accent: oklch(0.968 0.007 247.896);
   --accent-foreground: oklch(0.208 0.042 265.755);
   --destructive: oklch(0.577 0.245 27.325);
@@ -76,6 +78,8 @@ body {
   --secondary-foreground: oklch(0.98 0.004 250.0);
   --muted: oklch(0.21 0.01 285.58);
   --muted-foreground: oklch(0.62 0.03 268.0);
+  /* Slightly brighter muted foreground on mobile for better contrast */
+  --muted-foreground-mobile: oklch(87.951% 0.02008 270.203 / 0.536);
   --accent: oklch(0.279 0.041 260.031);
   --accent-foreground: oklch(0.985 0.003 247.858);
 
@@ -125,6 +129,7 @@ body {
   --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
+  --color-muted-foreground-mobile: var(--muted-foreground-mobile);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
@@ -170,4 +175,28 @@ body {
     /* fill: var(--sidebar-accent-foreground) !important; */
     stroke: var(--sidebar-accent-foreground) !important;
   }
-}
+
+  /* Mobile-specific muted utility to improve contrast for mobile nav/icons */
+  .text-muted-foreground-mobile {
+    color: var(--muted-foreground-mobile) !important;
+  }
+  .text-muted-foreground-mobile svg,
+  .text-muted-foreground-mobile [stroke],
+  .text-muted-foreground-mobile [fill] {
+    stroke: var(--muted-foreground-mobile) !important;
+    /* fill: var(--muted-foreground-mobile) !important; */
+  }
+  /* Placeholder utility for mobile muted color */
+  .placeholder-muted-foreground-mobile::placeholder {
+    color: var(--muted-foreground-mobile) !important;
+    opacity: 1 !important;
+  }
+
+  /* Utility to make input text muted on mobile if desired */
+  .input-text-muted-mobile {
+    color: var(--muted-foreground-mobile) !important;
+  }}
+  /* When an attendance selection is active, hide the mobile nav to keep Save button unobstructed */
+  .hide-mobile-nav nav[data-mobile-nav="true"] {
+    display: none !important;
+  }

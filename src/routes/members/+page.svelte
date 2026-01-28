@@ -71,7 +71,7 @@
         "MARKETING": "border-purple-500"
     };
 
-    function handleAddMember() {
+    async function handleAddMember() {
         // Validate form
         if (!formData.lastName || !formData.firstName || !formData.group) {
             alert("Please fill in all required fields");
@@ -98,14 +98,14 @@
 
         members = [...members, newMember];
 
-        // Reset form and close modal
+        // Reset form and animate close of modal
         formData = {
             lastName: "",
             firstName: "",
             middleInitial: "",
             group: ""
         };
-        showAddMemberModal = false;
+        closeSheet();
     }
 
     function handleMiddleInitialChange(e: Event) {
@@ -116,6 +116,74 @@
     function getInitials(name: string) {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
     }
+
+    import { tick } from 'svelte';
+
+    /* Draggable sheet state & handlers for mobile pull-to-close + animated open/close */
+    let sheetEl = $state(null as HTMLDivElement | null);
+
+    let sheetMounted = $state(false);
+    let sheetVisible = $state(false);
+    let isClosing = $state(false);
+    let closeTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    async function openSheet() {
+        // If already mounted and visible, do nothing
+        if (sheetMounted && sheetVisible) return;
+
+        // If mounted but closing (user quickly toggled), cancel close and reopen
+        if (sheetMounted && isClosing) {
+            isClosing = false;
+            sheetVisible = true;
+            if (closeTimeout) {
+                clearTimeout(closeTimeout);
+                closeTimeout = null;
+            }
+            return;
+        }
+
+        sheetMounted = true;
+        // allow DOM to mount
+        await tick();
+        sheetVisible = true;
+        showAddMemberModal = true;
+    }
+
+    function closeSheet() {
+        if (!sheetMounted || isClosing) return;
+        // trigger CSS slide-down
+        sheetVisible = false;
+        isClosing = true;
+
+
+
+        // fallback: ensure we unmount even if transitionend doesn't fire
+        if (closeTimeout) clearTimeout(closeTimeout);
+        closeTimeout = setTimeout(() => {
+            handleCloseComplete();
+        }, 450);
+    }
+
+    /* pull-to-close removed — sheet uses simple open/close animations now */
+
+    function handleTransitionEnd(e: TransitionEvent) {
+        // only act when transform transition finishes
+        if (e.propertyName !== 'transform') return;
+        if (!sheetVisible && isClosing) {
+            // fully close
+            handleCloseComplete();
+        }
+    }
+
+    function handleCloseComplete() {
+        if (closeTimeout) {
+            clearTimeout(closeTimeout);
+            closeTimeout = null;
+        }
+        isClosing = false;
+        sheetMounted = false;
+        showAddMemberModal = false;
+    }
 </script>
 
 <!-- Mobile View -->
@@ -124,15 +192,15 @@
     <!-- Search & Add -->
     <div class="px-4 py-2 flex items-center gap-3">
         <div class="relative flex-1">
-            <Search class="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/40" size={20} />
+            <Search class="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground-mobile" size={20} />
             <input 
                 type="text" 
                 placeholder="Search members..." 
                 bind:value={searchQuery}
-                class="w-full bg-card/20 border-2 border-border/20 rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:border-primary ring-primary/20 outline-none placeholder:text-muted-foreground/30"
+                class="w-full bg-card/20 border-2 border-border/20 rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:border-primary ring-primary/20 outline-none placeholder-muted-foreground-mobile"
             />
         </div>
-        <button class="bg-primary aspect-square h-14 flex items-center justify-center rounded-[22px] shadow-lg shadow-primary/10 active:scale-95 transition-all">
+        <button aria-label="Add member" onclick={() => openSheet()} class="bg-primary aspect-square h-14 flex items-center justify-center rounded-[22px] shadow-lg shadow-primary/10 active:scale-95 transition-all">
             <UserPlus size={26} class="text-primary-foreground" />
         </button>
     </div>
@@ -218,7 +286,7 @@
             <Button variant="outline" size="sm" class="hidden sm:flex">
                 <FileDown class="mr-2 h-4 w-4" /> Export
             </Button>
-            <Button size="sm" onclick={() => (showAddMemberModal = true)}>
+            <Button size="sm" onclick={() => openSheet()}>
                 <Plus class="mr-2 h-4 w-4" /> Add Member
             </Button>
         </div>
@@ -309,9 +377,9 @@
 </div>
 
 <!-- Add Member Modal -->
-{#if showAddMemberModal}
-    <div class="fixed inset-0 bg-black/50 z-50 flex items-end md:items-center justify-center">
-        <div class="bg-background w-full md:w-96 rounded-t-3xl md:rounded-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto">
+{#if sheetMounted}
+    <div role="button" tabindex="0" onkeydown={(e) => (e.key === 'Enter' || e.key === ' ' ? closeSheet() : null)} class={"fixed inset-0 z-60 flex items-end md:items-center justify-center transition-colors duration-300 " + (sheetVisible ? 'bg-slate-800/60 opacity-100 pointer-events-auto' : 'bg-transparent opacity-0 pointer-events-none')} onclick={() => closeSheet()}>
+        <div role="dialog" aria-modal="true" aria-label="Add Member" tabindex="-1" onpointerdown={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' ? closeSheet() : null} bind:this={sheetEl} ontransitionend={handleTransitionEnd} class={"bg-background w-full md:w-96 rounded-t-3xl md:rounded-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto transition-transform duration-300 ease-out" + (sheetVisible ? ' translate-y-0' : ' translate-y-full')}>
             <!-- Modal Header -->
             <div class="flex items-center justify-between mb-6">
                 <div class="flex items-center gap-3">
@@ -320,7 +388,7 @@
                     </div>
                     <h2 class="text-xl font-bold">ADD MEMBER</h2>
                 </div>
-                <button onclick={() => (showAddMemberModal = false)} class="p-1 hover:bg-muted rounded-lg transition-colors">
+                <button aria-label="Close" class="p-1 hover:bg-muted rounded-lg transition-colors" onclick={() => closeSheet()}>
                     <X size={20} />
                 </button>
             </div>
@@ -337,7 +405,7 @@
                         type="text"
                         placeholder="e.g. Doe"
                         bind:value={formData.lastName}
-                        class="mt-2 bg-card/50 border-border/40 rounded-xl py-3"
+                        class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
                     />
                 </div>
 
@@ -349,7 +417,7 @@
                         type="text"
                         placeholder="e.g. John"
                         bind:value={formData.firstName}
-                        class="mt-2 bg-card/50 border-border/40 rounded-xl py-3"
+                        class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
                     />
                 </div>
 
@@ -363,14 +431,14 @@
                             placeholder="A"
                             value={formData.middleInitial}
                             onchange={handleMiddleInitialChange}
-                            class="mt-2 bg-card/50 border-border/40 rounded-xl py-3 text-center font-bold"
+                            class="mt-2 rounded-xl py-3 text-center font-bold placeholder-muted-foreground-mobile border-input"
                         />
                     </div>
                     <div>
                         <Label for="groupSelect" class="text-xs font-bold tracking-wider uppercase">Group</Label>
                         <div class="mt-2">
                             <Select.Root type="single" bind:value={formData.group}>
-                                <Select.Trigger id="groupSelect" class="w-full h-12 bg-card/50 border-border/40 rounded-xl px-4 font-medium flex items-center justify-between">
+                                <Select.Trigger id="groupSelect" class="w-full h-12 rounded-xl px-4 font-medium flex items-center justify-between">
                                     {groupTriggerContent}
                                 </Select.Trigger>
                                 <Select.Content class="bg-popover border-border/40 rounded-xl">
@@ -402,7 +470,6 @@
                     SAVE MEMBER <ChevronRight size={18} class="ml-2" />
                 </Button>
             </div>
-            <Button variant="outline" size="lg" class="w-full mt-3 border-button-border/60 dark:border-button-border/60 bg-card/5 dark:bg-button-outline-bg/10">Cancel</Button>
         </div>
     </div>
 </div>
