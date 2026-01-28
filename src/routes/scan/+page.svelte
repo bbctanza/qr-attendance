@@ -3,7 +3,8 @@
     import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "$lib/components/ui/card";
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
-    import { Camera, QrCode, Search, CheckCircle2, X } from "@lucide/svelte";
+    import { Camera, QrCode, Search, CheckCircle2, X, MapPin as MapPinIcon } from "@lucide/svelte";
+    import { Avatar, AvatarImage } from "$lib/components/ui/avatar";
 
     let manualId = $state("");
     let lastScanned = $state<{ id: string, name: string, timestamp: string } | null>(null);
@@ -97,55 +98,6 @@
         </Button>
     </div>
 
-    <!-- Attendance Status -->
-    <div class="rounded-3xl bg-card border border-border/40 p-4 shadow-sm mt-4">
-        <div class="flex items-start justify-between">
-            <div>
-                <div class="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">Live Session</div>
-                <h3 class="text-lg font-bold mt-2">{session.title}</h3>
-                <div class="text-xs text-muted-foreground mt-1">{session.location}</div>
-            </div>
-            <div class="text-right text-xs text-muted-foreground">
-                <div>{session.timeStart} - {session.timeEnd}</div>
-                <div class="mt-2 text-muted-foreground/60">Time</div>
-            </div>
-        </div>
-
-        <div class="mt-4 grid grid-cols-2 gap-3">
-            <div class="rounded-lg bg-card/40 p-3">
-                <div class="text-xs text-muted-foreground uppercase font-black tracking-widest">Session Progress</div>
-                <div class="mt-3 flex items-center gap-3">
-                    <!-- simple donut -->
-                    <svg class="w-20 h-20" viewBox="0 0 36 36">
-                        <path class="text-muted-foreground/20" d="M18 2.0845a15.9155 15.9155 0 1 0 0 31.831A15.9155 15.9155 0 1 0 18 2.0845" fill="none" stroke="currentColor" stroke-width="3"/>
-                        <path d="M18 2.0845a15.9155 15.9155 0 1 0 0 31.831A15.9155 15.9155 0 1 0 18 2.0845" fill="none" stroke="var(--primary)" stroke-width="3" stroke-dasharray={session.participation + ' 100'} stroke-linecap="round"/>
-                    </svg>
-                    <div>
-                        <div class="text-lg font-bold">{session.minutesLeft}<span class="text-sm font-medium"> mins left</span></div>
-                        <div class="text-xs text-muted-foreground mt-1">Elapsed {session.elapsed}</div>
-                        <div class="text-xs text-primary font-bold mt-1">Participation {session.participation}%</div>
-                    </div>
-                </div>
-            </div>
-            <div class="space-y-3">
-                <div class="rounded-lg bg-card/40 p-4 flex items-center justify-between">
-                    <div>
-                        <div class="text-xs text-muted-foreground uppercase tracking-widest">Checked In</div>
-                        <div class="text-lg font-bold">{session.checkedIn}</div>
-                    </div>
-                    <div class="rounded-full bg-primary/10 h-10 w-10 flex items-center justify-center text-primary font-bold">{session.checkedIn.toString().slice(0,2)}</div>
-                </div>
-                <div class="rounded-lg bg-card/40 p-4 flex items-center justify-between">
-                    <div>
-                        <div class="text-xs text-muted-foreground uppercase tracking-widest">Expected</div>
-                        <div class="text-lg font-bold">{session.expected}</div>
-                    </div>
-                    <div class="rounded-full bg-muted/10 h-10 w-10 flex items-center justify-center text-muted-foreground font-bold">{session.expected.toString().slice(0,2)}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- OR divider -->
     <div class="flex items-center gap-3">
         <div class="h-px bg-border flex-1"></div>
@@ -208,11 +160,13 @@
 {/if}
 
 <!-- Desktop View -->
-<div class="hidden md:flex flex-col gap-6 p-4 max-w-2xl mx-auto pt-8">
+<div class="hidden md:grid md:grid-cols-3 gap-6 p-6 lg:p-8">
     <div class="space-y-1 text-center md:text-left">
         <h2 class="text-3xl font-bold tracking-tight">Check-in</h2>
         <p class="text-muted-foreground">Scan QR codes or enter Member IDs manually.</p>
     </div>
+
+    <div class="col-span-2 space-y-6">
 
     <!-- Scanner Area -->
     <Card class="border-2 border-dashed border-primary/20 overflow-hidden {isScanning ? 'bg-black' : 'bg-muted/30'}">
@@ -288,6 +242,52 @@
             </CardContent>
         </Card>
     {/if}
+    </div>
+
+    <!-- Right Sidebar -->
+    <aside class="col-span-1 space-y-6">
+
+
+        <Card>
+            <CardHeader>
+                <CardTitle>Recent Scans</CardTitle>
+                <CardDescription>Latest check-ins</CardDescription>
+            </CardHeader>
+            <CardContent class="space-y-3">
+                {#if lastScanned}
+                    <div class="flex items-center gap-3 p-3 rounded-lg bg-card/30">
+                        <Avatar class="h-12 w-12 rounded-full">
+                            <AvatarImage src="https://i.pravatar.cc/40?img=12" alt={lastScanned.name} />
+                        </Avatar>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold truncate">{lastScanned.name}</div>
+                            <div class="text-xs text-muted-foreground">ID: {lastScanned.id}</div>
+                        </div>
+                        <div class="text-xs text-muted-foreground">{lastScanned.timestamp}</div>
+                    </div>
+                {/if}
+
+                <!-- Fallback mock list -->
+                {#each [
+                    { name: 'Mike Ross', role: 'Engineering Lead', time: '14:02' },
+                    { name: 'David Chen', role: 'Marketing Specialist', time: '13:58' }
+                ] as scan}
+                    <div class="flex items-center gap-3 p-3 rounded-lg bg-card/30">
+                        <Avatar class="h-10 w-10 rounded-full">
+                            <AvatarImage src="https://i.pravatar.cc/40?img=14" alt={scan.name} />
+                        </Avatar>
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold truncate">{scan.name}</div>
+                            <div class="text-xs text-muted-foreground">{scan.role}</div>
+                        </div>
+                        <div class="text-xs text-muted-foreground">{scan.time}</div>
+                    </div>
+                {/each}
+
+            </CardContent>
+        </Card>
+
+    </aside>
 </div>
 
 <style>

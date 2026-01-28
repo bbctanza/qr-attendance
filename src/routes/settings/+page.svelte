@@ -7,6 +7,7 @@
     import { Separator } from "$lib/components/ui/separator";
     import { onMount } from 'svelte';
     import { Moon, Sun } from '@lucide/svelte';
+    import { goto } from '$app/navigation';
 
     let churchName = $state("Grace Community Church");
     let defaultTime = $state("09:00");
@@ -85,7 +86,10 @@
             </div>
         </CardContent>
         <CardFooter class="border-t bg-muted/50 px-6 py-4">
-            <Button variant="secondary">Update Defaults</Button>
+            <div class="flex items-center gap-2">
+                <Button variant="secondary">Update Defaults</Button>
+                <Button variant="ghost" onclick={() => goto('/attendance')}>View History</Button>
+            </div>
         </CardFooter>
     </Card>
 

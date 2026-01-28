@@ -41,8 +41,8 @@
     </button>
 
     <button 
-      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/history') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
-      onclick={() => goto('/history') }
+      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/attendance') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
+      onclick={() => goto('/attendance') }
     >
       <ListChecks class="h-6 w-6" />
       <span class="text-[10px] font-medium">Attendance</span>

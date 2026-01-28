@@ -3,7 +3,7 @@
   import {
     LayoutDashboard,
     Users,
-    History,
+    ListChecks,
     Settings,
     QrCode,
     LogOut,
@@ -53,9 +53,9 @@
       icon: QrCode,
     },
     {
-      title: "History",
-      url: "/history",
-      icon: History,
+      title: "Attendance",
+      url: "/attendance",
+      icon: ListChecks,
     },
     {
       title: "Settings",
