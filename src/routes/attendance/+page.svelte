@@ -3,7 +3,7 @@
     import * as Table from "$lib/components/ui/table";
     import { Badge } from "$lib/components/ui/badge";
     import { Input } from "$lib/components/ui/input";
-    import { Search, Calendar, Filter, ChevronRight, Users } from "@lucide/svelte";
+    import { Search, Calendar, Filter, ChevronRight, Users, CheckCircle2 } from "@lucide/svelte";
     import { ChevronLeft, HelpCircle, MapPin, QrCode } from "@lucide/svelte";
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "$lib/components/ui/card";
@@ -95,32 +95,22 @@
     <!-- Small stats -->
     <div class="grid grid-cols-2 gap-3">
         <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
-            <div class="text-xs text-muted-foreground uppercase tracking-widest">Live</div>
-            <div class="text-2xl font-extrabold">42</div>
-            <div class="text-xs text-muted-foreground">Checked In</div>
+            <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                <CheckCircle2 class="h-4 w-4 text-(--stat-success)" />
+                <div class="uppercase tracking-widest">Checked In</div>
+            </div>
+            <div class="text-2xl font-extrabold mt-2">42</div>
         </div>
         <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
-            <div class="text-xs text-muted-foreground uppercase tracking-widest">Expected</div>
-            <div class="text-2xl font-extrabold">50</div>
-            <div class="text-xs text-muted-foreground">Expected</div>
+            <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                <Users class="h-4 w-4 text-(--color-primary)" />
+                <div class="uppercase tracking-widest">Expected</div>
+            </div>
+            <div class="text-2xl font-extrabold mt-2">50</div>
         </div>
     </div>
 
-    <!-- Late Arrivals -->
-    <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm flex items-center justify-between">
-        <div class="flex items-center gap-3">
-            <div class="rounded-full bg-muted/20 p-1">
-                <Avatar class="h-8 w-8 rounded-full">
-                    <AvatarImage src="https://i.pravatar.cc/40?img=1" alt="Sarah" />
-                </Avatar>
-            </div>
-            <div>
-                <div class="text-sm font-medium">Late Arrivals</div>
-                <div class="text-xs text-muted-foreground">3 attention</div>
-            </div>
-        </div>
-        <div class="text-2xl font-extrabold text-stat-accent">3</div>
-    </div>
+
 
     <!-- Recent Scans -->
     <div class="flex items-center justify-between">
@@ -214,38 +204,32 @@
         </Card>
 
         <!-- Stats Row -->
-        <div class="grid grid-cols-3 gap-4">
+        <div class="grid grid-cols-2 gap-4">
             <Card class="p-0">
                 <CardContent class="p-4">
-                    <div class="text-xs text-muted-foreground uppercase tracking-widest">Checked In</div>
-                    <div class="text-2xl font-extrabold">42</div>
-                    <div class="text-xs text-muted-foreground mt-1">Live</div>
-                </CardContent>
-            </Card>
-
-            <Card class="p-0">
-                <CardContent class="p-4">
-                    <div class="text-xs text-muted-foreground uppercase tracking-widest">Expected</div>
-                    <div class="text-2xl font-extrabold">50</div>
-                    <div class="text-xs text-muted-foreground mt-1">Expected</div>
-                </CardContent>
-            </Card>
-
-            <Card class="p-0">
-                <CardContent class="p-4 flex items-center justify-between">
-                    <div>
-                        <div class="text-xs font-medium">Late Arrivals</div>
-                        <div class="text-sm text-muted-foreground mt-1">3 attention</div>
+                                <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                        <CheckCircle2 class="h-4 w-4 text-(--stat-success)" />
+                        <div class="uppercase tracking-widest">Checked In</div>
                     </div>
-                    <div class="text-2xl font-extrabold text-stat-accent">3</div>
+                    <div class="text-2xl font-extrabold mt-2">42</div>
+                </CardContent>
+            </Card>
+
+            <Card class="p-0">
+                <CardContent class="p-4">
+                    <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                        <Users class="h-4 w-4 text-(--color-primary)" />
+                        <div class="uppercase tracking-widest">Expected</div>
+                    </div>
+                    <div class="text-2xl font-extrabold mt-2">50</div>
                 </CardContent>
             </Card>
         </div>
     </div>
 
     <!-- Right / Sidebar -->
-    <aside class="col-span-1 space-y-6">
-        <Card>
+    <aside class="col-span-1 flex flex-col h-full gap-6">
+        <Card class="flex-1 flex flex-col h-full">
             <CardHeader class="flex items-center justify-between">
                 <div>
                     <CardTitle>Recent Scans</CardTitle>
@@ -253,7 +237,7 @@
                 </div>
                 <a href="/attendance" class="text-xs text-(--color-primary) font-bold">View all</a>
             </CardHeader>
-            <CardContent class="space-y-3">
+            <CardContent class="space-y-3 overflow-auto flex-1">
                 {#each [
                     { id: 1, name: 'Sarah Jenkins', role: 'Product Designer', time: '14:05', avatar: 'https://i.pravatar.cc/40?img=12' },
                     { id: 2, name: 'Mike Ross', role: 'Engineering Lead', time: '14:02', avatar: 'https://i.pravatar.cc/40?img=14' },
@@ -271,13 +255,11 @@
                     </div>
                 {/each}
             </CardContent>
+            <CardFooter class="pt-0">
+                <Button class="w-full h-14 rounded-xl bg-(--color-primary) text-(--color-primary-foreground) font-bold" onclick={() => {/* open scanner */}}>
+                    Open Scanner
+                </Button>
+            </CardFooter>
         </Card>
-
-        <!-- Sticky scan action -->
-        <div class="sticky top-36">
-            <Button class="w-full h-14 rounded-xl bg-(--color-primary) text-(--color-primary-foreground) font-bold" onclick={() => {/* open scanner */}}>
-                Open Scanner
-            </Button>
-        </div>
     </aside>
 </div>

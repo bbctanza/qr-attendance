@@ -19,6 +19,7 @@
     import { page } from '$app/stores';
     import MobileNav from '$lib/components/mobile-nav.svelte';
     import MobileHeader from '$lib/components/mobile-header.svelte';
+    import { Toaster } from "$lib/components/ui/sonner";
 
     let { children } = $props();
 
@@ -39,6 +40,7 @@
 </script>
 
 <svelte:head><link rel="icon" href="/favicon.svg" /></svelte:head>
+<Toaster position="top-center" />
 
 {#if showSidebar}
     <SidebarProvider>

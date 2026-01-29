@@ -20,6 +20,19 @@
 	} = $props();
 
 	const sidebar = useSidebar();
+
+	// Local mirror for mobile open state so we can bind cleanly to sheet's `open`
+	let openMobile = $state(sidebar.openMobile);
+
+	// Keep local openMobile in sync with the SidebarState (read)
+	$effect(() => {
+		openMobile = sidebar.openMobile;
+	});
+
+	// When local openMobile changes (via bind:open on the sheet), update the SidebarState
+	$effect(() => {
+		sidebar.setOpenMobile(openMobile);
+	});
 </script>
 
 {#if collapsible === "none"}
@@ -35,7 +48,7 @@
 	</div>
 {:else if sidebar.isMobile}
 	<Sheet.Root
-		bind:open={() => sidebar.openMobile, (v) => sidebar.setOpenMobile(v)}
+		bind:open={openMobile}
 		{...restProps}
 	>
 		<Sheet.Content
