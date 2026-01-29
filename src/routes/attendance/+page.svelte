@@ -7,6 +7,8 @@
     import { ChevronLeft, HelpCircle, MapPin, QrCode } from "@lucide/svelte";
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "$lib/components/ui/card";
+    import * as Chart from "$lib/components/ui/chart/index.js";
+    import { ArcChart, Text } from "layerchart";
     import {
         DropdownMenu,
         DropdownMenuContent,
@@ -29,6 +31,12 @@
     let query = "";
 
     $: filteredEvents = events.filter(e => e.name.toLowerCase().includes(query.toLowerCase()));
+
+    // Chart data for session progress
+    const sessionProgressData = [{ label: "participation", value: 84 }];
+    const chartConfig = {
+        participation: { label: "Participation", color: "var(--color-primary)" },
+    } satisfies Chart.ChartConfig;
 </script>
 
 <!-- Mobile View -->
@@ -73,21 +81,50 @@
             </div>
         </div>
         <div class="flex items-center gap-4 mt-4">
-            <!-- Circular progress -->
-            <div class="w-24 h-24 rounded-full bg-linear-to-br from-card/50 to-card flex items-center justify-center">
-                <svg class="w-20 h-20" viewBox="0 0 36 36">
-                    <path class="text-muted-foreground/30" stroke-width="3" stroke-linecap="round" fill="none" d="M18 2.0845a15.9155 15.9155 0 1 1 0 31.831 15.9155 15.9155 0 1 1 0-31.831" stroke="currentColor"/>
-                    <path class="text-(--color-primary)" stroke-width="3" stroke-linecap="round" fill="none" d="M18 2.0845a15.9155 15.9155 0 1 1 0 31.831 15.9155 15.9155 0 1 1 0-31.831" stroke-dasharray="113" stroke-dashoffset="56" stroke="currentColor"/>
-                </svg>
-                <div class="absolute text-center">
-                    <div class="text-lg font-extrabold">45</div>
-                    <div class="text-[11px] text-muted-foreground">MINS LEFT</div>
-                </div>
+            <!-- Radial Chart Progress -->
+            <div class="w-32">
+                <Chart.Container config={chartConfig} class="aspect-square">
+                    <ArcChart
+                        label="label"
+                        value="value"
+                        outerRadius={52}
+                        innerRadius={40}
+                        trackOuterRadius={50}
+                        trackInnerRadius={42}
+                        padding={15}
+                        range={[0, 360]}
+                        maxValue={100}
+                        series={sessionProgressData.map((d) => ({
+                            key: d.label,
+                            color: "var(--color-primary)",
+                            data: [d],
+                        }))}
+                        props={{
+                            arc: { track: { fill: "var(--muted)" }, motion: "tween" },
+                            tooltip: { context: { hideDelay: 350 } },
+                        }}
+                        tooltip={false}
+                    >
+                        {#snippet belowMarks()}
+                            <circle cx="0" cy="0" r="42" class="fill-background" />
+                        {/snippet}
+                        {#snippet aboveMarks()}
+                            <Text
+                                value="84%"
+                                textAnchor="middle"
+                                verticalAnchor="middle"
+                                class="fill-foreground text-2xl! font-bold"
+                                dy={2}
+                            />
+                        {/snippet}
+                    </ArcChart>
+                </Chart.Container>
             </div>
 
             <div class="flex-1">
                 <div class="text-xs uppercase text-muted-foreground tracking-widest">Participation</div>
-                <div class="text-2xl font-bold text-(--color-primary)">84%</div>
+                <div class="text-lg font-bold text-(--color-primary) mt-2">84%</div>
+                <div class="text-xs text-muted-foreground mt-3">45 mins left</div>
             </div>
         </div>
     </div>
@@ -173,15 +210,43 @@
         <!-- Session Progress Card -->
         <Card>
             <CardContent class="p-6 flex gap-6 items-center">
-                <div class="w-36 h-36 relative flex items-center justify-center">
-                    <svg class="w-36 h-36" viewBox="0 0 36 36">
-                        <path class="text-muted-foreground/30" stroke-width="3" stroke-linecap="round" fill="none" d="M18 2.0845a15.9155 15.9155 0 1 1 0 31.831 15.9155 15.9155 0 1 1 0-31.831" stroke="currentColor"/>
-                        <path class="text-(--color-primary)" stroke-width="3" stroke-linecap="round" fill="none" d="M18 2.0845a15.9155 15.9155 0 1 1 0 31.831 15.9155 15.9155 0 1 1 0-31.831" stroke-dasharray="113" stroke-dashoffset="56" stroke="currentColor"/>
-                    </svg>
-                    <div class="absolute text-center">
-                        <div class="text-3xl font-extrabold">45</div>
-                        <div class="text-xs text-muted-foreground">MINS LEFT</div>
-                    </div>
+                <div class="w-44">
+                    <Chart.Container config={chartConfig} class="aspect-square">
+                        <ArcChart
+                            label="label"
+                            value="value"
+                            outerRadius={72}
+                            innerRadius={55}
+                            trackOuterRadius={70}
+                            trackInnerRadius={58}
+                            padding={20}
+                            range={[0, 360]}
+                            maxValue={100}
+                            series={sessionProgressData.map((d) => ({
+                                key: d.label,
+                                color: "var(--color-primary)",
+                                data: [d],
+                            }))}
+                            props={{
+                                arc: { track: { fill: "var(--muted)" }, motion: "tween" },
+                                tooltip: { context: { hideDelay: 350 } },
+                            }}
+                            tooltip={false}
+                        >
+                            {#snippet belowMarks()}
+                                <circle cx="0" cy="0" r="55" class="fill-background" />
+                            {/snippet}
+                            {#snippet aboveMarks()}
+                                <Text
+                                    value="84%"
+                                    textAnchor="middle"
+                                    verticalAnchor="middle"
+                                    class="fill-foreground text-3xl! font-bold"
+                                    dy={3}
+                                />
+                            {/snippet}
+                        </ArcChart>
+                    </Chart.Container>
                 </div>
                 <div class="flex-1">
                     <div class="flex items-center justify-between">
