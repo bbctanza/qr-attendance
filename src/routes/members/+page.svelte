@@ -6,7 +6,7 @@
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Badge } from "$lib/components/ui/badge";
     import { Label } from "$lib/components/ui/label";
-    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X } from "@lucide/svelte";
+    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X, ArrowUpDown, ArrowUp, ArrowDown } from "@lucide/svelte";
     import {
         DropdownMenu,
         DropdownMenuContent,
@@ -14,6 +14,7 @@
         DropdownMenuLabel,
         DropdownMenuSeparator,
         DropdownMenuTrigger,
+        DropdownMenuCheckboxItem,
     } from "$lib/components/ui/dropdown-menu";
     import {
         Drawer,
@@ -23,8 +24,16 @@
         DrawerTrigger,
         DrawerClose,
     } from "$lib/components/ui/drawer";
+    import {
+        Sheet,
+        SheetContent,
+        SheetHeader,
+        SheetTitle,
+    } from "$lib/components/ui/sheet";
 
-    // Drawer state
+    // Modal state
+    let showAddMemberModal = $state(false);
+    // Drawer (mobile) state - drawer uses portal so we keep a separate mobile state
     let showAddMemberDrawer = $state(false);
     let formData = $state({
         lastName: "",
@@ -55,18 +64,57 @@
 
     let searchQuery = $state("");
 
-    let filteredMembers = $derived(
-        members.filter(m => 
-            m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    // Group filter state
+    let selectedGroups = $state(new Set(groupOptions));
+
+    // Sort state
+    let sortColumn = $state("name");
+    let sortDirection = $state<"asc" | "desc">("asc");
+
+    let filteredMembers = $derived(() => {
+        let filtered = members.filter(m => 
+            (m.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
             (m.email && m.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
-            m.group.toLowerCase().includes(searchQuery.toLowerCase())
-        )
-    );
+            m.group.toLowerCase().includes(searchQuery.toLowerCase())) &&
+            selectedGroups.has(m.group)
+        );
+
+        // Sort the filtered results
+        return filtered.sort((a, b) => {
+            let aValue: string | number;
+            let bValue: string | number;
+
+            switch (sortColumn) {
+                case "name":
+                    aValue = a.name.toLowerCase();
+                    bValue = b.name.toLowerCase();
+                    break;
+                case "group":
+                    aValue = a.group.toLowerCase();
+                    bValue = b.group.toLowerCase();
+                    break;
+                case "id":
+                    aValue = a.qrId.toLowerCase();
+                    bValue = b.qrId.toLowerCase();
+                    break;
+                case "status":
+                    aValue = a.status.toLowerCase();
+                    bValue = b.status.toLowerCase();
+                    break;
+                default:
+                    return 0;
+            }
+
+            if (aValue < bValue) return sortDirection === "asc" ? -1 : 1;
+            if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
+            return 0;
+        });
+    });
 
     // Group members by their group
-    let groupedMembers = $derived.by(() => {
+    let groupedMembers = $derived(() => {
         const groups: Record<string, typeof members> = {};
-        filteredMembers.forEach(m => {
+        filteredMembers().forEach(m => {
             if (!groups[m.group]) groups[m.group] = [];
             groups[m.group].push(m);
         });
@@ -106,13 +154,14 @@
 
         members = [...members, newMember];
 
-        // Reset form and close drawer
+        // Reset form and close modal/drawer
         formData = {
             lastName: "",
             firstName: "",
             middleInitial: "",
             group: ""
         };
+        showAddMemberModal = false;
         showAddMemberDrawer = false;
     }
 
@@ -123,6 +172,15 @@
 
     function getInitials(name: string) {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+    }
+
+    function handleSort(column: string) {
+        if (sortColumn === column) {
+            sortDirection = sortDirection === "asc" ? "desc" : "asc";
+        } else {
+            sortColumn = column;
+            sortDirection = "asc";
+        }
     }
 </script>
 
@@ -162,7 +220,7 @@
 
     <!-- Grouped List -->
     <div class="flex-1 px-4 py-4 space-y-8">
-        {#each Object.entries(groupedMembers) as [groupName, groupMembers]}
+        {#each Object.entries(groupedMembers()) as [groupName, groupMembers]}
             <section>
                 <div class="flex items-center gap-2 mb-4">
                     <div class="w-1 h-4 rounded-full {groupColors[groupName] || 'bg-muted'} border-l-4"></div>
@@ -226,13 +284,13 @@
             <Button variant="outline" size="sm" class="hidden sm:flex">
                 <FileDown class="mr-2 h-4 w-4" /> Export
             </Button>
-            <Button size="sm" onclick={() => showAddMemberDrawer = true}>
+            <Button size="sm" onclick={() => showAddMemberModal = true}>
                 <Plus class="mr-2 h-4 w-4" /> Add Member
             </Button>
         </div>
     </div>
 
-    <div class="flex items-center py-4">
+    <div class="flex items-center py-4 gap-4">
         <div class="relative w-full max-w-sm">
             <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -242,6 +300,34 @@
                 bind:value={searchQuery}
             />
         </div>
+        <DropdownMenu>
+            <DropdownMenuTrigger>
+                <Button variant="outline" size="sm" class="h-10">
+                    <Filter class="mr-2 h-4 w-4" />
+                    Groups
+                    <ChevronRight class="ml-2 h-4 w-4" />
+                </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-48">
+                <DropdownMenuLabel>Filter by Group</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {#each groupOptions as group}
+                    <DropdownMenuCheckboxItem
+                        checked={selectedGroups.has(group)}
+                        onchange={(checked) => {
+                            if (checked) {
+                                selectedGroups.add(group);
+                            } else {
+                                selectedGroups.delete(group);
+                            }
+                            selectedGroups = new Set(selectedGroups);
+                        }}
+                    >
+                        {group}
+                    </DropdownMenuCheckboxItem>
+                {/each}
+            </DropdownMenuContent>
+        </DropdownMenu>
     </div>
 
     <div class="rounded-md border bg-card text-card-foreground shadow-sm">
@@ -249,22 +335,74 @@
             <Table.Header>
                 <Table.Row>
                     <Table.Head class="w-12.5"></Table.Head>
-                    <Table.Head>Name</Table.Head>
-                    <Table.Head>Group</Table.Head>
-                    <Table.Head>ID</Table.Head>
-                    <Table.Head>Status</Table.Head>
+                    <Table.Head>
+                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("name")}>
+                            Name
+                            {#if sortColumn === "name"}
+                                {#if sortDirection === "asc"}
+                                    <ArrowUp class="ml-2 h-4 w-4" />
+                                {:else}
+                                    <ArrowDown class="ml-2 h-4 w-4" />
+                                {/if}
+                            {:else}
+                                <ArrowUpDown class="ml-2 h-4 w-4" />
+                            {/if}
+                        </Button>
+                    </Table.Head>
+                    <Table.Head>
+                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("group")}>
+                            Group
+                            {#if sortColumn === "group"}
+                                {#if sortDirection === "asc"}
+                                    <ArrowUp class="ml-2 h-4 w-4" />
+                                {:else}
+                                    <ArrowDown class="ml-2 h-4 w-4" />
+                                {/if}
+                            {:else}
+                                <ArrowUpDown class="ml-2 h-4 w-4" />
+                            {/if}
+                        </Button>
+                    </Table.Head>
+                    <Table.Head>
+                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("id")}>
+                            ID
+                            {#if sortColumn === "id"}
+                                {#if sortDirection === "asc"}
+                                    <ArrowUp class="ml-2 h-4 w-4" />
+                                {:else}
+                                    <ArrowDown class="ml-2 h-4 w-4" />
+                                {/if}
+                            {:else}
+                                <ArrowUpDown class="ml-2 h-4 w-4" />
+                            {/if}
+                        </Button>
+                    </Table.Head>
+                    <Table.Head>
+                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("status")}>
+                            Status
+                            {#if sortColumn === "status"}
+                                {#if sortDirection === "asc"}
+                                    <ArrowUp class="ml-2 h-4 w-4" />
+                                {:else}
+                                    <ArrowDown class="ml-2 h-4 w-4" />
+                                {/if}
+                            {:else}
+                                <ArrowUpDown class="ml-2 h-4 w-4" />
+                            {/if}
+                        </Button>
+                    </Table.Head>
                     <Table.Head class="text-right">Actions</Table.Head>
                 </Table.Row>
             </Table.Header>
             <Table.Body>
-                {#if filteredMembers.length === 0}
+                {#if filteredMembers().length === 0}
                     <Table.Row>
                         <Table.Cell colspan={6} class="h-24 text-center">
                             No members found.
                         </Table.Cell>
                     </Table.Row>
                 {:else}
-                    {#each filteredMembers as member (member.id)}
+                    {#each filteredMembers() as member (member.id)}
                         <Table.Row>
                             <Table.Cell>
                                 <Avatar class="h-8 w-8">
@@ -316,102 +454,201 @@
     </div>
 </div>
 
-<!-- Add Member Drawer -->
-<Drawer bind:open={showAddMemberDrawer}>
-    <DrawerContent>
-        <DrawerHeader class="flex flex-row items-center justify-between">
-            <DrawerTitle class="flex items-center gap-3">
-                <div class="p-2 bg-primary/10 rounded-lg">
-                    <UserPlus size={20} class="text-primary" />
-                </div>
-                ADD MEMBER
-            </DrawerTitle>
-            <DrawerClose>
-                <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-                    <X class="h-4 w-4" />
-                </Button>
-            </DrawerClose>
-        </DrawerHeader>
+<!-- Add Member Modal - Desktop -->
+<div class="hidden md:block">
+    <Sheet bind:open={showAddMemberModal}>
+        <SheetContent class="sm:max-w-md">
+            <SheetHeader>
+                <SheetTitle class="flex items-center gap-3">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <UserPlus size={20} class="text-primary" />
+                    </div>
+                    ADD MEMBER
+                </SheetTitle>
+            </SheetHeader>
 
-        <div class="px-4 pb-4">
-            <p class="text-sm text-muted-foreground mb-6">Enter details to generate a unique QR ID.</p>
+            <div class="px-4 pb-4">
+                <p class="text-sm text-muted-foreground mb-6">Enter details to generate a unique QR ID.</p>
 
-            <!-- Form Fields -->
-            <div class="space-y-5">
-                <!-- Last Name -->
-                <div>
-                    <Label for="lastName" class="text-xs font-bold tracking-wider uppercase">Last Name</Label>
-                    <Input 
-                        id="lastName"
-                        type="text"
-                        placeholder="e.g. Doe"
-                        bind:value={formData.lastName}
-                        class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
-                    />
-                </div>
-
-                <!-- First Name -->
-                <div>
-                    <Label for="firstName" class="text-xs font-bold tracking-wider uppercase">First Name</Label>
-                    <Input 
-                        id="firstName"
-                        type="text"
-                        placeholder="e.g. John"
-                        bind:value={formData.firstName}
-                        class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
-                    />
-                </div>
-
-                <!-- Middle Initial & Group -->
-                <div class="grid grid-cols-2 gap-3">
+                <!-- Form Fields -->
+                <div class="space-y-5">
+                    <!-- Last Name -->
                     <div>
-                        <Label for="middleInitial" class="text-xs font-bold tracking-wider uppercase">M.I.</Label>
-                        <Input 
-                            id="middleInitial"
+                        <Label for="lastName" class="text-xs font-bold tracking-wider uppercase">Last Name</Label>
+                        <Input
+                            id="lastName"
                             type="text"
-                            placeholder="A"
-                            value={formData.middleInitial}
-                            onchange={handleMiddleInitialChange}
-                            class="mt-2 rounded-xl py-3 text-center font-bold placeholder-muted-foreground-mobile border-input"
+                            placeholder="e.g. Doe"
+                            bind:value={formData.lastName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
                         />
                     </div>
+
+                    <!-- First Name -->
                     <div>
-                        <Label for="groupSelect" class="text-xs font-bold tracking-wider uppercase">Group</Label>
-                        <div class="mt-2">
-                            <Select.Root type="single" bind:value={formData.group}>
-                                <Select.Trigger id="groupSelect" class="w-full h-12 rounded-xl px-4 font-medium flex items-center justify-between">
-                                    {groupTriggerContent}
-                                </Select.Trigger>
-                                <Select.Content class="bg-popover border-border/40 rounded-xl">
-                                    <Select.Group>
-                                        <Select.Label class="text-xs font-bold tracking-wider uppercase px-2 py-1.5 text-muted-foreground/60">Groups</Select.Label>
-                                        {#each groupItems as group}
-                                            <Select.Item
-                                                value={group.value}
-                                                label={group.label}
-                                                class="rounded-lg focus:bg-primary/10 focus:text-primary transition-colors cursor-pointer"
-                                            >
-                                                {group.label}
-                                            </Select.Item>
-                                        {/each}
-                                    </Select.Group>
-                                </Select.Content>
-                            </Select.Root>
+                        <Label for="firstName" class="text-xs font-bold tracking-wider uppercase">First Name</Label>
+                        <Input
+                            id="firstName"
+                            type="text"
+                            placeholder="e.g. John"
+                            bind:value={formData.firstName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- Middle Initial & Group -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label for="middleInitial" class="text-xs font-bold tracking-wider uppercase">M.I.</Label>
+                            <Input
+                                id="middleInitial"
+                                type="text"
+                                placeholder="A"
+                                value={formData.middleInitial}
+                                onchange={handleMiddleInitialChange}
+                                class="mt-2 rounded-xl py-3 text-center font-bold placeholder-muted-foreground-mobile border-input"
+                            />
+                        </div>
+                        <div>
+                            <Label for="groupSelect" class="text-xs font-bold tracking-wider uppercase">Group</Label>
+                            <div class="mt-2">
+                                <Select.Root type="single" bind:value={formData.group}>
+                                    <Select.Trigger id="groupSelect" class="w-full h-12 rounded-xl px-4 font-medium flex items-center justify-between">
+                                        {groupTriggerContent}
+                                    </Select.Trigger>
+                                    <Select.Content class="bg-popover border-border/40 rounded-xl">
+                                        <Select.Group>
+                                            <Select.Label class="text-xs font-bold tracking-wider uppercase px-2 py-1.5 text-muted-foreground/60">Groups</Select.Label>
+                                            {#each groupItems as group}
+                                                <Select.Item
+                                                    value={group.value}
+                                                    label={group.label}
+                                                    class="rounded-lg focus:bg-primary/10 focus:text-primary transition-colors cursor-pointer"
+                                                >
+                                                    {group.label}
+                                                </Select.Item>
+                                            {/each}
+                                        </Select.Group>
+                                    </Select.Content>
+                                </Select.Root>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Action Buttons -->
-                <div class="flex gap-3 mt-8">
-                    <Button 
-                        size="lg"
-                        class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
-                        onclick={handleAddMember}
-                    >
-                        SAVE MEMBER <ChevronRight size={18} class="ml-2" />
-                    </Button>
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 mt-8">
+                        <Button
+                            size="lg"
+                            class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
+                            onclick={handleAddMember}
+                        >
+                            SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                        </Button>
+                    </div>
                 </div>
             </div>
-        </div>
-    </DrawerContent>
-</Drawer>
+        </SheetContent>
+    </Sheet>
+</div>
+
+<!-- Add Member Drawer - Mobile -->
+<div class="md:hidden">
+    <Drawer bind:open={showAddMemberDrawer}>
+        <DrawerContent>
+            <DrawerHeader class="flex flex-row items-center justify-between">
+                <DrawerTitle class="flex items-center gap-3">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <UserPlus size={20} class="text-primary" />
+                    </div>
+                    ADD MEMBER
+                </DrawerTitle>
+                <DrawerClose>
+                    <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+                        <X class="h-4 w-4" />
+                    </Button>
+                </DrawerClose>
+            </DrawerHeader>
+
+            <div class="px-4 pb-4">
+                <p class="text-sm text-muted-foreground mb-6">Enter details to generate a unique QR ID.</p>
+
+                <!-- Form Fields -->
+                <div class="space-y-5">
+                    <!-- Last Name -->
+                    <div>
+                        <Label for="lastNameMobile" class="text-xs font-bold tracking-wider uppercase">Last Name</Label>
+                        <Input
+                            id="lastNameMobile"
+                            type="text"
+                            placeholder="e.g. Doe"
+                            bind:value={formData.lastName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- First Name -->
+                    <div>
+                        <Label for="firstNameMobile" class="text-xs font-bold tracking-wider uppercase">First Name</Label>
+                        <Input
+                            id="firstNameMobile"
+                            type="text"
+                            placeholder="e.g. John"
+                            bind:value={formData.firstName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- Middle Initial & Group -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label for="middleInitialMobile" class="text-xs font-bold tracking-wider uppercase">M.I.</Label>
+                            <Input
+                                id="middleInitialMobile"
+                                type="text"
+                                placeholder="A"
+                                value={formData.middleInitial}
+                                onchange={handleMiddleInitialChange}
+                                class="mt-2 rounded-xl py-3 text-center font-bold placeholder-muted-foreground-mobile border-input"
+                            />
+                        </div>
+                        <div>
+                            <Label for="groupSelectMobile" class="text-xs font-bold tracking-wider uppercase">Group</Label>
+                            <div class="mt-2">
+                                <Select.Root type="single" bind:value={formData.group}>
+                                    <Select.Trigger id="groupSelectMobile" class="w-full h-12 rounded-xl px-4 font-medium flex items-center justify-between">
+                                        {groupTriggerContent}
+                                    </Select.Trigger>
+                                    <Select.Content class="bg-popover border-border/40 rounded-xl">
+                                        <Select.Group>
+                                            <Select.Label class="text-xs font-bold tracking-wider uppercase px-2 py-1.5 text-muted-foreground/60">Groups</Select.Label>
+                                            {#each groupItems as group}
+                                                <Select.Item
+                                                    value={group.value}
+                                                    label={group.label}
+                                                    class="rounded-lg focus:bg-primary/10 focus:text-primary transition-colors cursor-pointer"
+                                                >
+                                                    {group.label}
+                                                </Select.Item>
+                                            {/each}
+                                        </Select.Group>
+                                    </Select.Content>
+                                </Select.Root>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 mt-8">
+                        <Button
+                            size="lg"
+                            class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
+                            onclick={handleAddMember}
+                        >
+                            SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </DrawerContent>
+    </Drawer>
+</div>
