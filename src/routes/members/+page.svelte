@@ -15,9 +15,17 @@
         DropdownMenuSeparator,
         DropdownMenuTrigger,
     } from "$lib/components/ui/dropdown-menu";
+    import {
+        Drawer,
+        DrawerContent,
+        DrawerHeader,
+        DrawerTitle,
+        DrawerTrigger,
+        DrawerClose,
+    } from "$lib/components/ui/drawer";
 
-    // Modal state
-    let showAddMemberModal = $state(false);
+    // Drawer state
+    let showAddMemberDrawer = $state(false);
     let formData = $state({
         lastName: "",
         firstName: "",
@@ -98,14 +106,14 @@
 
         members = [...members, newMember];
 
-        // Reset form and animate close of modal
+        // Reset form and close drawer
         formData = {
             lastName: "",
             firstName: "",
             middleInitial: "",
             group: ""
         };
-        closeSheet();
+        showAddMemberDrawer = false;
     }
 
     function handleMiddleInitialChange(e: Event) {
@@ -115,74 +123,6 @@
 
     function getInitials(name: string) {
         return name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-    }
-
-    import { tick } from 'svelte';
-
-    /* Draggable sheet state & handlers for mobile pull-to-close + animated open/close */
-    let sheetEl = $state(null as HTMLDivElement | null);
-
-    let sheetMounted = $state(false);
-    let sheetVisible = $state(false);
-    let isClosing = $state(false);
-    let closeTimeout: ReturnType<typeof setTimeout> | null = null;
-
-    async function openSheet() {
-        // If already mounted and visible, do nothing
-        if (sheetMounted && sheetVisible) return;
-
-        // If mounted but closing (user quickly toggled), cancel close and reopen
-        if (sheetMounted && isClosing) {
-            isClosing = false;
-            sheetVisible = true;
-            if (closeTimeout) {
-                clearTimeout(closeTimeout);
-                closeTimeout = null;
-            }
-            return;
-        }
-
-        sheetMounted = true;
-        // allow DOM to mount
-        await tick();
-        sheetVisible = true;
-        showAddMemberModal = true;
-    }
-
-    function closeSheet() {
-        if (!sheetMounted || isClosing) return;
-        // trigger CSS slide-down
-        sheetVisible = false;
-        isClosing = true;
-
-
-
-        // fallback: ensure we unmount even if transitionend doesn't fire
-        if (closeTimeout) clearTimeout(closeTimeout);
-        closeTimeout = setTimeout(() => {
-            handleCloseComplete();
-        }, 450);
-    }
-
-    /* pull-to-close removed — sheet uses simple open/close animations now */
-
-    function handleTransitionEnd(e: TransitionEvent) {
-        // only act when transform transition finishes
-        if (e.propertyName !== 'transform') return;
-        if (!sheetVisible && isClosing) {
-            // fully close
-            handleCloseComplete();
-        }
-    }
-
-    function handleCloseComplete() {
-        if (closeTimeout) {
-            clearTimeout(closeTimeout);
-            closeTimeout = null;
-        }
-        isClosing = false;
-        sheetMounted = false;
-        showAddMemberModal = false;
     }
 </script>
 
@@ -200,7 +140,7 @@
                 class="w-full bg-card/20 border-2 border-border/20 rounded-2xl py-4 pl-12 pr-4 text-sm focus:ring-2 focus:border-primary ring-primary/20 outline-none placeholder-muted-foreground-mobile"
             />
         </div>
-        <button aria-label="Add member" onclick={() => openSheet()} class="bg-primary aspect-square h-14 flex items-center justify-center rounded-[22px] shadow-lg shadow-primary/10 active:scale-95 transition-all">
+        <button aria-label="Add member" onclick={() => showAddMemberDrawer = true} class="bg-primary aspect-square h-14 flex items-center justify-center rounded-[22px] shadow-lg shadow-primary/10 active:scale-95 transition-all">
             <UserPlus size={26} class="text-primary-foreground" />
         </button>
     </div>
@@ -286,7 +226,7 @@
             <Button variant="outline" size="sm" class="hidden sm:flex">
                 <FileDown class="mr-2 h-4 w-4" /> Export
             </Button>
-            <Button size="sm" onclick={() => openSheet()}>
+            <Button size="sm" onclick={() => showAddMemberDrawer = true}>
                 <Plus class="mr-2 h-4 w-4" /> Add Member
             </Button>
         </div>
@@ -376,23 +316,24 @@
     </div>
 </div>
 
-<!-- Add Member Modal -->
-{#if sheetMounted}
-    <div role="button" tabindex="0" onkeydown={(e) => (e.key === 'Enter' || e.key === ' ' ? closeSheet() : null)} class={"fixed inset-0 z-60 flex items-end md:items-center justify-center transition-colors duration-300 " + (sheetVisible ? 'bg-slate-800/60 opacity-100 pointer-events-auto' : 'bg-transparent opacity-0 pointer-events-none')} onclick={() => closeSheet()}>
-        <div role="dialog" aria-modal="true" aria-label="Add Member" tabindex="-1" onpointerdown={(e) => e.stopPropagation()} onkeydown={(e) => e.key === 'Escape' ? closeSheet() : null} bind:this={sheetEl} ontransitionend={handleTransitionEnd} class={"bg-background w-full md:w-96 rounded-t-3xl md:rounded-2xl p-6 md:p-8 max-h-[90vh] overflow-y-auto transition-transform duration-300 ease-out" + (sheetVisible ? ' translate-y-0' : ' translate-y-full')}>
-            <!-- Modal Header -->
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex items-center gap-3">
-                    <div class="p-2 bg-primary/10 rounded-lg">
-                        <UserPlus size={20} class="text-primary" />
-                    </div>
-                    <h2 class="text-xl font-bold">ADD MEMBER</h2>
+<!-- Add Member Drawer -->
+<Drawer bind:open={showAddMemberDrawer}>
+    <DrawerContent>
+        <DrawerHeader class="flex flex-row items-center justify-between">
+            <DrawerTitle class="flex items-center gap-3">
+                <div class="p-2 bg-primary/10 rounded-lg">
+                    <UserPlus size={20} class="text-primary" />
                 </div>
-                <button aria-label="Close" class="p-1 hover:bg-muted rounded-lg transition-colors" onclick={() => closeSheet()}>
-                    <X size={20} />
-                </button>
-            </div>
+                ADD MEMBER
+            </DrawerTitle>
+            <DrawerClose>
+                <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+                    <X class="h-4 w-4" />
+                </Button>
+            </DrawerClose>
+        </DrawerHeader>
 
+        <div class="px-4 pb-4">
             <p class="text-sm text-muted-foreground mb-6">Enter details to generate a unique QR ID.</p>
 
             <!-- Form Fields -->
@@ -462,15 +403,15 @@
 
                 <!-- Action Buttons -->
                 <div class="flex gap-3 mt-8">
-                <Button 
-                    size="lg"
-                    class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
-                    onclick={handleAddMember}
-                >
-                    SAVE MEMBER <ChevronRight size={18} class="ml-2" />
-                </Button>
+                    <Button 
+                        size="lg"
+                        class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
+                        onclick={handleAddMember}
+                    >
+                        SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                    </Button>
+                </div>
             </div>
         </div>
-    </div>
-</div>
-{/if}
+    </DrawerContent>
+</Drawer>

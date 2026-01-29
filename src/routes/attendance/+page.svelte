@@ -4,7 +4,7 @@
     import { Badge } from "$lib/components/ui/badge";
     import { Input } from "$lib/components/ui/input";
     import { Search, Calendar, Filter, ChevronRight, Users, CheckCircle2 } from "@lucide/svelte";
-    import { ChevronLeft, HelpCircle, MapPin, QrCode } from "@lucide/svelte";
+    import { ChevronLeft, HelpCircle, MapPin, QrCode, Clock, FileText, ArrowRight, ScanLine, TrendingUp, X } from "@lucide/svelte";
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "$lib/components/ui/card";
     import * as Chart from "$lib/components/ui/chart/index.js";
@@ -17,6 +17,19 @@
         DropdownMenuSeparator,
         DropdownMenuTrigger,
     } from "$lib/components/ui/dropdown-menu";
+    import {
+        Popover,
+        PopoverContent,
+        PopoverTrigger,
+    } from "$lib/components/ui/popover";
+    import {
+        Drawer,
+        DrawerContent,
+        DrawerHeader,
+        DrawerTitle,
+        DrawerTrigger,
+        DrawerClose,
+    } from "$lib/components/ui/drawer";
 
     // Mock Data
     const events = [
@@ -28,9 +41,20 @@
         { id: 6, name: "Special Worship Night", date: "2023-10-14", attendees: 200, status: "Completed" },
     ];
 
-    let query = "";
+    // Current live event
+    const currentEvent = {
+        name: "Q3 Quarterly Review",
+        date: "2024-01-29", // Assuming today's date for demo
+        day: "Monday", // Or null if not recurring
+        time: "14:00 - 16:00",
+        place: "Main Conference Hall"
+    };
 
-    $: filteredEvents = events.filter(e => e.name.toLowerCase().includes(query.toLowerCase()));
+    let drawerOpen = $state(false);
+
+    let query = $state("");
+
+    let filteredEvents = $derived(events.filter(e => e.name.toLowerCase().includes(query.toLowerCase())));
 
     // Chart data for session progress
     const sessionProgressData = [{ label: "participation", value: 84 }];
@@ -64,7 +88,49 @@
         </div>
         <div class="flex items-center justify-between pt-3 border-t border-border/20">
             <div></div>
-            <Button variant="outline" size="sm" class="uppercase">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
+            <Drawer bind:open={drawerOpen}>
+                <DrawerTrigger>
+                    <Button variant="outline" size="sm" class="uppercase">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
+                </DrawerTrigger>
+                <DrawerContent>
+                    <DrawerHeader class="flex flex-row items-center justify-between">
+                        <DrawerTitle>Event Details</DrawerTitle>
+                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0" onclick={() => drawerOpen = false}>
+                            <X class="h-4 w-4" />
+                        </Button>
+                    </DrawerHeader>
+                    <div class="px-4 pb-4 space-y-4">
+                        <div>
+                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                <FileText class="h-4 w-4" />
+                                Event Name
+                            </h4>
+                            <p class="text-lg font-bold mt-1">{currentEvent.name}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                <Calendar class="h-4 w-4" />
+                                Date
+                            </h4>
+                            <p class="text-base mt-1">{currentEvent.day ? currentEvent.day : currentEvent.date}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                <Clock class="h-4 w-4" />
+                                Time
+                            </h4>
+                            <p class="text-base mt-1">{currentEvent.time}</p>
+                        </div>
+                        <div>
+                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                <MapPin class="h-4 w-4" />
+                                Place
+                            </h4>
+                            <p class="text-base mt-1">{currentEvent.place}</p>
+                        </div>
+                    </div>
+                </DrawerContent>
+            </Drawer>
         </div>
     </div>
 
@@ -72,7 +138,10 @@
     <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
         <div class="flex items-start justify-between">
             <div>
-                <div class="text-sm font-medium">Session Progress</div>
+                <div class="text-sm font-medium flex items-center gap-2">
+                    <TrendingUp class="h-4 w-4" />
+                    Session Progress
+                </div>
                 <div class="text-xs text-muted-foreground mt-1">On Track</div>
             </div>
             <div class="flex items-center gap-2 text-sm text-muted-foreground">
@@ -151,8 +220,14 @@
 
     <!-- Recent Scans -->
     <div class="flex items-center justify-between">
-        <h3 class="text-lg font-bold">Recent Scans</h3>
-        <a href="/attendance" class="text-xs text-(--color-primary) font-bold">VIEW ALL</a>
+        <h3 class="text-lg font-bold flex items-center gap-2">
+            <ScanLine class="h-5 w-5" />
+            Recent Scans
+        </h3>
+        <a href="/attendance" class="text-xs text-(--color-primary) font-bold flex items-center gap-1">
+            VIEW ALL
+            <ArrowRight class="h-3 w-3" />
+        </a>
     </div>
 
     <div class="space-y-3">
@@ -200,7 +275,43 @@
                         <div class="text-sm font-bold">14:00 - 16:00</div>
                         <div class="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Time</div>
                         <div class="mt-4">
-                            <Button variant="outline" size="sm">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
+                            <Popover>
+                                <PopoverTrigger>
+                                    <Button variant="outline" size="sm">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
+                                </PopoverTrigger>
+                                <PopoverContent class="w-80">
+                                    <div class="space-y-3">
+                                        <div>
+                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                <FileText class="h-4 w-4" />
+                                                Event Name
+                                            </h4>
+                                            <p class="text-lg font-bold">{currentEvent.name}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                <Calendar class="h-4 w-4" />
+                                                Date
+                                            </h4>
+                                            <p class="text-base">{currentEvent.day ? currentEvent.day : currentEvent.date}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                <Clock class="h-4 w-4" />
+                                                Time
+                                            </h4>
+                                            <p class="text-base">{currentEvent.time}</p>
+                                        </div>
+                                        <div>
+                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                <MapPin class="h-4 w-4" />
+                                                Place
+                                            </h4>
+                                            <p class="text-base">{currentEvent.place}</p>
+                                        </div>
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
                         </div>
                     </div>
                 </div>
@@ -251,7 +362,10 @@
                 <div class="flex-1">
                     <div class="flex items-center justify-between">
                         <div>
-                            <div class="text-sm font-medium">Session Progress</div>
+                            <div class="text-sm font-medium flex items-center gap-2">
+                                <TrendingUp class="h-4 w-4" />
+                                Session Progress
+                            </div>
                             <div class="text-xs text-muted-foreground mt-1">On Track</div>
                         </div>
                         <div class="text-sm text-muted-foreground">
@@ -297,10 +411,16 @@
         <Card class="flex-1 flex flex-col h-full">
             <CardHeader class="flex items-center justify-between">
                 <div>
-                    <CardTitle>Recent Scans</CardTitle>
+                    <CardTitle class="flex items-center gap-2">
+                        <ScanLine class="h-5 w-5" />
+                        Recent Scans
+                    </CardTitle>
                     <CardDescription>Latest check-ins</CardDescription>
                 </div>
-                <a href="/attendance" class="text-xs text-(--color-primary) font-bold">View all</a>
+                <a href="/attendance" class="text-xs text-(--color-primary) font-bold flex items-center gap-1">
+                    View all
+                    <ArrowRight class="h-3 w-3" />
+                </a>
             </CardHeader>
             <CardContent class="space-y-3 overflow-auto flex-1">
                 {#each [
@@ -322,6 +442,7 @@
             </CardContent>
             <CardFooter class="pt-0">
                 <Button class="w-full h-14 rounded-xl bg-(--color-primary) text-(--color-primary-foreground) font-bold" onclick={() => {/* open scanner */}}>
+                    <QrCode class="h-5 w-5 mr-2" />
                     Open Scanner
                 </Button>
             </CardFooter>
