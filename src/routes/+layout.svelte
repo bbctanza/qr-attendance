@@ -95,3 +95,5 @@
 {:else}
     {@render children()}
 {/if}
+
+<Toaster />
