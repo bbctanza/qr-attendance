@@ -363,41 +363,14 @@
                             {/if}
                         </Button>
                     </Table.Head>
-                    <Table.Head>
-                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("id")}>
-                            ID
-                            {#if sortColumn === "id"}
-                                {#if sortDirection === "asc"}
-                                    <ArrowUp class="ml-2 h-4 w-4" />
-                                {:else}
-                                    <ArrowDown class="ml-2 h-4 w-4" />
-                                {/if}
-                            {:else}
-                                <ArrowUpDown class="ml-2 h-4 w-4" />
-                            {/if}
-                        </Button>
-                    </Table.Head>
-                    <Table.Head>
-                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("status")}>
-                            Status
-                            {#if sortColumn === "status"}
-                                {#if sortDirection === "asc"}
-                                    <ArrowUp class="ml-2 h-4 w-4" />
-                                {:else}
-                                    <ArrowDown class="ml-2 h-4 w-4" />
-                                {/if}
-                            {:else}
-                                <ArrowUpDown class="ml-2 h-4 w-4" />
-                            {/if}
-                        </Button>
-                    </Table.Head>
+                    <Table.Head>ID</Table.Head>
                     <Table.Head class="text-right">Actions</Table.Head>
                 </Table.Row>
             </Table.Header>
             <Table.Body>
                 {#if filteredMembers().length === 0}
                     <Table.Row>
-                        <Table.Cell colspan={6} class="h-24 text-center">
+                        <Table.Cell colspan={5} class="h-24 text-center">
                             No members found.
                         </Table.Cell>
                     </Table.Row>
@@ -420,13 +393,7 @@
                             <Table.Cell>
                                 <code class="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">{member.qrId}</code>
                             </Table.Cell>
-                            <Table.Cell>
-                                {#if member.status === 'Active'}
-                                    <Badge class="bg-primary/10 text-primary hover:bg-primary/20 border-primary/20">Active</Badge>
-                                {:else}
-                                    <Badge variant="secondary">Inactive</Badge>
-                                {/if}
-                            </Table.Cell>
+
                             <Table.Cell class="text-right">
                                 <DropdownMenu>
                                     <DropdownMenuTrigger>

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
-  import { LayoutGrid, Users, QrCode, ListChecks, Settings } from 'lucide-svelte';
+  import { LayoutGrid, Users, QrCode, ListChecks, MoreHorizontal } from 'lucide-svelte';
   import { cn } from '$lib/utils';
 
   let { class: className = "" } = $props();
@@ -52,8 +52,8 @@
       class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/settings') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
       onclick={() => goto('/settings') }
     >
-      <Settings class="h-6 w-6" />
-      <span class="text-[10px] font-medium">Settings</span>
+      <MoreHorizontal class="h-6 w-6" />
+      <span class="text-[10px] font-medium">Options</span>
     </button>
   </div>
 </nav>

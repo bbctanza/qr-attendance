@@ -28,14 +28,25 @@
     let showSidebar = $derived(!['/login', '/forgot-password'].includes($page.url.pathname));
 
     // Compute breadcrumb based on current path
-    let currentPageName = $derived.by(() => {
+    let breadcrumbs = $derived.by(() => {
         const path = $page.url.pathname;
-        if (path === '/') return 'Overview';
+        if (path === '/') return [{ name: 'Overview' }];
+        
+        if (path === '/settings') return [{ name: 'Options' }];
+        if (path.startsWith('/attendance/history')) return [
+            { name: 'Options', href: '/settings' },
+            { name: 'Attendance History' }
+        ];
+        if (path === '/events') return [
+            { name: 'Options', href: '/settings' },
+            { name: 'Events' }
+        ];
         
         const segment = path.split('/')[1];
-        if (!segment) return 'Overview';
-        if (segment === 'members') return 'Member';
-        return segment.charAt(0).toUpperCase() + segment.slice(1);
+        if (!segment) return [{ name: 'Overview' }];
+        if (segment === 'members') return [{ name: 'Members' }];
+        if (segment === 'dashboard') return [{ name: 'Dashboard' }];
+        return [{ name: segment.charAt(0).toUpperCase() + segment.slice(1) }];
     });
 </script>
 
@@ -54,19 +65,25 @@
                     <Breadcrumb>
                         <BreadcrumbList>
                             <BreadcrumbItem class="hidden md:block">
-                                <BreadcrumbLink href="#">Scan-in System</BreadcrumbLink>
+                                <BreadcrumbLink href="/">Scan-in System</BreadcrumbLink>
                             </BreadcrumbItem>
-                            <BreadcrumbSeparator class="hidden md:block" />
-                            <BreadcrumbItem>
-                                <BreadcrumbPage>{currentPageName}</BreadcrumbPage>
-                            </BreadcrumbItem>
+                            {#each breadcrumbs as crumb, i}
+                                <BreadcrumbSeparator class="hidden md:block" />
+                                <BreadcrumbItem>
+                                    {#if crumb.href}
+                                        <BreadcrumbLink href={crumb.href}>{crumb.name}</BreadcrumbLink>
+                                    {:else}
+                                        <BreadcrumbPage>{crumb.name}</BreadcrumbPage>
+                                    {/if}
+                                </BreadcrumbItem>
+                            {/each}
                         </BreadcrumbList>
                     </Breadcrumb>
                 </div>
             </header>
 
             <!-- Custom Mobile Header -->
-            <MobileHeader title={currentPageName} />
+            <MobileHeader title={breadcrumbs[breadcrumbs.length - 1].name} />
 
             <main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
                 {@render children()}

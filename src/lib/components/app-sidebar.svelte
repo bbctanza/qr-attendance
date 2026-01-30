@@ -4,7 +4,7 @@
     LayoutDashboard,
     Users,
     ListChecks,
-    Settings,
+    MoreHorizontal,
     QrCode,
     LogOut,
     ChevronUp,
@@ -58,9 +58,9 @@
       icon: ListChecks,
     },
     {
-      title: "Settings",
+      title: "Options",
       url: "/settings",
-      icon: Settings,
+      icon: MoreHorizontal,
     },
   ];
 </script>
