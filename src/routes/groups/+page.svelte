@@ -145,105 +145,76 @@
 
 <div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12 max-w-7xl mx-auto">
 	<!-- Header with Add Button -->
-	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-2">
+	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
 		<div>
-			<h1 class="hidden sm:block text-2xl md:text-3xl lg:text-4xl font-bold">Manage Groups</h1>
-			<p class="hidden md:block text-sm text-muted-foreground mt-1">Organize and manage team groups and member assignments</p>
+			<h1 class="hidden sm:block text-2xl md:text-3xl font-bold">Groups Management</h1>
+			<p class="hidden sm:block text-muted-foreground mt-1">Manage and organize team groups</p>
 		</div>
 		<Button onclick={openAddGroup} class="w-full sm:w-auto">
 			<Plus class="mr-2 h-4 w-4" />
-			Add Group
+			Add New Group
 		</Button>
 	</div>
 
 	<!-- Search -->
-	<div class="relative mb-6">
+	<div class="relative">
 		<Search class="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground h-4 w-4" />
 		<Input 
 			bind:value={searchQuery}
 			placeholder="Search groups..."
-			class="pl-10 rounded-2xl py-3 max-w-md md:max-w-xl"
+			class="pl-10 rounded-2xl py-3"
 		/>
 	</div>
 
 	<!-- Stats Cards -->
-	<div class="grid gap-4 sm:grid-cols-3 mb-8">
-		<Card class="hover:shadow-md transition-shadow">
-			<CardContent class="p-6 md:p-8">
-				<div class="flex items-end gap-4">
-					<div class="p-2 bg-primary/10 rounded-lg">
-						<Users class="h-6 w-6 text-primary" />
-					</div>
-					<div>
-						<div class="text-3xl md:text-4xl font-bold">{totalGroups}</div>
-						<div class="text-xs md:text-sm text-muted-foreground">Total Groups</div>
-					</div>
-				</div>
+	<div class="grid grid-cols-3 gap-2">
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Users class="h-6 w-6 text-muted-foreground mb-2" />
+				<div class="text-2xl font-bold mb-1">{totalGroups}</div>
+				<div class="text-sm font-medium text-center">Total Groups</div>
 			</CardContent>
 		</Card>
-		<Card class="hover:shadow-md transition-shadow">
-			<CardContent class="p-6 md:p-8">
-				<div class="flex items-end gap-4">
-					<div class="p-2 bg-primary/10 rounded-lg">
-						<Users class="h-6 w-6 text-primary" />
-					</div>
-					<div>
-						<div class="text-3xl md:text-4xl font-bold">{activeGroups}</div>
-						<div class="text-xs md:text-sm text-muted-foreground">Active</div>
-					</div>
-				</div>
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Users class="h-6 w-6 text-green-500 mb-2" />
+				<div class="text-2xl font-bold text-green-500 mb-1">{activeGroups}</div>
+				<div class="text-sm font-medium text-center">Active</div>
 			</CardContent>
 		</Card>
-		<Card class="hover:shadow-md transition-shadow">
-			<CardContent class="p-6 md:p-8">
-				<div class="flex items-end gap-4">
-					<div class="p-2 bg-primary/10 rounded-lg">
-						<Users class="h-6 w-6 text-primary" />
-					</div>
-					<div>
-						<div class="text-3xl md:text-4xl font-bold">{totalMembers}</div>
-						<div class="text-xs md:text-sm text-muted-foreground">Members</div>
-					</div>
-				</div>
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Users class="h-6 w-6 text-blue-500 mb-2" />
+				<div class="text-2xl font-bold text-blue-500 mb-1">{totalMembers}</div>
+				<div class="text-sm font-medium text-center">Members</div>
 			</CardContent>
 		</Card>
 	</div>
 
 	<!-- Groups List -->
 	<div>
-		<div class="mb-6">
-			<h2 class="text-xl md:text-2xl font-semibold mb-2">Groups ({filteredGroups.length})</h2>
-			<p class="text-sm text-muted-foreground hidden md:block">Manage and organize all team groups</p>
-		</div>
-		<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+		<h2 class="text-xl font-semibold mb-4">Groups</h2>
+		<div class="hidden lg:grid gap-4 md:gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
 			{#each filteredGroups as group}
-				<Card class="hover:shadow-lg hover:border-primary/30 transition-all cursor-pointer overflow-hidden">
-					<div class="h-1" style="background-color: {group.color};"></div>
-					<CardContent class="p-6">
-						<div class="space-y-4">
+				<Card>
+					<CardContent class="p-4">
+						<div class="space-y-3">
 							<!-- Header -->
-							<div class="flex items-start justify-between gap-3">
-								<div class="flex items-start gap-3 flex-1">
-									<div class="p-2 rounded-lg mt-1 shrink-0" style="background-color: {group.color}20;">
-										<Users class="h-5 w-5" style="color: {group.color};" />
-									</div>
-									<div class="flex-1 min-w-0">
-										<h3 class="font-semibold text-base md:text-lg truncate">{group.name}</h3>
-										<p class="text-sm text-muted-foreground line-clamp-2 mt-1">{group.description}</p>
-									</div>
-								</div>
+							<div>
+								<h3 class="font-medium text-base">{group.name}</h3>
+								<p class="text-sm text-muted-foreground mt-1">{group.description}</p>
 							</div>
 							<!-- Members Badge -->
 							<div class="flex items-center justify-between pt-3 border-t">
-								<div class="px-3 py-1 rounded-full text-xs font-semibold text-white" style="background-color: {group.color};">
+								<div class="px-2 py-1 rounded-full text-xs font-medium" style="background-color: {group.color}20; color: {group.color};">
 									{group.members} members
 								</div>
-								<div class="flex gap-2">
-									<Button variant="ghost" size="sm" class="hover:bg-primary/10" onclick={() => editGroup(group.id)}>
+								<div class="flex items-center gap-1">
+									<Button variant="ghost" size="sm" onclick={() => editGroup(group.id)}>
 										<Edit class="h-4 w-4" />
 									</Button>
-									<Button variant="ghost" size="sm" class="hover:bg-destructive/10" onclick={() => deleteGroup(group.id)}>
-										<Trash2 class="h-4 w-4 text-destructive" />
+									<Button variant="ghost" size="sm" onclick={() => deleteGroup(group.id)}>
+										<Trash2 class="h-4 w-4" />
 									</Button>
 								</div>
 							</div>
@@ -253,6 +224,47 @@
 			{/each}
 			{#if filteredGroups.length === 0}
 				<div class="col-span-full flex flex-col items-center justify-center py-12 text-center">
+					<Users class="h-12 w-12 text-muted-foreground/50 mb-4" />
+					<p class="text-muted-foreground font-medium">No groups found</p>
+					<p class="text-xs text-muted-foreground mt-1">Try adjusting your search or create a new group</p>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Mobile/Tablet View -->
+		<div class="lg:hidden space-y-3 sm:space-y-4">
+			{#each filteredGroups as group}
+				<Card>
+					<CardContent class="p-3 sm:p-4">
+						<div class="flex items-center justify-between">
+							<div class="min-w-0 flex-1">
+								<h3 class="font-medium truncate text-sm sm:text-base">{group.name}</h3>
+								<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1 text-xs text-muted-foreground">
+									<div class="flex items-center gap-1">
+										<Users class="h-3 w-3" />
+										<span class="truncate">{group.description}</span>
+									</div>
+									<div class="flex items-center gap-1">
+										<span class="px-2 py-0.5 rounded-full text-xs font-medium" style="background-color: {group.color}20; color: {group.color};">
+											{group.members} members
+										</span>
+									</div>
+								</div>
+							</div>
+							<div class="flex items-center gap-1 ml-2 shrink-0">
+								<Button variant="ghost" size="sm" onclick={() => editGroup(group.id)}>
+									<Edit class="h-4 w-4" />
+								</Button>
+								<Button variant="ghost" size="sm" onclick={() => deleteGroup(group.id)}>
+									<Trash2 class="h-4 w-4" />
+								</Button>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			{/each}
+			{#if filteredGroups.length === 0}
+				<div class="flex flex-col items-center justify-center py-12 text-center">
 					<Users class="h-12 w-12 text-muted-foreground/50 mb-4" />
 					<p class="text-muted-foreground font-medium">No groups found</p>
 					<p class="text-xs text-muted-foreground mt-1">Try adjusting your search or create a new group</p>
