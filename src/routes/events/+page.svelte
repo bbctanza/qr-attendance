@@ -4,18 +4,19 @@
 	import { Switch } from "$lib/components/ui/switch";
 	import { Calendar, Clock, MapPin, Edit, Trash2, Plus, Check } from "@lucide/svelte";
 	import { toast } from "svelte-sonner";
-	import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter, SheetClose } from "$lib/components/ui/sheet";
+	import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from "$lib/components/ui/drawer";
+	import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "$lib/components/ui/sheet";
 	import { Label } from "$lib/components/ui/label";
 	import { Input } from "$lib/components/ui/input";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Select from "$lib/components/ui/select";
 
 	// Mock data
-	let totalEvents = 12;
-	let activeEvents = 8;
-	let inactiveEvents = 4;
+	let totalEvents = $state(12);
+	let activeEvents = $state(8);
+	let inactiveEvents = $state(4);
 
-	let recurringEvents = [
+	let recurringEvents = $state([
 		{
 			id: 1,
 			title: "Sunday Morning Service",
@@ -40,9 +41,9 @@
 			place: "Prayer Room",
 			active: false
 		}
-	];
+	]);
 
-	let customEvents = [
+	let customEvents = $state([
 		{
 			id: 4,
 			title: "Q3 Planning Session",
@@ -59,9 +60,9 @@
 			place: "Design Studio",
 			active: true
 		}
-	];
+	]);
 
-	let pastEvents = [
+	let pastEvents = $state([
 		{
 			id: 6,
 			title: "Annual Retreat",
@@ -69,7 +70,7 @@
 			time: "09:00 AM - 05:00 PM",
 			place: "Mountain Resort"
 		}
-	];
+	]);
 
 	function toggleActive(id: number, type: 'recurring' | 'custom') {
 		let eventTitle = '';
@@ -113,9 +114,10 @@
 	}
 
 	// Add Event Dialog State
-	let showAddEventDialog = false;
+	let showAddEventDialog = $state(false);
+	let isMobile = $state(false);
 	let weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-	let newEvent: any = {
+	let newEvent: any = $state({
 		name: '',
 		type: 'recurring', // 'recurring' | 'custom'
 		schedule: 'weekly', // 'weekly' | 'monthly' | 'one-time'
@@ -126,7 +128,16 @@
 		startTime: '',
 		endTime: '',
 		location: ''
-	};
+	});
+
+	// Auto-update schedule when type changes
+	$effect(() => {
+		if (newEvent.type === 'custom' && newEvent.schedule !== 'one-time') {
+			newEvent.schedule = 'one-time';
+		} else if (newEvent.type === 'recurring' && newEvent.schedule === 'one-time') {
+			newEvent.schedule = 'weekly';
+		}
+	});
 
 	function addEvent() {
 		showAddEventDialog = true;
@@ -185,6 +196,20 @@
 		};
 		showAddEventDialog = false;
 	}
+
+	// Media query listener for responsive drawer/sheet
+	import { onMount } from 'svelte';
+	onMount(() => {
+		const mediaQuery = window.matchMedia('(min-width: 640px)');
+		isMobile = !mediaQuery.matches;
+		
+		const handleChange = (e: MediaQueryListEvent) => {
+			isMobile = !e.matches;
+		};
+		
+		mediaQuery.addEventListener('change', handleChange);
+		return () => mediaQuery.removeEventListener('change', handleChange);
+	});
 </script>
 
 <div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12 max-w-7xl mx-auto">
@@ -201,13 +226,14 @@
 		</Button>
 	</div>
 
-	<!-- Add Event Sheet -->
-	<Sheet bind:open={showAddEventDialog}>
-		<SheetContent class="sm:max-w-2xl">
-			<SheetHeader>
-				<SheetTitle class="text-lg font-semibold">Add New Event</SheetTitle>
-			</SheetHeader>
-			<div class="px-4 pb-4">
+	<!-- Add Event Drawer (Mobile) -->
+	{#if isMobile}
+		<Drawer bind:open={showAddEventDialog}>
+			<DrawerContent class="max-h-[90vh]">
+			<DrawerHeader>
+				<DrawerTitle class="text-lg font-semibold">Add New Event</DrawerTitle>
+			</DrawerHeader>
+			<div class="px-4 pb-4 overflow-y-auto max-h-[calc(90vh-180px)]">
 				<div class="text-sm text-muted-foreground mb-4">Create a new recurring or custom event</div>
 				<div class="space-y-4">
 					<!-- Event Name -->
@@ -237,9 +263,9 @@
 									{newEvent.schedule === 'weekly' ? 'Weekly' : newEvent.schedule === 'monthly' ? 'Monthly' : 'One-time'}
 								</Select.Trigger>
 								<Select.Content class="bg-popover border-border/40 rounded-xl">
-									<Select.Item value="weekly">Weekly</Select.Item>
-									<Select.Item value="monthly">Monthly</Select.Item>
-									<Select.Item value="one-time">One-time</Select.Item>
+										<Select.Item value="weekly" disabled={newEvent.type === 'custom'}>Weekly</Select.Item>
+										<Select.Item value="monthly" disabled={newEvent.type === 'custom'}>Monthly</Select.Item>
+										<Select.Item value="one-time" disabled={newEvent.type === 'recurring'}>One-time</Select.Item>
 								</Select.Content>
 							</Select.Root>
 						</div>
@@ -255,8 +281,143 @@
 										type="button"
 										class="flex items-center gap-2 text-sm rounded px-2 py-1 hover:bg-muted/30"
 										aria-pressed={newEvent.days.includes(day)}
-										on:click={() => toggleWeekday(day)}
-										on:keydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleWeekday(day))}
+									onclick={() => toggleWeekday(day)}
+									onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleWeekday(day))}
+									>
+										<div class="size-4 rounded-sm border border-border flex items-center justify-center">
+											{#if newEvent.days.includes(day)}
+												<Check class="size-3 text-primary" />
+											{/if}
+										</div>
+										<span>{day.slice(0,3)}</span>
+									</button>
+								{/each}
+							</div>
+						</div>
+					{/if}
+
+					<!-- Monthly Rule -->
+					{#if newEvent.schedule === 'monthly'}
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Ordinal</Label>
+								<Select.Root type="single" bind:value={newEvent.monthlyOrdinal}>
+									<Select.Trigger class="mt-2 rounded-xl py-3 w-full border-input text-left">{newEvent.monthlyOrdinal}</Select.Trigger>
+									<Select.Content class="bg-popover border-border/40 rounded-xl">
+									<Select.Item value="First">First</Select.Item>
+									<Select.Item value="Second">Second</Select.Item>
+									<Select.Item value="Third">Third</Select.Item>
+									<Select.Item value="Fourth">Fourth</Select.Item>
+									<Select.Item value="Last">Last</Select.Item>
+									</Select.Content>
+								</Select.Root>
+							</div>
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Weekday</Label>
+								<Select.Root type="single" bind:value={newEvent.monthlyWeekday}>
+									<Select.Trigger class="mt-2 rounded-xl py-3 w-full border-input text-left">{newEvent.monthlyWeekday}</Select.Trigger>
+									<Select.Content class="bg-popover border-border/40 rounded-xl">
+										{#each weekdays as day}
+											<Select.Item value={day}>{day}</Select.Item>
+										{/each}
+									</Select.Content>
+								</Select.Root>
+							</div>
+						</div>
+					{/if}
+
+					<!-- One-time Date (custom) -->
+					{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+							<Input id="eventDate" type="date" bind:value={newEvent.date} class="mt-2 rounded-xl py-3 w-full border-input" />
+						</div>
+					{/if}
+
+					<!-- Time & Location -->
+					<div class="grid grid-cols-2 gap-3">
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+							<Input id="startTime" type="time" bind:value={newEvent.startTime} class="mt-2 rounded-xl py-3 w-full border-input" />
+						</div>
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+							<Input id="endTime" type="time" bind:value={newEvent.endTime} class="mt-2 rounded-xl py-3 w-full border-input" />
+						</div>
+					</div>
+
+					<div>
+						<Label class="text-xs font-bold tracking-wider uppercase">Location</Label>
+						<Input id="location" type="text" bind:value={newEvent.location} placeholder="e.g. Main Sanctuary" class="mt-2 rounded-xl py-3 w-full border-input" />
+					</div>
+				</div>
+			</div>
+
+			<DrawerFooter class="flex gap-3 px-4 pb-4 border-t">
+			<Button class="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground" onclick={() => (showAddEventDialog = false)}>Cancel</Button>
+				<Button class="w-full" onclick={addNewEvent}>Save Event</Button>
+			</DrawerFooter>
+		</DrawerContent>
+	</Drawer>
+	{/if}
+
+	<!-- Add Event Sheet (Desktop) -->
+	{#if !isMobile}
+		<Sheet bind:open={showAddEventDialog}>
+		<SheetContent class="sm:max-w-2xl hidden sm:flex flex-col">
+			<SheetHeader>
+				<SheetTitle class="text-lg font-semibold">Add New Event</SheetTitle>
+			</SheetHeader>
+			<div class="px-4 pb-4 overflow-y-auto flex-1">
+				<div class="text-sm text-muted-foreground mb-4">Create a new recurring or custom event</div>
+				<div class="space-y-4">
+					<!-- Event Name -->
+					<div>
+						<Label for="eventName" class="text-xs font-bold tracking-wider uppercase">Event Name</Label>
+						<Input id="eventName" type="text" placeholder="e.g. Sunday Service" bind:value={newEvent.name} class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input w-full" />
+					</div>
+
+					<!-- Type & Schedule -->
+					<div class="grid grid-cols-2 gap-3">
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Type</Label>
+							<Select.Root type="single" bind:value={newEvent.type}>
+								<Select.Trigger class="mt-2 rounded-xl py-3 w-full border-input text-left">
+									{newEvent.type === 'recurring' ? 'Recurring' : 'Custom / One-time'}
+								</Select.Trigger>
+								<Select.Content class="bg-popover border-border/40 rounded-xl">
+									<Select.Item value="recurring">Recurring</Select.Item>
+									<Select.Item value="custom">Custom / One-time</Select.Item>
+								</Select.Content>
+							</Select.Root>
+						</div>
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Schedule</Label>
+							<Select.Root type="single" bind:value={newEvent.schedule}>
+								<Select.Trigger class="mt-2 rounded-xl py-3 w-full border-input text-left">
+									{newEvent.schedule === 'weekly' ? 'Weekly' : newEvent.schedule === 'monthly' ? 'Monthly' : 'One-time'}
+								</Select.Trigger>
+								<Select.Content class="bg-popover border-border/40 rounded-xl">
+								<Select.Item value="weekly" disabled={newEvent.type === 'custom'}>Weekly</Select.Item>
+								<Select.Item value="monthly" disabled={newEvent.type === 'custom'}>Monthly</Select.Item>
+								<Select.Item value="one-time" disabled={newEvent.type === 'recurring'}>One-time</Select.Item>
+								</Select.Content>
+							</Select.Root>
+						</div>
+					</div>
+
+					<!-- Weekly Days -->
+					{#if newEvent.schedule === 'weekly'}
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Days of Week</Label>
+							<div class="grid grid-cols-4 gap-2 mt-2">
+								{#each weekdays as day}
+									<button
+										type="button"
+										class="flex items-center gap-2 text-sm rounded px-2 py-1 hover:bg-muted/30"
+										aria-pressed={newEvent.days.includes(day)}
+										onclick={() => toggleWeekday(day)}
+										onkeydown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), toggleWeekday(day))}
 									>
 										<div class="size-4 rounded-sm border border-border flex items-center justify-center">
 											{#if newEvent.days.includes(day)}
@@ -328,11 +489,12 @@
 			</div>
 
 			<SheetFooter class="flex gap-3 px-4 pb-4">
-				<Button class="w-full md:w-auto bg-muted hover:bg-muted/90" onclick={() => (showAddEventDialog = false)}>Cancel</Button>
+			<Button class="w-full md:w-auto bg-secondary hover:bg-secondary/80 text-secondary-foreground" onclick={() => (showAddEventDialog = false)}>Cancel</Button>
 				<Button class="w-full md:w-auto" onclick={addNewEvent}>Save Event</Button>
 			</SheetFooter>
 		</SheetContent>
 	</Sheet>
+	{/if}
 
 	<!-- Stats Cards -->
 	<div class="grid grid-cols-3 gap-2">
