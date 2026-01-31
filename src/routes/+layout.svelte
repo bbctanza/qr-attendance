@@ -1,5 +1,6 @@
 <script lang="ts">
     import './layout.css';
+    import { browser } from '$app/environment';
     // import favicon from '$lib/assets/favicon.svg';
     import AppSidebar from "$lib/components/app-sidebar.svelte";
     import { Separator } from "$lib/components/ui/separator";
@@ -20,6 +21,16 @@
     import MobileNav from '$lib/components/mobile-nav.svelte';
     import MobileHeader from '$lib/components/mobile-header.svelte';
     import { Toaster } from "$lib/components/ui/sonner";
+
+    // Initialize theme synchronously from localStorage before render
+    if (browser) {
+        const savedTheme = localStorage.getItem('theme') || 'light';
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    }
 
     let { children } = $props();
 

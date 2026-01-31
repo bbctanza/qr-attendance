@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 	import { Label } from "$lib/components/ui/label";
@@ -14,7 +15,7 @@
 		notifications: true,
 		emailNotifications: true,
 		soundEnabled: true,
-		darkMode: mode.current === 'dark',
+		darkMode: false,
 		language: 'en',
 		autoRefresh: true,
 		autoRefreshInterval: '30',
@@ -25,15 +26,21 @@
 
 	let isSaving = $state(false);
 
-	// Watch for dark mode changes and update theme
+	// Load settings from localStorage on mount
+	onMount(() => {
+		const savedTheme = localStorage.getItem('theme') || 'light';
+		settings.darkMode = savedTheme === 'dark';
+	});
+
+	// Watch for dark mode changes and update theme + localStorage
 	$effect(() => {
 		const isDark = settings.darkMode;
 		if (isDark) {
 			document.documentElement.classList.add('dark');
-			mode.setMode('dark');
+			localStorage.setItem('theme', 'dark');
 		} else {
 			document.documentElement.classList.remove('dark');
-			mode.setMode('light');
+			localStorage.setItem('theme', 'light');
 		}
 	});
 
@@ -61,7 +68,7 @@
 				cacheData: true
 			};
 			document.documentElement.classList.remove('dark');
-			mode.setMode('light');
+				localStorage.setItem('theme', 'light');
 			toast.success('Settings reset to defaults');
 		}
 	}
