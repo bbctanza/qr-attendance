@@ -103,9 +103,68 @@
 		}
 	}
 
+	let isEditing = $state(false);
+	let editingId: number | null = $state(null);
+	let editingType: 'recurring' | 'custom' | null = $state(null);
+
 	function editEvent(id: number) {
-		// Placeholder
-		console.log('Edit event', id);
+		// Find in recurring
+		const r = recurringEvents.find(e => e.id === id);
+		if (r) {
+			// populate form for recurring
+			newEvent.name = r.title;
+			newEvent.type = 'recurring';
+
+			// try to detect weekly vs monthly from schedule text
+			const scheduleText = r.schedule || '';
+			const foundDays = weekdays.filter(d => scheduleText.includes(d));
+			if (foundDays.length) {
+				newEvent.schedule = 'weekly';
+				newEvent.days = foundDays;
+			} else if (/First|Second|Third|Fourth|Last/.test(scheduleText)) {
+				newEvent.schedule = 'monthly';
+				const parts = scheduleText.split(' ');
+				newEvent.monthlyOrdinal = parts[0] || 'First';
+				newEvent.monthlyWeekday = parts[parts.length - 1] || 'Monday';
+			} else {
+				newEvent.schedule = 'one-time';
+				newEvent.date = scheduleText;
+			}
+
+			// time
+			const times = (r.time || '').split(' - ');
+			newEvent.startTime = times[0] || '';
+			newEvent.endTime = times[1] || '';
+			newEvent.location = r.place || '';
+
+			isEditing = true;
+			editingId = id;
+			editingType = 'recurring';
+			showAddEventDialog = true;
+			return;
+		}
+
+		// Find in custom
+		const c = customEvents.find(e => e.id === id);
+		if (c) {
+			newEvent.name = c.title;
+			newEvent.type = 'custom';
+			newEvent.schedule = 'one-time';
+			newEvent.date = c.date || '';
+
+			const times = (c.time || '').split(' - ');
+			newEvent.startTime = times[0] || '';
+			newEvent.endTime = times[1] || '';
+			newEvent.location = c.place || '';
+
+			isEditing = true;
+			editingId = id;
+			editingType = 'custom';
+			showAddEventDialog = true;
+			return;
+		}
+
+		console.warn('Event to edit not found', id);
 	}
 
 	function deleteEvent(id: number) {
@@ -140,6 +199,22 @@
 	});
 
 	function addEvent() {
+		// start fresh for creating new event
+		isEditing = false;
+		editingId = null;
+		editingType = null;
+		newEvent = {
+			name: '',
+			type: 'recurring',
+			schedule: 'weekly',
+			days: [],
+			monthlyOrdinal: 'First',
+			monthlyWeekday: 'Monday',
+			date: '',
+			startTime: '',
+			endTime: '',
+			location: ''
+		};
 		showAddEventDialog = true;
 	}
 
@@ -155,6 +230,70 @@
 			return;
 		}
 
+		// If editing, update existing
+		if (isEditing && editingId != null) {
+			const id = editingId;
+			// determine schedule label for recurring
+			const scheduleLabel = newEvent.schedule === 'weekly'
+				? newEvent.days.join(', ')
+				: newEvent.schedule === 'monthly'
+				? `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`
+				: newEvent.date || '';
+
+			// Same type: update in place
+			if (editingType === newEvent.type) {
+				if (newEvent.type === 'recurring') {
+					recurringEvents = recurringEvents.map(e => e.id === id ? { ...e, title: newEvent.name, schedule: scheduleLabel, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location } : e);
+				} else {
+					customEvents = customEvents.map(e => e.id === id ? { ...e, title: newEvent.name, date: newEvent.date, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location } : e);
+				}
+			} else {
+				// Type changed: move between arrays keeping the same id and active state
+				if (editingType === 'recurring' && newEvent.type === 'custom') {
+					const old = recurringEvents.find(e => e.id === id);
+					recurringEvents = recurringEvents.filter(e => e.id !== id);
+					customEvents = [
+						...customEvents,
+						{ id, title: newEvent.name, date: newEvent.date, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location, active: old?.active ?? true }
+					];
+				} else if (editingType === 'custom' && newEvent.type === 'recurring') {
+					const old = customEvents.find(e => e.id === id);
+					customEvents = customEvents.filter(e => e.id !== id);
+					recurringEvents = [
+						...recurringEvents,
+						{ id, title: newEvent.name, schedule: scheduleLabel, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location, active: old?.active ?? true }
+					];
+				}
+			}
+
+			// recalc
+			totalEvents = recurringEvents.length + customEvents.length;
+			activeEvents = recurringEvents.filter(e => e.active).length + customEvents.filter(e => e.active).length;
+			inactiveEvents = totalEvents - activeEvents;
+
+			toast.success(`"${newEvent.name}" updated`);
+
+			// reset
+			isEditing = false;
+			editingId = null;
+			editingType = null;
+			newEvent = {
+				name: '',
+				type: 'recurring',
+				schedule: 'weekly',
+				days: [],
+				monthlyOrdinal: 'First',
+				monthlyWeekday: 'Monday',
+				date: '',
+				startTime: '',
+				endTime: '',
+				location: ''
+			};
+			showAddEventDialog = false;
+			return;
+		}
+
+		// Not editing -> create new
 		const existingIds = [...recurringEvents.map(e => e.id), ...customEvents.map(e => e.id)];
 		const nextId = existingIds.length ? Math.max(...existingIds) + 1 : 1;
 
@@ -231,7 +370,7 @@
 		<Drawer bind:open={showAddEventDialog}>
 			<DrawerContent class="max-h-[90vh]">
 			<DrawerHeader>
-				<DrawerTitle class="text-lg font-semibold">Add New Event</DrawerTitle>
+			<DrawerTitle class="text-lg font-semibold">{isEditing ? 'Edit Event' : 'Add New Event'}</DrawerTitle>
 			</DrawerHeader>
 			<div class="px-4 pb-4 overflow-y-auto max-h-[calc(90vh-180px)]">
 				<div class="text-sm text-muted-foreground mb-4">Create a new recurring or custom event</div>
@@ -355,7 +494,7 @@
 
 			<DrawerFooter class="flex gap-3 px-4 pb-4 border-t">
 			<Button class="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground" onclick={() => (showAddEventDialog = false)}>Cancel</Button>
-				<Button class="w-full" onclick={addNewEvent}>Save Event</Button>
+				<Button class="w-full" onclick={addNewEvent}>{isEditing ? 'Update Event' : 'Save Event'}</Button>
 			</DrawerFooter>
 		</DrawerContent>
 	</Drawer>
@@ -366,7 +505,7 @@
 		<Sheet bind:open={showAddEventDialog}>
 		<SheetContent class="sm:max-w-2xl hidden sm:flex flex-col">
 			<SheetHeader>
-				<SheetTitle class="text-lg font-semibold">Add New Event</SheetTitle>
+				<SheetTitle class="text-lg font-semibold">{isEditing ? 'Edit Event' : 'Add New Event'}</SheetTitle>
 			</SheetHeader>
 			<div class="px-4 pb-4 overflow-y-auto flex-1">
 				<div class="text-sm text-muted-foreground mb-4">Create a new recurring or custom event</div>
@@ -490,7 +629,7 @@
 
 			<SheetFooter class="flex gap-3 px-4 pb-4">
 			<Button class="w-full md:w-auto bg-secondary hover:bg-secondary/80 text-secondary-foreground" onclick={() => (showAddEventDialog = false)}>Cancel</Button>
-				<Button class="w-full md:w-auto" onclick={addNewEvent}>Save Event</Button>
+				<Button class="w-full md:w-auto" onclick={addNewEvent}>{isEditing ? 'Update Event' : 'Save Event'}</Button>
 			</SheetFooter>
 		</SheetContent>
 	</Sheet>
