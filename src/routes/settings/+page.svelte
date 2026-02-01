@@ -4,7 +4,7 @@
     import { Badge } from "$lib/components/ui/badge";
     import { Separator } from "$lib/components/ui/separator";
     import { goto } from '$app/navigation';
-    import { ChevronRight, Edit, Clock, Calendar, Users, Settings, LogOut } from '@lucide/svelte';
+    import { ChevronRight, Edit, Clock, Calendar, Users, Settings, LogOut, BarChart3 } from '@lucide/svelte';
 
     let user = $state({ name: 'Alex Chen', role: 'Administrator', avatar: '' });
     let version = $state('QR Attendance System v1.2.0');
@@ -65,11 +65,11 @@
                     </div>
                     <ChevronRight class="text-muted-foreground shrink-0" />
                 </button>
-                <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/events')}> 
-                    <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Calendar class="h-5 w-5" /></div>
+                <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/analytics')}> 
+                    <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><BarChart3 class="h-5 w-5" /></div>
                     <div class="flex-1 text-left min-w-0">
-                        <div class="font-bold text-sm sm:text-base">Events</div>
-                        <div class="text-xs sm:text-sm text-muted-foreground truncate">Manage events and schedules</div>
+                        <div class="font-bold text-sm sm:text-base">Analytics</div>
+                        <div class="text-xs sm:text-sm text-muted-foreground truncate">View attendance insights</div>
                     </div>
                     <ChevronRight class="text-muted-foreground shrink-0" />
                 </button>
