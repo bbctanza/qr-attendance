@@ -31,21 +31,21 @@
 
     <!-- Profile Card -->
     <div class="rounded-2xl border border-border/30 bg-card px-4 sm:px-6 py-6 sm:py-8">
-        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div class="flex items-center gap-4">
-                <Avatar class="h-16 w-16 sm:h-20 sm:w-20">
+        <div class="flex flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-4 min-w-0 flex-1">
+                <Avatar class="h-16 w-16 sm:h-20 sm:w-20 shrink-0">
                     {#if user.avatar}
                         <AvatarImage src={user.avatar} alt={user.name} />
                     {:else}
                         <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('').substring(0,2)}</AvatarFallback>
                     {/if}
                 </Avatar>
-                <div>
-                    <div class="font-bold text-lg sm:text-xl">{user.name}</div>
+                <div class="min-w-0 flex-1">
+                    <div class="font-bold text-lg sm:text-xl truncate">{user.name}</div>
                     <Badge class="mt-2">{user.role}</Badge>
                 </div>
             </div>
-            <button class="p-2 text-muted-foreground hover:text-foreground transition-colors self-start sm:self-auto" aria-label="Edit profile">
+            <button class="p-2 text-muted-foreground hover:text-foreground transition-colors self-start sm:self-auto" aria-label="Edit profile" onclick={() => open('/settings/profile')}>
                 <Edit class="h-5 w-5" />
             </button>
         </div>
