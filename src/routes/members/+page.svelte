@@ -7,6 +7,7 @@
     import { Badge } from "$lib/components/ui/badge";
     import { Label } from "$lib/components/ui/label";
     import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X, ArrowUpDown, ArrowUp, ArrowDown } from "@lucide/svelte";
+    import * as Collapsible from "$lib/components/ui/collapsible";
     import {
         DropdownMenu,
         DropdownMenuContent,
@@ -41,6 +42,9 @@
         middleInitial: "",
         group: ""
     });
+
+    // Mobile collapsible state for group groupings
+    let collapsedGroups = $state(new Set<string>());
 
     // Mock Data
     let members = $state([
@@ -221,14 +225,26 @@
     <!-- Grouped List -->
     <div class="flex-1 px-4 py-4 space-y-8">
         {#each Object.entries(groupedMembers()) as [groupName, groupMembers]}
-            <section>
-                <div class="flex items-center gap-2 mb-4">
-                    <div class="w-1 h-4 rounded-full {groupColors[groupName] || 'bg-muted'} border-l-4"></div>
-                    <h2 class="text-xs font-bold tracking-wider text-muted-foreground uppercase">{groupName}</h2>
-                    <span class="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground/70">{groupMembers.length}</span>
+            <Collapsible.Root open={!collapsedGroups.has(groupName)} onOpenChange={(open) => {
+                if (open) {
+                    collapsedGroups.delete(groupName);
+                } else {
+                    collapsedGroups.add(groupName);
+                }
+                collapsedGroups = new Set(collapsedGroups);
+            }}>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 mb-4">
+                        <div class="w-1 h-4 rounded-full {groupColors[groupName] || 'bg-muted'} border-l-4"></div>
+                        <h2 class="text-xs font-bold tracking-wider text-muted-foreground uppercase">{groupName}</h2>
+                        <span class="text-[10px] bg-muted px-1.5 py-0.5 rounded text-muted-foreground/70">{groupMembers.length}</span>
+                    </div>
+                    <Collapsible.Trigger class="p-1 text-muted-foreground hover:text-foreground active:scale-75 transition-all duration-150">
+                        <ChevronRight class="h-4 w-4 transform transition-transform {!collapsedGroups.has(groupName) ? 'rotate-90' : ''}" />
+                    </Collapsible.Trigger>
                 </div>
 
-                <div class="space-y-3">
+                <Collapsible.Content class="space-y-3">
                     {#each groupMembers as member}
                         <div class="bg-card/40 border border-border/40 rounded-2xl p-4 flex items-center justify-between group active:scale-[0.98] transition-all">
                             <div class="flex items-center gap-4">
@@ -259,8 +275,8 @@
                             </button>
                         </div>
                     {/each}
-                </div>
-            </section>
+                </Collapsible.Content>
+            </Collapsible.Root>
         {:else}
             <div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
                 <div class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 opacity-20">

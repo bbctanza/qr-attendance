@@ -20,90 +20,109 @@
     }
 </script> 
 
-<div class="max-w-xl mx-auto px-6 flex flex-col gap-6">
+<div class="flex flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8 max-w-6xl mx-auto">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h1 class="text-2xl md:text-3xl font-bold">Settings</h1>
+            <p class="text-muted-foreground text-sm md:text-base mt-1">Manage your profile and preferences</p>
+        </div>
+    </div>
 
     <!-- Profile Card -->
-    <div class="rounded-2xl border border-border/30 bg-card px-6 py-8 flex items-center justify-between">
-        <div class="flex items-center gap-4">
-            <Avatar class="h-16 w-16">
-                {#if user.avatar}
-                    <AvatarImage src={user.avatar} alt={user.name} />
-                {:else}
-                    <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('').substring(0,2)}</AvatarFallback>
-                {/if}
-            </Avatar>
-            <div>
-                <div class="font-bold text-lg">{user.name}</div>
-                <Badge class="mt-1">{user.role}</Badge>
+    <div class="rounded-2xl border border-border/30 bg-card px-4 sm:px-6 py-6 sm:py-8">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex items-center gap-4">
+                <Avatar class="h-16 w-16 sm:h-20 sm:w-20">
+                    {#if user.avatar}
+                        <AvatarImage src={user.avatar} alt={user.name} />
+                    {:else}
+                        <AvatarFallback>{user.name.split(' ').map(n => n[0]).join('').substring(0,2)}</AvatarFallback>
+                    {/if}
+                </Avatar>
+                <div>
+                    <div class="font-bold text-lg sm:text-xl">{user.name}</div>
+                    <Badge class="mt-2">{user.role}</Badge>
+                </div>
+            </div>
+            <button class="p-2 text-muted-foreground hover:text-foreground transition-colors self-start sm:self-auto" aria-label="Edit profile">
+                <Edit class="h-5 w-5" />
+            </button>
+        </div>
+    </div>
+
+    <!-- Sections Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+        <!-- Tracking & Data Section -->
+        <div>
+            <h2 class="text-sm font-semibold tracking-widest text-muted-foreground/60 mb-4 uppercase">Tracking & Data</h2>
+            <div class="space-y-3 sm:space-y-4">
+                <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/attendance/history')}> 
+                    <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Clock class="h-5 w-5" /></div>
+                    <div class="flex-1 text-left min-w-0">
+                        <div class="font-bold text-sm sm:text-base">Attendance History</div>
+                        <div class="text-xs sm:text-sm text-muted-foreground truncate">Review past check-ins</div>
+                    </div>
+                    <ChevronRight class="text-muted-foreground shrink-0" />
+                </button>
+                <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/events')}> 
+                    <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Calendar class="h-5 w-5" /></div>
+                    <div class="flex-1 text-left min-w-0">
+                        <div class="font-bold text-sm sm:text-base">Events</div>
+                        <div class="text-xs sm:text-sm text-muted-foreground truncate">Manage events and schedules</div>
+                    </div>
+                    <ChevronRight class="text-muted-foreground shrink-0" />
+                </button>
             </div>
         </div>
-        <button class="p-2 text-muted-foreground hover:text-foreground" aria-label="Edit profile">
-            <Edit class="h-5 w-5" />
+
+        <!-- Administration Section -->
+        <div>
+            <h2 class="text-sm font-semibold tracking-widest text-muted-foreground/60 mb-4 uppercase">Administration</h2>
+            <div class="space-y-3 sm:space-y-4">
+                <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/events')}> 
+                    <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Calendar class="h-5 w-5" /></div>
+                    <div class="flex-1 text-left min-w-0">
+                        <div class="font-bold text-sm sm:text-base">Manage Events</div>
+                        <div class="text-xs sm:text-sm text-muted-foreground truncate">Create and edit events</div>
+                    </div>
+                    <ChevronRight class="text-muted-foreground shrink-0" />
+                </button>
+
+                <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/groups')}> 
+                    <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Users class="h-5 w-5" /></div>
+                    <div class="flex-1 text-left min-w-0">
+                        <div class="font-bold text-sm sm:text-base">Manage Groups</div>
+                        <div class="text-xs sm:text-sm text-muted-foreground truncate">Organize members</div>
+                    </div>
+                    <ChevronRight class="text-muted-foreground shrink-0" />
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- System Section -->
+    <div>
+        <h2 class="text-sm font-semibold tracking-widest text-muted-foreground/60 mb-4 uppercase">System</h2>
+        <div class="space-y-3 sm:space-y-4">
+            <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/settings/app')}> 
+                <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Settings class="h-5 w-5" /></div>
+                <div class="flex-1 text-left min-w-0">
+                    <div class="font-bold text-sm sm:text-base">App Settings</div>
+                    <div class="text-xs sm:text-sm text-muted-foreground truncate">Preferences & Notifications</div>
+                </div>
+                <ChevronRight class="text-muted-foreground shrink-0" />
+            </button>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <Separator class="my-4" />
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
+        <button class="text-red-500 font-bold hover:text-red-600 transition-colors text-sm sm:text-base" onclick={handleLogout}>
+            <LogOut class="h-4 w-4 inline mr-2" />
+            Log Out
         </button>
-    </div>
-
-    <!-- Sections -->
-    <div>
-        <div class="text-xs font-semibold tracking-widest text-muted-foreground/60 mb-3">TRACKING & DATA</div>
-        <div class="space-y-4">
-            <button class="w-full flex items-center gap-4 py-3 px-6 rounded-2xl bg-card/20 border border-border/20" onclick={() => open('/attendance/history')}> 
-                <div class="p-3 rounded-md bg-primary/10 text-primary"><Clock class="h-5 w-5" /></div>
-                <div class="flex-1 text-left">
-                    <div class="font-bold">Attendance History</div>
-                    <div class="text-sm text-muted-foreground">Review past check-ins</div>
-                </div>
-                <ChevronRight class="text-muted-foreground" />
-            </button>
-            <button class="w-full flex items-center gap-4 py-3 px-6 rounded-2xl bg-card/20 border border-border/20" onclick={() => open('/events')}> 
-                <div class="p-3 rounded-md bg-primary/10 text-primary"><Calendar class="h-5 w-5" /></div>
-                <div class="flex-1 text-left">
-                    <div class="font-bold">Events</div>
-                    <div class="text-sm text-muted-foreground">Manage events and schedules</div>
-                </div>
-                <ChevronRight class="text-muted-foreground" />
-            </button>
-        </div>
-    </div>
-
-    <div>
-        <div class="text-xs font-semibold tracking-widest text-muted-foreground/60 mb-3">ADMINISTRATION</div>
-        <div class="space-y-4">
-            <button class="w-full flex items-center gap-4 py-3 px-6 rounded-2xl bg-card/20 border border-border/20" onclick={() => open('/events')}> 
-                <div class="p-3 rounded-md bg-primary/10 text-primary"><Calendar class="h-5 w-5" /></div>
-                <div class="flex-1 text-left">
-                    <div class="font-bold">Manage Events</div>
-                    <div class="text-sm text-muted-foreground">Create and edit events</div>
-                </div>
-                <ChevronRight class="text-muted-foreground" />
-            </button>
-
-            <button class="w-full flex items-center gap-4 py-3 px-6 rounded-2xl bg-card/20 border border-border/20" onclick={() => open('/groups')}> 
-                <div class="p-3 rounded-md bg-primary/10 text-primary"><Users class="h-5 w-5" /></div>
-                <div class="flex-1 text-left">
-                    <div class="font-bold">Manage Groups</div>
-                    <div class="text-sm text-muted-foreground">Organize members</div>
-                </div>
-                <ChevronRight class="text-muted-foreground" />
-            </button>
-        </div>
-    </div>
-
-    <div>
-        <div class="text-xs font-semibold tracking-widest text-muted-foreground/60 mb-3">SYSTEM</div>
-        <div class="space-y-4">
-            <button class="w-full flex items-center gap-4 py-3 px-6 rounded-2xl bg-card/20 border border-border/20" onclick={() => open('/settings/app')}> 
-                <div class="p-3 rounded-md bg-primary/10 text-primary"><Settings class="h-5 w-5" /></div>
-                <div class="flex-1 text-left">
-                    <div class="font-bold">App Settings</div>
-                    <div class="text-sm text-muted-foreground">Preferences & Notify</div>
-                </div>
-                <ChevronRight class="text-muted-foreground" />
-            </button>
-        </div>
-    </div>
-
-    <div class="text-center mt-6">
-        <button class="text-red-500 font-bold" onclick={handleLogout}>Log Out</button>
-        <div class="text-xs text-muted-foreground mt-4">{version}</div>
+        <div class="text-xs text-muted-foreground text-center sm:text-right">{version}</div>
     </div>
 </div>
