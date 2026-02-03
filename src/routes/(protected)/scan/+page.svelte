@@ -3,9 +3,9 @@
     import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "$lib/components/ui/card";
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
-    import { Camera, QrCode, Search, CheckCircle2, X, Plus, MapPin as MapPinIcon, Maximize, Minimize, RefreshCcw, StopCircle, ScanLine } from "@lucide/svelte";
+    import { Camera, QrCode, Search, CheckCircle2, X, Plus, MapPin as MapPinIcon, Maximize, Minimize, RefreshCcw, StopCircle, ScanLine, Trash2, CheckSquare, ArrowRight } from "@lucide/svelte";
     import { toast } from "svelte-sonner";
-    import { Avatar, AvatarImage } from "$lib/components/ui/avatar";
+    import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { ScrollArea } from "$lib/components/ui/scroll";
     import { onMount, onDestroy } from 'svelte';
     import { attendanceApi } from '$lib/api/attendance';
@@ -30,6 +30,12 @@
 
     /* Recently scanned members in this session */
     let recentScans = $state<{ id: string, name: string, time: string }[]>([]);
+    
+    /* Manual Batch Check-in */
+    let batchList = $state<{ id: string, name: string }[]>([]);
+    
+    /* Search State */
+    let searchResults = $state<{ member_id: string, first_name: string, last_name: string }[]>([]);
 
     onMount(async () => {
         await loadActiveEvent();
@@ -243,9 +249,119 @@
         }
     }
 
-    function handleManualSubmit() {
+    async function handleSearch(e: Event) {
+        const query = (e.target as HTMLInputElement).value;
+        manualId = query;
+        
+        if (!query || query.length < 2) {
+            searchResults = [];
+            return;
+        }
+
+        const { data, error } = await supabase
+            .from('members')
+            .select('member_id, first_name, last_name')
+            .or(`first_name.ilike.%${query}%,last_name.ilike.%${query}%,member_id.ilike.%${query}%`)
+            .limit(5);
+        
+        if (data && activeEvent) {
+            // Filter out already checked-in members to avoid duplication
+            const memberIds = data.map(m => m.member_id);
+            
+            const [{ data: scanned }, { data: present }] = await Promise.all([
+                supabase.from('attendance_scans').select('member_id').eq('event_id', activeEvent.event_id).in('member_id', memberIds),
+                supabase.from('attendance_present').select('member_id').eq('event_id', activeEvent.event_id).in('member_id', memberIds)
+            ]);
+
+            const checkedInIds = new Set([
+                ...(scanned?.map(s => s.member_id) || []),
+                ...(present?.map(s => s.member_id) || [])
+            ]);
+
+            // Filter out checked in AND already in batch list
+            searchResults = data.filter(m => !checkedInIds.has(m.member_id) && !batchList.find(b => b.id === m.member_id));
+        } else if (data) {
+            searchResults = data;
+        }
+    }
+
+    function selectMember(member: { member_id: string, first_name: string, last_name: string }) {
+        manualId = member.member_id;
+        searchResults = [];
+        // handleScan(member.member_id); <-- Replaced with adding to batch
+        addToBatch(member.member_id, `${member.first_name} ${member.last_name}`);
+        manualId = ""; // Clear input after adding
+    }
+    
+    async function addToBatch(id: string, name?: string) {
+        if (!id) return;
+        
+        // Deduplicate locally
+        if (batchList.find(b => b.id === id)) {
+            toast.info(`${name || id} is already in the list`);
+            return;
+        }
+
+        // Deduplicate against server (Already Checked In)
+        if (activeEvent) {
+             const { data: existingScan } = await supabase.from('attendance_scans').select('scan_id').eq('member_id', id).eq('event_id', activeEvent.event_id).maybeSingle();
+             const { data: existingPresent } = await supabase.from('attendance_present').select('present_id').eq('member_id', id).eq('event_id', activeEvent.event_id).maybeSingle();
+             
+             if (existingScan || existingPresent) {
+                 toast.error(`${name || id} is already checked in.`);
+                 return; 
+             }
+        }
+
+        // Validate and Fetch Member Name
+        let memberName = name;
+        if (!memberName) {
+             const { data, error } = await supabase.from('members').select('first_name, last_name').eq('member_id', id).single();
+             
+             if (error || !data) {
+                 toast.error(`Member not found with ID: ${id}`);
+                 return;
+             }
+             
+             memberName = `${data.first_name} ${data.last_name}`;
+        }
+        
+        batchList = [...batchList, { id, name: memberName }];
+    }
+
+    function removeFromBatch(index: number) {
+        batchList = batchList.filter((_, i) => i !== index);
+    }
+    
+    async function submitBatch() {
+        if (batchList.length === 0 || !activeEvent) return;
+        
+        const toastId = toast.loading(`Checking in ${batchList.length} members...`);
+        let successCount = 0;
+        
+        for (const m of batchList) {
+            try {
+                 await attendanceApi.scanMember(m.id, activeEvent.event_id);
+                 successCount++;
+                 
+                 // Add to recent scans for record
+                 const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                  // Add to local list if not already there
+                if (!recentScans.find(s => s.id === m.id)) {
+                    recentScans = [{ id: m.id, name: m.name, time }, ...recentScans];
+                }
+            } catch (e: any) {
+                console.error(`Failed to scan ${m.name}`, e);
+            }
+        }
+        
+        toast.success(`Successfully checked in ${successCount} members`, { id: toastId });
+        batchList = []; // Clear
+    }
+
+    function handleManualSubmit() { // Now acts as "Add to List"
         if (!manualId) return;
-        handleScan(manualId);
+        addToBatch(manualId);
     }
 
     function toggleCamera() {
@@ -292,12 +408,17 @@
     } : null);
 
     // Toggle a class on <body> to hide the mobile nav when items are selected (use $effect in runes mode)
+    // Updated: Hide nav if Pending Batch List > 0 OR Fullscreen
     $effect(() => {
         if (typeof document === 'undefined') return;
-        if (recentScans.length > 0 || isFullscreen) document.body.classList.add('hide-mobile-nav');
-        else document.body.classList.remove('hide-mobile-nav');
+        
+        if (batchList.length > 0 || isFullscreen) { 
+             document.body.classList.add('hide-mobile-nav');
+        } else {
+             document.body.classList.remove('hide-mobile-nav');
+        }
         return () => {
-            if (typeof document !== 'undefined') document.body.classList.remove('hide-mobile-nav');
+             if (typeof document !== 'undefined') document.body.classList.remove('hide-mobile-nav');
         };
     });
 
@@ -403,39 +524,77 @@
     <!-- Manual Entry -->
     <div>
         <h3 class="text-sm font-bold uppercase tracking-wider text-muted-foreground mb-3">Manual Check-In</h3>
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 relative z-20">
             <div class="relative flex-1">
                 <Search class="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/60" />
-                <input type="text" placeholder="Member ID..." bind:value={manualId} onkeydown={(e) => e.key === 'Enter' && handleManualSubmit()} class="w-full bg-card/20 border border-border/20 rounded-2xl py-4 pl-12 pr-4 text-sm placeholder-muted-foreground-mobile" />
+                <input 
+                    type="text" 
+                    placeholder="Search name or ID..." 
+                    value={manualId} 
+                    oninput={handleSearch}
+                    onkeydown={(e) => e.key === 'Enter' && handleManualSubmit()} 
+                    class="w-full bg-card/20 border border-border/20 rounded-2xl py-4 pl-12 pr-4 text-sm placeholder-muted-foreground-mobile" 
+                />
+                
+                {#if searchResults.length > 0}
+                    <div class="absolute top-full left-0 right-0 mt-2 bg-background border border-border rounded-xl shadow-xl overflow-hidden z-30">
+                        {#each searchResults as member}
+                            <button 
+                                class="w-full text-left px-4 py-3 hover:bg-muted/50 border-b border-border/50 last:border-0 flex flex-col"
+                                onclick={() => selectMember(member)}
+                            >
+                                <span class="font-bold text-sm">{member.first_name} {member.last_name}</span>
+                                <span class="text-xs text-muted-foreground font-mono">{member.member_id}</span>
+                            </button>
+                        {/each}
+                    </div>
+                {/if}
             </div>
             <Button class="h-10 w-10 p-0 flex items-center justify-center rounded-lg bg-(--color-primary) text-(--color-primary-foreground)" onclick={handleManualSubmit} aria-label="Add" disabled={!manualId}>
-                <CheckCircle2 class="h-4 w-4" />
+                <Plus class="h-4 w-4" />
             </Button>
         </div>
     </div>
 
-    <!-- Recent Scans list -->
-    <div class="space-y-3">
-        <div class="flex items-center justify-between">
-            <div class="text-xs font-black uppercase text-muted-foreground tracking-wider">Recent Scans ({recentScans.length})</div>
-            {#if recentScans.length > 0}
-                <button class="text-xs text-primary" onclick={() => recentScans = []}>Clear list</button>
-            {/if}
-        </div>
-        {#each recentScans as m (m.id + m.time)}
-            <div class="flex items-center gap-4 p-4 rounded-2xl bg-card/40 border border-border/40">
-                <div class="h-12 w-12 rounded-full bg-linear-to-br from-green-500/10 to-green-500/30 flex items-center justify-center font-bold text-green-600">
-                    <CheckCircle2 class="h-5 w-5" />
-                </div>
-                <div class="flex-1 min-w-0">
-                    <div class="font-bold text-foreground text-sm truncate">{m.name}</div>
-                    <div class="text-xs text-muted-foreground font-mono">ID: {m.id} • {m.time}</div>
-                </div>
+    <!-- Batch List (Mobile) - Inline Flow -->
+    {#if batchList.length > 0}
+         <div class="space-y-3 mt-4 mb-28">
+            <div class="flex items-center justify-between px-1">
+                <div class="text-xs font-black uppercase tracking-widest text-muted-foreground">SELECTED ({batchList.length})</div>
+                <button class="text-xs font-bold text-primary hover:text-primary/80 transition-colors" onclick={() => batchList = []}>Clear all</button>
             </div>
-        {:else}
-             <div class="text-center text-xs text-muted-foreground py-4">No scans yet this session</div>
-        {/each}
-    </div>
+            
+            <div class="flex flex-col gap-2">
+                {#each batchList as item, i}
+                     <div class="flex items-center gap-3 p-3 bg-card/50 border border-border/40 rounded-xl relative group">
+                        <Avatar class="h-10 w-10 border border-border/20">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${item.name}`} />
+                            <AvatarFallback class="bg-primary/20 text-primary font-bold text-xs">{item.name.substring(0,2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        
+                        <div class="flex-1 min-w-0">
+                            <div class="font-bold text-sm text-foreground truncate">{item.name}</div>
+                            <div class="text-xs text-muted-foreground font-mono">ID: {item.id}</div>
+                        </div>
+
+                         <button class="h-8 w-8 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground hover:bg-destructive hover:text-destructive-foreground transition-colors" onclick={() => removeFromBatch(i)}>
+                             <X class="h-4 w-4" />
+                         </button>
+                     </div>
+                {/each}
+            </div>
+         </div>
+         
+         <!-- Floating Save Button -->
+         <div class="fixed bottom-0 left-0 right-0 z-50 p-4 bg-background/95 backdrop-blur-xl border-t border-border/20 rounded-t-3xl shadow-[0_-8px_30px_rgba(0,0,0,0.12)]">
+            <Button size="lg" class="w-full h-14 rounded-2xl font-bold shadow-lg shadow-primary/20 text-base" onclick={submitBatch}>
+                Save Attendance ({batchList.length}) <ArrowRight class="ml-2 h-5 w-5" />
+            </Button>
+         </div>
+    {/if}
+
+    <!-- Recent Scans list (Hidden on mobile if user requested, or kept? User said 'no recent scans') -->
+    <!-- Removed Recent Scans from Mobile View per request -->
 
 </div>
 
@@ -489,21 +648,39 @@
     <aside class="col-span-1 flex flex-col space-y-6 h-full">
 
     <!-- Manual Entry -->
-    <Card>
+    <Card class="overflow-visible z-20">
         <CardHeader>
             <CardTitle>Manual Check-In</CardTitle>
-            <CardDescription>Enter Member ID</CardDescription>
+            <CardDescription>Search by Name or ID</CardDescription>
         </CardHeader> 
         <CardContent>
-            <div class="flex gap-2">
-                <div class="grid w-full items-center gap-1.5">
-                    <Label for="memberId" class="sr-only">Member ID</Label>
+            <div class="flex gap-2 relative">
+                <div class="grid w-full items-center gap-1.5 relative">
+                    <Label for="memberIdDesktop" class="sr-only">Member ID</Label>
                     <Input 
-                        id="memberId" 
-                        placeholder="Member ID..." 
-                        bind:value={manualId} 
+                        id="memberIdDesktop" 
+                        placeholder="Search name..." 
+                        value={manualId} 
+                        oninput={handleSearch}
                         onkeydown={(e) => e.key === 'Enter' && handleManualSubmit()}
+                        autocomplete="off"
                     />
+                    
+                    {#if searchResults.length > 0}
+                        <div class="absolute top-full left-0 right-0 mt-2 bg-popover border border-border rounded-lg shadow-md overflow-hidden z-50">
+                            <ScrollArea className="h-48">
+                                {#each searchResults as member}
+                                    <button 
+                                        class="w-full text-left px-3 py-2 hover:bg-muted text-sm flex flex-col transition-colors"
+                                        onclick={() => selectMember(member)}
+                                    >
+                                        <span class="font-medium text-foreground">{member.first_name} {member.last_name}</span>
+                                        <span class="text-xs text-muted-foreground font-mono">{member.member_id}</span>
+                                    </button>
+                                {/each}
+                            </ScrollArea>
+                        </div>
+                    {/if}
                 </div>
                 <Button onclick={handleManualSubmit} disabled={!manualId}>
                     Check In

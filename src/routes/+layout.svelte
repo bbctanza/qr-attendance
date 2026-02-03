@@ -179,4 +179,4 @@
     {@render children()}
 {/if}
 
-<Toaster />
+<Toaster position="top-center" richColors />
