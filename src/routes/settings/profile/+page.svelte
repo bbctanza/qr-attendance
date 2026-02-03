@@ -298,7 +298,7 @@
 					<CardDescription>Update your profile details</CardDescription>
 				</CardHeader>
 				<CardContent class="space-y-6">
-					<div class="flex items-end gap-4">
+					<div class="flex items-center gap-6">
 						<Avatar class="h-24 w-24">
 							{#if profile.avatar}
 								<AvatarImage src={profile.avatar} alt={profile.name} />
@@ -306,19 +306,19 @@
 								<AvatarFallback class="text-xl">{profile.name.split(' ').map(n => n[0]).join('').substring(0, 2)}</AvatarFallback>
 							{/if}
 						</Avatar>
-						<Button variant="outline" size="sm">Change Avatar</Button>
+						<Button variant="outline">Change Avatar</Button>
 					</div>
 					<div class="grid grid-cols-2 gap-4">
 						<div>
-							<Label class="text-sm font-medium">Full Name</Label>
-							<Input bind:value={profile.name} placeholder="Your name" class="mt-2" />
+							<Label for="fullName" class="text-sm font-medium">Full Name</Label>
+							<Input id="fullName" bind:value={profile.name} placeholder="Your name" class="mt-2" />
 						</div>
 						<div>
-							<Label class="text-sm font-medium">Email</Label>
-							<Input bind:value={profile.email} type="email" placeholder="your@email.com" class="mt-2" />
+							<Label for="email" class="text-sm font-medium">Email</Label>
+							<Input id="email" bind:value={profile.email} type="email" placeholder="your@email.com" class="mt-2" />
 						</div>
 					</div>
-					<Button class="w-full" onclick={handleSaveProfile} disabled={isSavingProfile}>
+					<Button onclick={handleSaveProfile} disabled={isSavingProfile}>
 						{isSavingProfile ? "Saving..." : "Save Changes"}
 					</Button>
 				</CardContent>
