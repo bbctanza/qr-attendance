@@ -99,3 +99,13 @@ export interface AttendanceHistoryWithEvent extends AttendancePresent {
     event_date: string;
   };
 }
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  timestamp: string; // ISO string
+  read: boolean;
+  type: 'info' | 'success' | 'warning' | 'error';
+}
+

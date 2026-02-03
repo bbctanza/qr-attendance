@@ -84,6 +84,9 @@
             { name: 'Options', href: '/settings' },
             { name: 'Groups' }
         ];
+
+        // Notifications
+        if (path === '/notifications') return [{ name: 'Notifications' }];
         
         // Scan
         if (path === '/scan') return [{ name: 'Scan' }];
