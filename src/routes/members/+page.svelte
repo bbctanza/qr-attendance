@@ -39,6 +39,9 @@
     let showAddMemberModal = $state(false);
     // Drawer (mobile) state - drawer uses portal so we keep a separate mobile state
     let showAddMemberDrawer = $state(false);
+    let showEditMemberModal = $state(false);
+    let showEditMemberDrawer = $state(false);
+    let selectedMemberForEdit = $state<typeof members[0] | null>(null);
     let showQrModal = $state(false);
     let selectedMemberForQr = $state<typeof members[0] | null>(null);
     let formData = $state({
@@ -163,9 +166,10 @@
         const qrId = `${groupCode}-${newId}`;
 
         // Add new member
+        const nameParts = [formData.firstName, formData.middleInitial, formData.lastName].filter(Boolean);
         const newMember = {
             id: members.length + 1,
-            name: `${formData.firstName} ${formData.lastName}`,
+            name: nameParts.join(' '),
             email: "",
             role: "",
             group: formData.group,
@@ -183,6 +187,7 @@
             middleInitial: "",
             group: ""
         };
+        selectedMemberForEdit = null;
         showAddMemberModal = false;
         showAddMemberDrawer = false;
     }
@@ -208,6 +213,81 @@
     function openQrModal(member: typeof members[0]) {
         selectedMemberForQr = member;
         showQrModal = true;
+    }
+
+    function openAddMemberModal() {
+        formData = {
+            lastName: "",
+            firstName: "",
+            middleInitial: "",
+            group: ""
+        };
+        selectedMemberForEdit = null;
+        showAddMemberModal = true;
+    }
+
+    function openAddMemberDrawer() {
+        formData = {
+            lastName: "",
+            firstName: "",
+            middleInitial: "",
+            group: ""
+        };
+        selectedMemberForEdit = null;
+        showAddMemberDrawer = true;
+    }
+
+    function openEditModal(member: typeof members[0]) {
+        selectedMemberForEdit = member;
+        const nameParts = member.name.split(' ');
+        formData = {
+            firstName: nameParts[0] || "",
+            lastName: nameParts.slice(1).join(' ') || "",
+            middleInitial: "",
+            group: member.group
+        };
+        showEditMemberModal = true;
+    }
+
+    function openEditDrawer(member: typeof members[0]) {
+        selectedMemberForEdit = member;
+        const nameParts = member.name.split(' ');
+        formData = {
+            firstName: nameParts[0] || "",
+            lastName: nameParts.slice(1).join(' ') || "",
+            middleInitial: "",
+            group: member.group
+        };
+        showEditMemberDrawer = true;
+    }
+
+    async function handleEditMember() {
+        if (!formData.lastName || !formData.firstName || !formData.group) {
+            alert("Please fill in all required fields");
+            return;
+        }
+
+        if (!selectedMemberForEdit) return;
+
+        // Update member
+        const memberIndex = members.findIndex(m => m.id === selectedMemberForEdit!.id);
+        if (memberIndex !== -1) {
+            const nameParts = [formData.firstName, formData.middleInitial, formData.lastName].filter(Boolean);
+            members[memberIndex].name = nameParts.join(' ');
+            members[memberIndex].group = formData.group;
+            members = [...members];
+        }
+
+        // Reset form and close modals
+        formData = {
+            lastName: "",
+            firstName: "",
+            middleInitial: "",
+            group: ""
+        };
+        selectedMemberForEdit = null;
+        showEditMemberModal = false;
+        showEditMemberDrawer = false;
     }
 
     async function downloadQr(type: "qr-only" | "qr-details") {
@@ -485,7 +565,7 @@
             <Button variant="outline" size="sm" class="hidden sm:flex">
                 <FileDown class="mr-2 h-4 w-4" /> Export
             </Button>
-            <Button size="sm" onclick={() => showAddMemberModal = true}>
+            <Button size="sm" onclick={openAddMemberModal}>
                 <Plus class="mr-2 h-4 w-4" /> Add Member
             </Button>
         </div>
@@ -626,8 +706,6 @@
                                 {/if}
                             </Button>
                         </Table.Head>
-                        <Table.Head class="w-28">Role</Table.Head>
-                        <Table.Head class="w-32">Email</Table.Head>
                         <Table.Head class="w-24">ID</Table.Head>
                         <Table.Head class="w-20">Status</Table.Head>
                         <Table.Head class="w-16 text-right">Actions</Table.Head>
@@ -636,7 +714,7 @@
                 <Table.Body>
                     {#if filteredMembers().length === 0}
                         <Table.Row>
-                            <Table.Cell colspan={8} class="h-24 text-center text-muted-foreground">
+                            <Table.Cell colspan={6} class="h-24 text-center text-muted-foreground">
                                 <div class="flex flex-col items-center justify-center">
                                     <Search class="h-8 w-8 mb-2 opacity-20" />
                                     No members found. Try adjusting your filters.
@@ -659,8 +737,6 @@
                                         <span class="text-sm font-medium">{member.group}</span>
                                     </div>
                                 </Table.Cell>
-                                <Table.Cell class="text-sm text-muted-foreground">{member.role}</Table.Cell>
-                                <Table.Cell class="text-sm text-muted-foreground">{member.email}</Table.Cell>
                                 <Table.Cell>
                                     <Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
                                 </Table.Cell>
@@ -684,7 +760,7 @@
                                             </DropdownMenuTrigger>
                                             <DropdownMenuContent align="end">
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                                <DropdownMenuItem>Edit</DropdownMenuItem>
+                                                <DropdownMenuItem onclick={() => openEditModal(member)}>Edit</DropdownMenuItem>
                                                 <DropdownMenuSeparator />
                                                 <DropdownMenuItem class="text-red-500">Delete</DropdownMenuItem>
                                             </DropdownMenuContent>
@@ -731,7 +807,7 @@
                                         </DropdownMenuTrigger>
                                         <DropdownMenuContent align="end">
                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                                            <DropdownMenuItem onclick={() => openEditModal(member)}>Edit</DropdownMenuItem>
                                             <DropdownMenuSeparator />
                                             <DropdownMenuItem class="text-red-500">Delete</DropdownMenuItem>
                                         </DropdownMenuContent>
@@ -950,6 +1026,205 @@
                             onclick={handleAddMember}
                         >
                             SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </DrawerContent>
+    </Drawer>
+</div>
+
+<!-- Edit Member Sheet - Desktop -->
+<div class="hidden md:block">
+    <Sheet bind:open={showEditMemberModal}>
+        <SheetContent class="sm:max-w-md">
+            <SheetHeader>
+                <SheetTitle class="flex items-center gap-3">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <UserPlus size={20} class="text-primary" />
+                    </div>
+                    EDIT MEMBER
+                </SheetTitle>
+            </SheetHeader>
+
+            <div class="px-4 pb-4">
+                <p class="text-sm text-muted-foreground mb-6">Update member details.</p>
+
+                <!-- Form Fields -->
+                <div class="space-y-5">
+                    <!-- Last Name -->
+                    <div>
+                        <Label for="editLastName" class="text-xs font-bold tracking-wider uppercase">Last Name</Label>
+                        <Input
+                            id="editLastName"
+                            type="text"
+                            placeholder="e.g. Doe"
+                            bind:value={formData.lastName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- First Name -->
+                    <div>
+                        <Label for="editFirstName" class="text-xs font-bold tracking-wider uppercase">First Name</Label>
+                        <Input
+                            id="editFirstName"
+                            type="text"
+                            placeholder="e.g. John"
+                            bind:value={formData.firstName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- Middle Initial & Group -->
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <Label for="editMiddleInitial" class="text-xs font-bold tracking-wider uppercase">M.I.</Label>
+                            <Input
+                                id="editMiddleInitial"
+                                type="text"
+                                placeholder="A"
+                                value={formData.middleInitial}
+                                onchange={handleMiddleInitialChange}
+                                class="mt-2 rounded-xl py-3 text-center font-bold placeholder-muted-foreground-mobile border-input"
+                            />
+                        </div>
+                        <div>
+                            <Label for="editGroupSelect" class="text-xs font-bold tracking-wider uppercase">Group</Label>
+                            <div class="mt-2">
+                                <Select.Root type="single" bind:value={formData.group}>
+                                    <Select.Trigger id="editGroupSelect" class="w-full h-12 rounded-xl px-4 font-medium flex items-center justify-between">
+                                        {groupTriggerContent}
+                                    </Select.Trigger>
+                                    <Select.Content class="bg-popover border-border/40 rounded-xl">
+                                        <Select.Group>
+                                            <Select.Label class="text-xs font-bold tracking-wider uppercase px-2 py-1.5 text-muted-foreground/60">Groups</Select.Label>
+                                            {#each groupItems as group}
+                                                <Select.Item
+                                                    value={group.value}
+                                                    label={group.label}
+                                                    class="rounded-lg focus:bg-primary/10 focus:text-primary transition-colors cursor-pointer"
+                                                >
+                                                    {group.label}
+                                                </Select.Item>
+                                            {/each}
+                                        </Select.Group>
+                                    </Select.Content>
+                                </Select.Root>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 mt-8">
+                        <Button
+                            size="lg"
+                            class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
+                            onclick={handleEditMember}
+                        >
+                            SAVE CHANGES <ChevronRight size={18} class="ml-2" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+        </SheetContent>
+    </Sheet>
+</div>
+
+<!-- Edit Member Drawer - Mobile -->
+<div class="md:hidden">
+    <Drawer bind:open={showEditMemberDrawer}>
+        <DrawerContent>
+            <DrawerHeader class="flex flex-row items-center justify-between">
+                <DrawerTitle class="flex items-center gap-3">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <UserPlus size={20} class="text-primary" />
+                    </div>
+                    EDIT MEMBER
+                </DrawerTitle>
+                <DrawerClose>
+                    <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+                        <X class="h-4 w-4" />
+                    </Button>
+                </DrawerClose>
+            </DrawerHeader>
+
+            <div class="px-4 pb-4">
+                <p class="text-sm text-muted-foreground mb-6">Update member details.</p>
+
+                <!-- Form Fields -->
+                <div class="space-y-5">
+                    <!-- Last Name -->
+                    <div>
+                        <Label for="editLastNameMobile" class="text-xs font-bold tracking-wider uppercase">Last Name</Label>
+                        <Input
+                            id="editLastNameMobile"
+                            type="text"
+                            placeholder="e.g. Doe"
+                            bind:value={formData.lastName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- First Name -->
+                    <div>
+                        <Label for="editFirstNameMobile" class="text-xs font-bold tracking-wider uppercase">First Name</Label>
+                        <Input
+                            id="editFirstNameMobile"
+                            type="text"
+                            placeholder="e.g. John"
+                            bind:value={formData.firstName}
+                            class="mt-2 rounded-xl py-3 placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- Middle Initial -->
+                    <div>
+                        <Label for="editMiddleInitialMobile" class="text-xs font-bold tracking-wider uppercase">M.I.</Label>
+                        <Input
+                            id="editMiddleInitialMobile"
+                            type="text"
+                            placeholder="A"
+                            value={formData.middleInitial}
+                            onchange={handleMiddleInitialChange}
+                            class="mt-2 rounded-xl py-3 text-center font-bold placeholder-muted-foreground-mobile border-input"
+                        />
+                    </div>
+
+                    <!-- Group -->
+                    <div>
+                        <Label for="editGroupSelectMobile" class="text-xs font-bold tracking-wider uppercase">Group</Label>
+                        <div class="mt-2">
+                            <Select.Root type="single" bind:value={formData.group}>
+                                <Select.Trigger id="editGroupSelectMobile" class="w-full h-12 rounded-xl px-4 font-medium flex items-center justify-between">
+                                    {groupTriggerContent}
+                                </Select.Trigger>
+                                <Select.Content class="bg-popover border-border/40 rounded-xl">
+                                    <Select.Group>
+                                        <Select.Label class="text-xs font-bold tracking-wider uppercase px-2 py-1.5 text-muted-foreground/60">Groups</Select.Label>
+                                        {#each groupItems as group}
+                                            <Select.Item
+                                                value={group.value}
+                                                label={group.label}
+                                                class="rounded-lg focus:bg-primary/10 focus:text-primary transition-colors cursor-pointer"
+                                            >
+                                                {group.label}
+                                            </Select.Item>
+                                        {/each}
+                                    </Select.Group>
+                                </Select.Content>
+                            </Select.Root>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex gap-3 mt-8">
+                        <Button
+                            size="lg"
+                            class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
+                            onclick={handleEditMember}
+                        >
+                            SAVE CHANGES <ChevronRight size={18} class="ml-2" />
                         </Button>
                     </div>
                 </div>
