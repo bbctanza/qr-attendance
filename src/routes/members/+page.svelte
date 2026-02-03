@@ -45,6 +45,7 @@
     let showQrModal = $state(false);
     let selectedMemberForQr = $state<typeof members[0] | null>(null);
     let isMobileView = $state(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
+    let qrCodeDataUrl = $state<string>("");
     let formData = $state({
         lastName: "",
         firstName: "",
@@ -155,6 +156,25 @@
             };
             window.addEventListener('resize', handleResize);
             return () => window.removeEventListener('resize', handleResize);
+        }
+    });
+
+    // Generate QR code when member is selected
+    $effect.pre(() => {
+        if (selectedMemberForQr) {
+            QRCode.toDataURL(selectedMemberForQr.qrId, {
+                errorCorrectionLevel: 'H',
+                margin: 1,
+                width: 300,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            }).then(dataUrl => {
+                qrCodeDataUrl = dataUrl;
+            }).catch(error => {
+                console.error('Error generating QR code:', error);
+            });
         }
     });
 
@@ -1281,14 +1301,18 @@
                     </button>
                 </div>
 
-                <!-- QR Code Placeholder -->
+                <!-- QR Code -->
                 <div class="flex justify-center mb-6">
-                    <div class="w-40 h-40 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
-                        <div class="text-center text-muted-foreground">
-                            <QrCode class="h-16 w-16 mx-auto mb-2" />
-                            <p class="text-xs">QR Code</p>
+                    {#if qrCodeDataUrl}
+                        <img src={qrCodeDataUrl} alt="QR Code" class="w-40 h-40 rounded-lg" />
+                    {:else}
+                        <div class="w-40 h-40 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
+                            <div class="text-center text-muted-foreground">
+                                <QrCode class="h-16 w-16 mx-auto mb-2" />
+                                <p class="text-xs">Generating...</p>
+                            </div>
                         </div>
-                    </div>
+                    {/if}
                 </div>
 
                 <!-- Member Details -->
@@ -1371,14 +1395,18 @@
 
             {#if selectedMemberForQr}
                 <div class="px-4 pb-4">
-                    <!-- QR Code Placeholder -->
+                    <!-- QR Code -->
                     <div class="flex justify-center mb-6">
-                        <div class="w-48 h-48 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
-                            <div class="text-center text-muted-foreground">
-                                <QrCode class="h-20 w-20 mx-auto mb-2" />
-                                <p class="text-xs">QR Code</p>
+                        {#if qrCodeDataUrl}
+                            <img src={qrCodeDataUrl} alt="QR Code" class="w-48 h-48 rounded-lg" />
+                        {:else}
+                            <div class="w-48 h-48 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
+                                <div class="text-center text-muted-foreground">
+                                    <QrCode class="h-20 w-20 mx-auto mb-2" />
+                                    <p class="text-xs">Generating...</p>
+                                </div>
                             </div>
-                        </div>
+                        {/if}
                     </div>
 
                     <!-- Member Details -->
