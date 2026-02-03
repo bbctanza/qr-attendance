@@ -10,6 +10,7 @@
 	import { onMount } from "svelte";
 	import Color from "svelte-awesome-color-picker";
     import { supabase } from "$lib/supabase";
+    import FullPageLoading from "$lib/components/full-page-loading.svelte";
 
 	// Get the primary theme color from CSS variable
 	function getThemeColor(): string {
@@ -63,12 +64,18 @@
 	let editingGroupId: number | null = $state(null);
 	let isMobile = $state(false);
 	let searchQuery = $state('');
+    let isLoading = $state(true);
 
 	let defaultColor = $state('#3B82F6');
 	let groupForm: any = $state({ name: '', description: '', members: 0, color: '#3B82F6' });
 
-    onMount(() => {
-        fetchGroups();
+    onMount(async () => {
+        isLoading = true;
+        try {
+            await fetchGroups();
+        } finally {
+            isLoading = false;
+        }
     });
 
     async function fetchGroups() {
@@ -198,6 +205,9 @@
 	});
 </script>
 
+{#if isLoading}
+	<FullPageLoading message="Synchronizing groups..." />
+{:else}
 <div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12 max-w-7xl mx-auto">
 	<!-- Header with Add Button -->
 	<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -392,3 +402,4 @@
 		</Sheet>
 	{/if}
 </div>
+{/if}

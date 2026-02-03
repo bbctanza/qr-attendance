@@ -22,6 +22,7 @@
 	let showTurnstileModal = $state(false);
 
 	async function startLogin() {
+		console.log('Login started with:', email);
 		errorMessage = '';
 		if (!email || !password) {
 			errorMessage = 'Please enter both email and password.';
@@ -30,6 +31,7 @@
 		
 		// Open modal to trigger Turnstile
 		showTurnstileModal = true;
+		console.log('Turnstile modal should be showing now');
 	}
 
 	async function handleTurnstileCallback(token: string) {
@@ -178,18 +180,21 @@
 </div>
 
 <Dialog.Root bind:open={showTurnstileModal}>
-	<Dialog.Content class="sm:max-w-md">
-		<Dialog.Header>
-			<Dialog.Title>Security Verification</Dialog.Title>
-			<Dialog.Description>
-				Please complete the captcha to securely sign in to your account.
-			</Dialog.Description>
-		</Dialog.Header>
-		<div class="flex items-center justify-center p-6 min-h-32">
-			<Turnstile 
-				siteKey={PUBLIC_TURNSTILE_SITE_KEY} 
-				on:turnstile-callback={(e) => handleTurnstileCallback(e.detail.token)} 
-			/>
-		</div>
-	</Dialog.Content>
+	<Dialog.Portal>
+		<Dialog.Overlay class="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" />
+		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-full max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-6 shadow-lg duration-200 rounded-xl">
+			<Dialog.Header>
+				<Dialog.Title class="text-xl font-semibold">Security Verification</Dialog.Title>
+				<Dialog.Description class="text-muted-foreground">
+					Please complete the captcha to securely sign in to your account.
+				</Dialog.Description>
+			</Dialog.Header>
+			<div class="flex items-center justify-center p-6 min-h-32">
+				<Turnstile 
+					siteKey={PUBLIC_TURNSTILE_SITE_KEY} 
+					on:turnstile-callback={(e) => handleTurnstileCallback(e.detail.token)} 
+				/>
+			</div>
+		</Dialog.Content>
+	</Dialog.Portal>
 </Dialog.Root>

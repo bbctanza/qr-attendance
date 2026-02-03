@@ -12,8 +12,10 @@
 	import * as Select from "$lib/components/ui/select";
 	import { supabase } from "$lib/supabase";
 	import { onMount } from "svelte";
+    import FullPageLoading from "$lib/components/full-page-loading.svelte";
 
 	// Data
+	const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 	let events = $state<any[]>([]);
 	let totalEvents = $derived(events.length);
 	let activeEvents = $derived(events.filter(e => e.status === 'Active').length);
@@ -25,9 +27,18 @@
 	let pastEvents = $derived(events.filter(e => e.type === 'One-time' && new Date(e.event_date) < new Date()));
 
     let isMobile = $state(false);
+    let isLoading = $state(true);
 
 	onMount(() => {
-		fetchEvents();
+        const load = async () => {
+            isLoading = true;
+            try {
+                await fetchEvents();
+            } finally {
+                isLoading = false;
+            }
+        };
+        load();
 
         if (typeof window !== 'undefined') {
             const mediaQuery = window.matchMedia('(min-width: 640px)');
@@ -43,37 +54,77 @@
 	});
 
 	async function fetchEvents() {
-		const { data, error } = await supabase
-			.from('events')
-			.select('*')
-			.order('created_at', { ascending: false });
+		// Fetch both templates and instances
+		const [typesResponse, eventsResponse] = await Promise.all([
+			supabase.from('event_types').select('*'),
+			supabase.from('events').select('*').order('created_at', { ascending: false })
+		]);
 		
-		if (error) {
+		if (typesResponse.error || eventsResponse.error) {
 			toast.error("Failed to fetch events");
-			console.error(error);
+			console.error(typesResponse.error || eventsResponse.error);
 			return;
 		}
-		events = data || [];
+		
+		// 1. Process Event Types (Recurring Templates)
+		const templates = (typesResponse.data || []).map(row => ({
+			event_id: `template-${row.event_type_id}`, // UI uses event_id for iteration/key
+			db_id: row.event_type_id,
+			name: row.name,
+			type: 'Recurring',
+			schedule: weekdays[row.day_of_week] || 'Unknown',
+			start_time: row.start_time.slice(0, 5),
+			end_time: row.end_time.slice(0, 5),
+			location: row.metadata?.location || '',
+			status: row.is_active ? 'Active' : 'Inactive',
+			is_template: true,
+			_raw: row
+		}));
+
+		// 2. Process Events (Custom/One-time instances)
+		const instances = (eventsResponse.data || []).map(row => ({
+			event_id: `instance-${row.event_id}`,
+			db_id: row.event_id,
+			name: row.event_name,
+			type: 'Custom',
+			schedule: row.metadata?.schedule || 'One-time',
+			event_date: row.event_date,
+			start_time: row.metadata?.start_time || new Date(row.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+			end_time: row.metadata?.end_time || new Date(row.end_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+			location: row.metadata?.location || '',
+			status: row.status === 'completed' ? 'Inactive' : 'Active',
+			is_template: false,
+			_raw: row
+		}));
+
+		events = [...templates, ...instances];
 	}
 
 	async function toggleActive(id: string) {
 		const event = events.find(e => e.event_id === id);
 		if (!event) return;
 
-		const newStatus = event.status === 'Active' ? 'Inactive' : 'Active';
-		
-		const { error } = await supabase
-			.from('events')
-			.update({ status: newStatus })
-			.eq('event_id', id);
+		if (event.is_template) {
+			const newStatus = event.status === 'Active' ? false : true;
+			const { error } = await supabase
+				.from('event_types')
+				.update({ is_active: newStatus })
+				.eq('event_type_id', event.db_id);
 
-		if (error) {
-			toast.error("Failed to update status");
-			return;
+			if (error) { toast.error("Failed to update status"); return; }
+			toast.success(`"${event.name}" template has been ${newStatus ? 'activated' : 'deactivated'}`);
+		} else {
+			const newStatus = event.status === 'Active' ? 'completed' : 'upcoming';
+			const { error } = await supabase
+				.from('events')
+				.update({ status: newStatus })
+				.eq('event_id', event.db_id);
+
+			if (error) { toast.error("Failed to update status"); return; }
+			toast.success(`"${event.name}" instance has been ${newStatus === 'completed' ? 'deactivated' : 'activated'}`);
 		}
-
-		events = events.map(e => e.event_id === id ? { ...e, status: newStatus } : e);
-		toast.success(`"${event.name}" has been ${newStatus.toLowerCase()}`);
+		
+		fetchEvents();
 	}
 
 	let isEditing = $state(false);
@@ -83,18 +134,35 @@
 		const e = events.find(event => event.event_id === id);
 		if (!e) return;
 
-		newEvent = {
-			name: e.name,
-			type: e.type === 'Recurring' ? 'recurring' : 'custom',
-			schedule: e.type === 'Recurring' ? (e.schedule.includes(',') ? 'weekly' : 'monthly') : 'one-time',
-			days: e.type === 'Recurring' && e.schedule.includes(',') ? e.schedule.split(',').map((s: string) => s.trim()) : [],
-			monthlyOrdinal: 'First', // Fallback as DB schema might not have this detailed breakdown
-			monthlyWeekday: 'Monday',
-			date: e.event_date || '',
-			startTime: e.start_time || '',
-			endTime: e.end_time || '',
-			location: e.location || ''
-		};
+		const raw = e._raw;
+
+		if (e.is_template) {
+			newEvent = {
+				name: raw.name,
+				type: 'recurring',
+				schedule: 'weekly',
+				days: [weekdays[raw.day_of_week]],
+				monthlyOrdinal: 'First',
+				monthlyWeekday: 'Monday',
+				date: '',
+				startTime: raw.start_time.slice(0, 5),
+				endTime: raw.end_time.slice(0, 5),
+				location: raw.metadata?.location || ''
+			};
+		} else {
+			newEvent = {
+				name: e.name,
+				type: raw.is_custom ? 'custom' : 'recurring',
+				schedule: raw.metadata?.ui_schedule_type || (raw.is_custom ? 'one-time' : 'weekly'),
+				days: raw.metadata?.days || [],
+				monthlyOrdinal: raw.metadata?.monthlyOrdinal || 'First',
+				monthlyWeekday: raw.metadata?.monthlyWeekday || 'Monday',
+				date: e.event_date || '',
+				startTime: e.start_time || '',
+				endTime: e.end_time || '',
+				location: e.location || ''
+			};
+		}
 
 		isEditing = true;
 		editingId = id;
@@ -102,25 +170,28 @@
 	}
 
 	async function deleteEvent(id: string) {
-		if (!confirm("Are you sure you want to delete this event?")) return;
+		const event = events.find(e => e.event_id === id);
+		if (!event || !confirm(`Are you sure you want to delete this ${event.is_template ? 'template' : 'event'}?`)) return;
+
+		const table = event.is_template ? 'event_types' : 'events';
+		const column = event.is_template ? 'event_type_id' : 'event_id';
 
 		const { error } = await supabase
-			.from('events')
+			.from(table)
 			.delete()
-			.eq('event_id', id);
+			.eq(column, event.db_id);
 
 		if (error) {
-			toast.error("Failed to delete event");
+			toast.error("Failed to delete");
 			return;
 		}
 
-		events = events.filter(e => e.event_id !== id);
-		toast.success("Event deleted");
+		toast.success(event.is_template ? "Template deleted" : "Event instance deleted");
+		fetchEvents();
 	}
 
 	// Add Event Dialog State
 	let showAddEventDialog = $state(false);
-	let weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 	let newEvent: any = $state({
 		name: '',
 		type: 'recurring', // 'recurring' | 'custom'
@@ -173,43 +244,86 @@
 			return;
 		}
 
+		if (newEvent.type === 'custom' && !newEvent.date) {
+			toast.error('Please select a date for the custom event');
+			return;
+		}
+
+		if (!newEvent.startTime || !newEvent.endTime) {
+			toast.error('Please enter start and end times');
+			return;
+		}
+
 		const scheduleLabel = newEvent.type === 'recurring' 
 			? (newEvent.schedule === 'weekly' ? newEvent.days.join(', ') : `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`)
-			: '';
+			: 'One-time';
 
-		const payload = {
-			name: newEvent.name,
-			type: newEvent.type === 'recurring' ? 'Recurring' : 'One-time',
+		// Use current date for recurring events placeholder
+		const baseDate = newEvent.type === 'recurring' ? new Date().toISOString().split('T')[0] : newEvent.date;
+		
+		const metadata = {
 			schedule: scheduleLabel,
-			event_date: newEvent.type === 'recurring' ? null : newEvent.date,
+			location: newEvent.location,
 			start_time: newEvent.startTime,
 			end_time: newEvent.endTime,
-			location: newEvent.location,
-			status: 'Active'
+			ui_schedule_type: newEvent.schedule,
+			days: newEvent.days,
+			monthlyOrdinal: newEvent.monthlyOrdinal,
+			monthlyWeekday: newEvent.monthlyWeekday
 		};
 
-		if (isEditing && editingId) {
-			const { error } = await supabase
-				.from('events')
-				.update(payload)
-				.eq('event_id', editingId);
+		if (newEvent.type === 'recurring' && newEvent.schedule === 'weekly') {
+			// Recurring Weekly - We might hit event_types
+			// For simplicity in this UI, if it's recurring weekly, we create an event_type for each day
+			const dayMap: Record<string, number> = {
+				'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
+			};
 
-			if (error) {
-				toast.error("Failed to update event");
-				return;
+			const daysToCreate = newEvent.days.length > 0 ? newEvent.days : [weekdays[new Date().getDay()]];
+			
+			try {
+				for (const day of daysToCreate) {
+					const typePayload = {
+						name: newEvent.name,
+						day_of_week: dayMap[day],
+						start_time: newEvent.startTime,
+						end_time: newEvent.endTime,
+						is_active: true,
+						metadata
+					};
+
+					if (isEditing && editingId?.startsWith('template-')) {
+						await supabase.from('event_types').update(typePayload).eq('event_type_id', editingId.split('-')[1]);
+					} else {
+						await supabase.from('event_types').insert([typePayload]);
+					}
+				}
+				toast.success(isEditing ? "Templates updated" : "Recurring templates added");
+			} catch (err) {
+				console.error(err);
+				toast.error("Failed to save recurring event");
 			}
-			toast.success("Event updated");
 		} else {
-			const { data, error } = await supabase
-				.from('events')
-				.insert([payload])
-				.select();
+			// One-time or Monthly (Monthly not fully supported by event_types schema yet, so treat as custom instance for now)
+			const payload = {
+				event_name: newEvent.name,
+				event_date: baseDate,
+				start_datetime: new Date(`${baseDate}T${newEvent.startTime}`).toISOString(),
+				end_datetime: new Date(`${baseDate}T${newEvent.endTime}`).toISOString(),
+				status: 'upcoming' as const,
+				is_custom: true,
+				metadata
+			};
 
-			if (error) {
-				toast.error("Failed to add event");
-				return;
+			if (isEditing && editingId?.startsWith('instance-')) {
+				const { error } = await supabase.from('events').update(payload).eq('event_id', editingId.split('-')[1]);
+				if (error) throw error;
+				toast.success("Event updated");
+			} else {
+				const { error } = await supabase.from('events').insert([payload]);
+				if (error) throw error;
+				toast.success("Event added");
 			}
-			toast.success("Event added");
 		}
 
 		showAddEventDialog = false;
@@ -217,6 +331,9 @@
 	}
 </script>
 
+{#if isLoading}
+	<FullPageLoading message="Synchronizing organizational events..." />
+{:else}
 <div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12 max-w-7xl mx-auto">
 
 	<!-- Header with Add Button -->
@@ -646,3 +763,4 @@
 	{/if}
 
 </div>
+{/if}

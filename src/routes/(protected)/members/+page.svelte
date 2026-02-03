@@ -36,6 +36,7 @@
     import { systemSettings } from "$lib/stores/settings";
     import { onMount } from "svelte";
     import { supabase } from "$lib/supabase";
+    import FullPageLoading from "$lib/components/full-page-loading.svelte";
 
     // Modal state
     let showAddMemberModal = $state(false);
@@ -48,6 +49,7 @@
     let selectedMemberForQr = $state<any | null>(null);
     let isMobileView = $state(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     let qrCodeDataUrl = $state<string>("");
+    let isLoading = $state(true);
     let formData = $state({
         lastName: "",
         firstName: "",
@@ -81,8 +83,13 @@
     let selectedGroups = $state(new Set<string>());
 
     onMount(async () => {
-        await fetchGroups();
-        await fetchMembers();
+        isLoading = true;
+        try {
+            await fetchGroups();
+            await fetchMembers();
+        } finally {
+            isLoading = false;
+        }
     });
 
     async function fetchGroups() {
@@ -558,6 +565,9 @@
     }
 </script>
 
+{#if isLoading}
+    <FullPageLoading message="Synchronizing members list..." />
+{:else}
 <!-- Mobile View -->
 <div class="md:hidden flex flex-col min-h-screen bg-background pb-20 mt-2">
 
@@ -1541,4 +1551,5 @@
             {/if}
         </DrawerContent>
     </Drawer>
+{/if}
 {/if}

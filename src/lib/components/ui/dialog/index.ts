@@ -1,10 +1,34 @@
-export { default as Dialog } from './dialog.svelte';
-export { default as DialogContent } from './dialog-content.svelte';
-export { default as DialogDescription } from './dialog-description.svelte';
-export { default as DialogFooter } from './dialog-footer.svelte';
-export { default as DialogHeader } from './dialog-header.svelte';
-export { default as DialogOverlay } from './dialog-overlay.svelte';
-export { default as DialogPortal } from './dialog-portal.svelte';
-export { default as DialogTitle } from './dialog-title.svelte';
-export { default as DialogTrigger } from './dialog-trigger.svelte';
-export { default as DialogClose } from './dialog-close.svelte';
+import Root from './dialog.svelte';
+import Content from './dialog-content.svelte';
+import Description from './dialog-description.svelte';
+import Footer from './dialog-footer.svelte';
+import Header from './dialog-header.svelte';
+import Overlay from './dialog-overlay.svelte';
+import Portal from './dialog-portal.svelte';
+import Title from './dialog-title.svelte';
+import Trigger from './dialog-trigger.svelte';
+import Close from './dialog-close.svelte';
+
+export {
+	Root,
+	Content,
+	Description,
+	Footer,
+	Header,
+	Overlay,
+	Portal,
+	Title,
+	Trigger,
+	Close,
+	// Also export with Dialog prefix for compatibility
+	Root as Dialog,
+	Content as DialogContent,
+	Description as DialogDescription,
+	Footer as DialogFooter,
+	Header as DialogHeader,
+	Overlay as DialogOverlay,
+	Portal as DialogPortal,
+	Title as DialogTitle,
+	Trigger as DialogTrigger,
+	Close as DialogClose,
+};

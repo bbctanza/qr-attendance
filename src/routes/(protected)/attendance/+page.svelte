@@ -30,422 +30,545 @@
         DrawerTrigger,
         DrawerClose,
     } from "$lib/components/ui/drawer";
+    import { onMount } from 'svelte';
+    import { supabase } from '$lib/supabase';
+    import { goto } from "$app/navigation";
+    import FullPageLoading from "$lib/components/full-page-loading.svelte";
 
-    // Mock Data
-    const events = [
-        { id: 1, name: "Sunday Morning Service", date: "2023-10-22", attendees: 124, status: "Completed" },
-        { id: 2, name: "Wednesday Bible Study", date: "2023-10-18", attendees: 45, status: "Completed" },
-        { id: 3, name: "Youth Night", date: "2023-10-17", attendees: 32, status: "Completed" },
-        { id: 4, name: "Leadership Meeting", date: "2023-10-15", attendees: 12, status: "Completed" },
-        { id: 5, name: "Sunday Morning Service", date: "2023-10-15", attendees: 118, status: "Completed" },
-        { id: 6, name: "Special Worship Night", date: "2023-10-14", attendees: 200, status: "Completed" },
-    ];
-
-    // Current live event
-    const currentEvent = {
-        name: "Q3 Quarterly Review",
-        date: "2024-01-29", // Assuming today's date for demo
-        day: "Monday", // Or null if not recurring
-        time: "14:00 - 16:00",
-        place: "Main Conference Hall"
-    };
-
+    // State
+    let events = $state<any[]>([]);
+    let currentEvent = $state<any>(null);
+    let recentScans = $state<any[]>([]);
+    let isLoading = $state(true);
+    let stats = $state({ present: 0, expected: 0 });
     let drawerOpen = $state(false);
-
     let query = $state("");
+
+    onMount(async () => {
+        isLoading = true;
+        try {
+            await Promise.all([
+                fetchOngoingEvent(),
+                fetchRecentEvents(),
+                fetchRecentScans()
+            ]);
+        } finally {
+            isLoading = false;
+        }
+    });
+
+    async function fetchOngoingEvent() {
+        const { data } = await supabase
+            .from('events')
+            .select('*')
+            .eq('status', 'ongoing')
+            .limit(1)
+            .maybeSingle();
+        
+        if (data) {
+            const { count: presentCount } = await supabase
+                .from('attendance_scans')
+                .select('*', { count: 'exact', head: true })
+                .eq('event_id', data.event_id);
+            
+            const { count: memberCount } = await supabase
+                .from('members')
+                .select('*', { count: 'exact', head: true });
+
+            const start = new Date(data.start_datetime);
+            const end = new Date(data.end_datetime);
+
+            currentEvent = {
+                id: data.event_id,
+                name: data.event_name,
+                date: data.event_date,
+                time: `${start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                place: data.metadata?.location || 'Main Sanctuary'
+            };
+            stats = {
+                present: presentCount || 0,
+                expected: memberCount || 0
+            };
+        }
+    }
+
+    async function fetchRecentEvents() {
+        const { data } = await supabase
+            .from('events')
+            .select('*')
+            .eq('status', 'completed')
+            .order('end_datetime', { ascending: false })
+            .limit(10);
+        
+        if (data) {
+            events = await Promise.all(data.map(async (e) => {
+                const { count } = await supabase
+                    .from('attendance_present')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('event_id', e.event_id);
+                return {
+                    id: e.event_id,
+                    name: e.event_name,
+                    date: e.event_date,
+                    attendees: count || 0,
+                    status: 'Completed'
+                };
+            }));
+        }
+    }
+
+    async function fetchRecentScans() {
+        const { data } = await supabase
+            .from('attendance_scans')
+            .select('*, members(*)')
+            .order('scan_datetime', { ascending: false })
+            .limit(5);
+        
+        if (data) {
+            recentScans = data.map(s => ({
+                id: s.scan_id,
+                name: s.members ? `${s.members.first_name} ${s.members.last_name}` : 'Unknown Member',
+                role: s.members?.metadata?.role || 'Member',
+                time: new Date(s.scan_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                avatar: s.members ? `https://api.dicebear.com/7.x/initials/svg?seed=${s.members.first_name}%20${s.members.last_name}` : 'https://api.dicebear.com/7.x/initials/svg?seed=U'
+            }));
+        }
+    }
 
     let filteredEvents = $derived(events.filter(e => e.name.toLowerCase().includes(query.toLowerCase())));
 
-    // Chart data for session progress
-    const sessionProgressData = [{ label: "participation", value: 84 }];
+    // Chart calculations
+    let participationRate = $derived(stats.expected > 0 ? Math.round((stats.present / stats.expected) * 100) : 0);
+    let sessionProgressData = $derived([{ label: "participation", value: participationRate }]);
     const chartConfig = {
         participation: { label: "Participation", color: "var(--color-primary)" },
     } satisfies Chart.ChartConfig;
 </script>
 
-<!-- Mobile View -->
-<div class="flex flex-col gap-4 p-4 md:hidden pb-28">
-    
-
-    <!-- Live Session Card -->
-    <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm space-y-4">
-        <div class="flex items-start justify-between">
-            <div class="space-y-1">
-                <div class="flex items-center gap-2">
-                    <span class="h-2 w-2 rounded-full bg-(--color-primary) inline-block"></span>
-                    <div class="text-xs uppercase tracking-widest text-(--color-primary) font-black">Live Session</div>
-                </div>
-                <div class="text-xl font-extrabold tracking-tight">Q3 Quarterly Review</div>
-                <div class="text-[12px] text-muted-foreground flex items-center gap-2 mt-2">
-                    <MapPin class="h-4 w-4" />
-                    <span>Main Conference Hall</span>
-                </div>
-            </div>
-            <div class="text-right text-xs text-muted-foreground">
-                <div class="uppercase tracking-widest">Time</div>
-                <div class="font-bold">14:00 - 16:00</div>
-            </div>
-        </div>
-        <div class="flex items-center justify-between pt-3 border-t border-border/20">
-            <div></div>
-            <Drawer bind:open={drawerOpen}>
-                <DrawerTrigger>
-                    <Button variant="outline" size="sm" class="uppercase">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
-                </DrawerTrigger>
-                <DrawerContent>
-                    <DrawerHeader class="flex flex-row items-center justify-between">
-                        <DrawerTitle>Event Details</DrawerTitle>
-                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0" onclick={() => drawerOpen = false}>
-                            <X class="h-4 w-4" />
-                        </Button>
-                    </DrawerHeader>
-                    <div class="px-4 pb-4 space-y-4">
-                        <div>
-                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                <FileText class="h-4 w-4" />
-                                Event Name
-                            </h4>
-                            <p class="text-lg font-bold mt-1">{currentEvent.name}</p>
-                        </div>
-                        <div>
-                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                <Calendar class="h-4 w-4" />
-                                Date
-                            </h4>
-                            <p class="text-base mt-1">{currentEvent.day ? currentEvent.day : currentEvent.date}</p>
-                        </div>
-                        <div>
-                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                <Clock class="h-4 w-4" />
-                                Time
-                            </h4>
-                            <p class="text-base mt-1">{currentEvent.time}</p>
-                        </div>
-                        <div>
-                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                <MapPin class="h-4 w-4" />
-                                Place
-                            </h4>
-                            <p class="text-base mt-1">{currentEvent.place}</p>
-                        </div>
-                    </div>
-                </DrawerContent>
-            </Drawer>
-        </div>
-    </div>
-
-    <!-- Session Progress -->
-    <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
-        <div class="flex items-start justify-between">
-            <div>
-                <div class="text-sm font-medium flex items-center gap-2">
-                    <TrendingUp class="h-4 w-4" />
-                    Session Progress
-                </div>
-                <div class="text-xs text-muted-foreground mt-1">On Track</div>
-            </div>
-            <div class="flex items-center gap-2 text-sm text-muted-foreground">
-                <div class="text-xs">Elapsed</div>
-                <div class="font-bold">0h 15m</div>
-            </div>
-        </div>
-        <div class="flex items-center gap-4 mt-4">
-            <!-- Radial Chart Progress -->
-            <div class="w-32">
-                <Chart.Container config={chartConfig} class="aspect-square">
-                    <ArcChart
-                        label="label"
-                        value="value"
-                        outerRadius={52}
-                        innerRadius={40}
-                        trackOuterRadius={50}
-                        trackInnerRadius={42}
-                        padding={15}
-                        range={[0, 360]}
-                        maxValue={100}
-                        series={sessionProgressData.map((d) => ({
-                            key: d.label,
-                            color: "var(--color-primary)",
-                            data: [d],
-                        }))}
-                        props={{
-                            arc: { track: { fill: "var(--muted)" }, motion: "tween" },
-                            tooltip: { context: { hideDelay: 350 } },
-                        }}
-                        tooltip={false}
-                    >
-                        {#snippet belowMarks()}
-                            <circle cx="0" cy="0" r="42" class="fill-background" />
-                        {/snippet}
-                        {#snippet aboveMarks()}
-                            <Text
-                                value="84%"
-                                textAnchor="middle"
-                                verticalAnchor="middle"
-                                class="fill-foreground text-2xl! font-bold"
-                                dy={2}
-                            />
-                        {/snippet}
-                    </ArcChart>
-                </Chart.Container>
-            </div>
-
-            <div class="flex-1">
-                <div class="text-xs uppercase text-muted-foreground tracking-widest">Participation</div>
-                <div class="text-lg font-bold text-(--color-primary) mt-2">84%</div>
-                <div class="text-xs text-muted-foreground mt-3">45 mins left</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Small stats -->
-    <div class="grid grid-cols-2 gap-3">
-        <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
-            <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                <CheckCircle2 class="h-4 w-4 text-(--stat-success)" />
-                <div class="uppercase tracking-widest">Checked In</div>
-            </div>
-            <div class="text-2xl font-extrabold mt-2">42</div>
-        </div>
-        <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
-            <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
-                <Users class="h-4 w-4 text-(--color-primary)" />
-                <div class="uppercase tracking-widest">Expected</div>
-            </div>
-            <div class="text-2xl font-extrabold mt-2">50</div>
-        </div>
-    </div>
-
-
-
-    <!-- Recent Scans -->
-    <div class="flex items-center justify-between">
-        <h3 class="text-lg font-bold flex items-center gap-2">
-            <ScanLine class="h-5 w-5" />
-            Recent Scans
-        </h3>
-        <a href="/attendance" class="text-xs text-(--color-primary) font-bold flex items-center gap-1">
-            VIEW ALL
-            <ArrowRight class="h-3 w-3" />
-        </a>
-    </div>
-
-    <div class="space-y-3">
-        {#each [
-            { id: 1, name: 'Sarah Jenkins', role: 'Product Designer', time: '14:05', avatar: 'https://i.pravatar.cc/40?img=12' },
-            { id: 2, name: 'Mike Ross', role: 'Engineering Lead', time: '14:02', avatar: 'https://i.pravatar.cc/40?img=14' },
-            { id: 3, name: 'David Chen', role: 'Marketing Specialist', time: '13:58', avatar: 'https://i.pravatar.cc/40?img=6' }
-        ] as scan}
-            <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <Avatar class="h-10 w-10 rounded-full">
-                        <AvatarImage src={scan.avatar} alt={scan.name} />
-                    </Avatar>
-                    <div>
-                        <div class="font-bold">{scan.name}</div>
-                        <div class="text-xs text-muted-foreground">{scan.role}</div>
-                    </div>
-                </div>
-                <div class="text-xs text-muted-foreground flex items-center gap-2">
-                    <div>{scan.time}</div>
-                    <span class="h-2 w-2 rounded-full bg-(--stat-success)"></span>
-                </div>
-            </div>
-        {/each}
-    </div>
-
-    <!-- Floating scan button -->
-
-</div>
-
-<!-- Desktop View (Web-first layout) -->
-<div class="hidden md:grid grid-cols-3 gap-6 p-6 lg:p-8">
-    <!-- Left / Main (span 2) -->
-    <div class="col-span-2 space-y-6">
+{#if isLoading}
+    <FullPageLoading message="Synchronizing attendance data..." />
+{:else}
+    <!-- Mobile View -->
+    <div class="flex flex-col gap-4 p-4 md:hidden pb-28">
+        
         <!-- Live Session Card -->
-        <Card>
-            <CardContent class="p-6">
+        {#if currentEvent}
+            <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm space-y-4">
                 <div class="flex items-start justify-between">
                     <div class="space-y-1">
-                        <div class="text-[10px] uppercase tracking-widest text-(--color-primary) font-black">LIVE SESSION</div>
-                        <h3 class="text-2xl font-extrabold tracking-tight">Q3 Quarterly Review</h3>
-                        <div class="text-sm text-muted-foreground mt-1 flex items-center gap-2"><MapPin class="h-4 w-4" /> Main Conference Hall</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-sm font-bold">14:00 - 16:00</div>
-                        <div class="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Time</div>
-                        <div class="mt-4">
-                            <Popover>
-                                <PopoverTrigger>
-                                    <Button variant="outline" size="sm">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
-                                </PopoverTrigger>
-                                <PopoverContent class="w-80">
-                                    <div class="space-y-3">
-                                        <div>
-                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                                <FileText class="h-4 w-4" />
-                                                Event Name
-                                            </h4>
-                                            <p class="text-lg font-bold">{currentEvent.name}</p>
-                                        </div>
-                                        <div>
-                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                                <Calendar class="h-4 w-4" />
-                                                Date
-                                            </h4>
-                                            <p class="text-base">{currentEvent.day ? currentEvent.day : currentEvent.date}</p>
-                                        </div>
-                                        <div>
-                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                                <Clock class="h-4 w-4" />
-                                                Time
-                                            </h4>
-                                            <p class="text-base">{currentEvent.time}</p>
-                                        </div>
-                                        <div>
-                                            <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
-                                                <MapPin class="h-4 w-4" />
-                                                Place
-                                            </h4>
-                                            <p class="text-base">{currentEvent.place}</p>
-                                        </div>
-                                    </div>
-                                </PopoverContent>
-                            </Popover>
+                        <div class="flex items-center gap-2">
+                            <span class="h-2 w-2 rounded-full bg-(--color-primary) inline-block animate-pulse"></span>
+                            <div class="text-xs uppercase tracking-widest text-(--color-primary) font-black">Live Session</div>
+                        </div>
+                        <div class="text-xl font-extrabold tracking-tight">{currentEvent.name}</div>
+                        <div class="text-[12px] text-muted-foreground flex items-center gap-2 mt-2">
+                            <MapPin class="h-4 w-4" />
+                            <span>{currentEvent.place}</span>
                         </div>
                     </div>
+                    <div class="text-right text-xs text-muted-foreground">
+                        <div class="uppercase tracking-widest">Time</div>
+                        <div class="font-bold">{currentEvent.time}</div>
+                    </div>
                 </div>
-            </CardContent>
-        </Card>
-
-        <!-- Session Progress Card -->
-        <Card>
-            <CardContent class="p-6 flex gap-6 items-center">
-                <div class="w-44">
-                    <Chart.Container config={chartConfig} class="aspect-square">
-                        <ArcChart
-                            label="label"
-                            value="value"
-                            outerRadius={72}
-                            innerRadius={55}
-                            trackOuterRadius={70}
-                            trackInnerRadius={58}
-                            padding={20}
-                            range={[0, 360]}
-                            maxValue={100}
-                            series={sessionProgressData.map((d) => ({
-                                key: d.label,
-                                color: "var(--color-primary)",
-                                data: [d],
-                            }))}
-                            props={{
-                                arc: { track: { fill: "var(--muted)" }, motion: "tween" },
-                                tooltip: { context: { hideDelay: 350 } },
-                            }}
-                            tooltip={false}
-                        >
-                            {#snippet belowMarks()}
-                                <circle cx="0" cy="0" r="55" class="fill-background" />
-                            {/snippet}
-                            {#snippet aboveMarks()}
-                                <Text
-                                    value="84%"
-                                    textAnchor="middle"
-                                    verticalAnchor="middle"
-                                    class="fill-foreground text-3xl! font-bold"
-                                    dy={3}
-                                />
-                            {/snippet}
-                        </ArcChart>
-                    </Chart.Container>
-                </div>
-                <div class="flex-1">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <div class="text-sm font-medium flex items-center gap-2">
-                                <TrendingUp class="h-4 w-4" />
-                                Session Progress
+                <div class="flex items-center justify-between pt-3 border-t border-border/20">
+                    <div></div>
+                    <Drawer bind:open={drawerOpen}>
+                        <DrawerTrigger>
+                            <Button variant="outline" size="sm" class="uppercase">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
+                        </DrawerTrigger>
+                        <DrawerContent>
+                            <DrawerHeader class="flex flex-row items-center justify-between">
+                                <DrawerTitle>Event Details</DrawerTitle>
+                                <Button variant="ghost" size="sm" class="h-8 w-8 p-0" onclick={() => drawerOpen = false}>
+                                    <X class="h-4 w-4" />
+                                </Button>
+                            </DrawerHeader>
+                            <div class="px-4 pb-4 space-y-4">
+                                <div>
+                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                        <FileText class="h-4 w-4" />
+                                        Event Name
+                                    </h4>
+                                    <p class="text-lg font-bold mt-1">{currentEvent.name}</p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                        <Calendar class="h-4 w-4" />
+                                        Date
+                                    </h4>
+                                    <p class="text-base mt-1">{currentEvent.date || currentEvent.day}</p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                        <Clock class="h-4 w-4" />
+                                        Time
+                                    </h4>
+                                    <p class="text-base mt-1">{currentEvent.time}</p>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                        <MapPin class="h-4 w-4" />
+                                        Place
+                                    </h4>
+                                    <p class="text-base mt-1">{currentEvent.place}</p>
+                                </div>
                             </div>
-                            <div class="text-xs text-muted-foreground mt-1">On Track</div>
-                        </div>
-                        <div class="text-sm text-muted-foreground">
-                            <div class="text-xs">Elapsed</div>
-                            <div class="font-bold">0h 15m</div>
-                        </div>
-                    </div>
+                        </DrawerContent>
+                    </Drawer>
+                </div>
+            </div>
 
-                    <div class="mt-6">
-                        <div class="text-xs uppercase text-muted-foreground tracking-widest">Participation</div>
-                        <div class="text-3xl font-bold text-(--color-primary) mt-1">84%</div>
+            <!-- Session Progress -->
+            <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <div class="text-sm font-medium flex items-center gap-2">
+                            <TrendingUp class="h-4 w-4" />
+                            Session Progress
+                        </div>
+                        <div class="text-xs text-muted-foreground mt-1">Live Updates</div>
                     </div>
                 </div>
-            </CardContent>
-        </Card>
+                <div class="flex items-center gap-4 mt-4">
+                    <!-- Radial Chart Progress -->
+                    <div class="w-32">
+                        <Chart.Container config={chartConfig} class="aspect-square">
+                            <ArcChart
+                                label="label"
+                                value="value"
+                                outerRadius={52}
+                                innerRadius={40}
+                                trackOuterRadius={50}
+                                trackInnerRadius={42}
+                                padding={15}
+                                range={[0, 360]}
+                                maxValue={100}
+                                series={sessionProgressData.map((d) => ({
+                                    key: d.label,
+                                    color: "var(--color-primary)",
+                                    data: [d],
+                                }))}
+                                props={{
+                                    arc: { track: { fill: "var(--muted)" }, motion: "tween" },
+                                    tooltip: { context: { hideDelay: 350 } },
+                                }}
+                                tooltip={false}
+                            >
+                                {#snippet belowMarks()}
+                                    <circle cx="0" cy="0" r="42" class="fill-background" />
+                                {/snippet}
+                                {#snippet aboveMarks()}
+                                    <Text
+                                        value={`${participationRate}%`}
+                                        textAnchor="middle"
+                                        verticalAnchor="middle"
+                                        class="fill-foreground text-2xl! font-bold"
+                                        dy={2}
+                                    />
+                                {/snippet}
+                            </ArcChart>
+                        </Chart.Container>
+                    </div>
 
-        <!-- Stats Row -->
-        <div class="grid grid-cols-2 gap-4">
-            <Card class="p-0">
-                <CardContent class="p-4">
-                                <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                    <div class="flex-1">
+                        <div class="text-xs uppercase text-muted-foreground tracking-widest">Participation</div>
+                        <div class="text-lg font-bold text-(--color-primary) mt-2">{participationRate}%</div>
+                        <div class="text-xs text-muted-foreground mt-3">{stats.present} / {stats.expected} Checked In</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Small stats -->
+            <div class="grid grid-cols-2 gap-3">
+                <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
+                    <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
                         <CheckCircle2 class="h-4 w-4 text-(--stat-success)" />
                         <div class="uppercase tracking-widest">Checked In</div>
                     </div>
-                    <div class="text-2xl font-extrabold mt-2">42</div>
-                </CardContent>
-            </Card>
-
-            <Card class="p-0">
-                <CardContent class="p-4">
+                    <div class="text-2xl font-extrabold mt-2">{stats.present}</div>
+                </div>
+                <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm">
                     <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
                         <Users class="h-4 w-4 text-(--color-primary)" />
                         <div class="uppercase tracking-widest">Expected</div>
                     </div>
-                    <div class="text-2xl font-extrabold mt-2">50</div>
+                    <div class="text-2xl font-extrabold mt-2">{stats.expected}</div>
+                </div>
+            </div>
+        {:else}
+            <Card class="bg-muted/30 border-dashed border-2">
+                <CardContent class="p-8 flex flex-col items-center justify-center text-center space-y-3">
+                    <Calendar class="h-10 w-10 text-muted-foreground opacity-20" />
+                    <div class="font-bold">No Live Session</div>
+                    <p class="text-xs text-muted-foreground">There are no ongoing events at the moment. Active events will appear here.</p>
                 </CardContent>
             </Card>
+        {/if}
+
+        <!-- Recent Scans -->
+        <div class="flex items-center justify-between mt-4">
+            <h3 class="text-lg font-bold flex items-center gap-2">
+                <ScanLine class="h-5 w-5" />
+                Recent Scans
+            </h3>
+            <a href="/attendance/history" class="text-xs text-(--color-primary) font-bold flex items-center gap-1">
+                VIEW ALL
+                <ArrowRight class="h-3 w-3" />
+            </a>
+        </div>
+
+        <div class="space-y-3">
+            {#if recentScans.length > 0}
+                {#each recentScans as scan}
+                    <div class="p-4 rounded-2xl bg-card border border-border/40 shadow-sm flex items-center justify-between">
+                        <div class="flex items-center gap-3">
+                            <Avatar class="h-10 w-10 rounded-full">
+                                <AvatarImage src={scan.avatar} alt={scan.name} />
+                                <AvatarFallback>{scan.name.charAt(0)}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                                <div class="font-bold">{scan.name}</div>
+                                <div class="text-xs text-muted-foreground">{scan.role}</div>
+                            </div>
+                        </div>
+                        <div class="text-xs text-muted-foreground flex items-center gap-2">
+                            <div>{scan.time}</div>
+                            <span class="h-2 w-2 rounded-full bg-(--stat-success)"></span>
+                        </div>
+                    </div>
+                {/each}
+            {:else}
+                <div class="p-8 text-center text-muted-foreground text-sm italic">No recent scans found.</div>
+            {/if}
         </div>
     </div>
 
-    <!-- Right / Sidebar -->
-    <aside class="col-span-1 flex flex-col h-full gap-6">
-        <Card class="flex-1 flex flex-col h-full">
-            <CardHeader class="flex items-center justify-between">
-                <div>
-                    <CardTitle class="flex items-center gap-2">
-                        <ScanLine class="h-5 w-5" />
-                        Recent Scans
-                    </CardTitle>
-                    <CardDescription>Latest check-ins</CardDescription>
-                </div>
-                <a href="/attendance" class="text-xs text-(--color-primary) font-bold flex items-center gap-1">
-                    View all
-                    <ArrowRight class="h-3 w-3" />
-                </a>
-            </CardHeader>
-            <CardContent class="space-y-3 overflow-auto flex-1">
-                {#each [
-                    { id: 1, name: 'Sarah Jenkins', role: 'Product Designer', time: '14:05', avatar: 'https://i.pravatar.cc/40?img=12' },
-                    { id: 2, name: 'Mike Ross', role: 'Engineering Lead', time: '14:02', avatar: 'https://i.pravatar.cc/40?img=14' },
-                    { id: 3, name: 'David Chen', role: 'Marketing Specialist', time: '13:58', avatar: 'https://i.pravatar.cc/40?img=6' }
-                ] as scan}
-                    <div class="flex items-center gap-3 p-3 rounded-lg bg-card/30">
-                        <Avatar class="h-12 w-12 rounded-full">
-                            <AvatarImage src={scan.avatar} alt={scan.name} />
-                        </Avatar>
-                        <div class="flex-1 min-w-0">
-                            <div class="font-bold truncate">{scan.name}</div>
-                            <div class="text-xs text-muted-foreground">{scan.role}</div>
+    <!-- Desktop View -->
+    <div class="hidden md:grid grid-cols-3 gap-6 p-6 lg:p-8">
+        <!-- Left / Main (span 2) -->
+        <div class="col-span-2 space-y-6">
+            {#if currentEvent}
+                <Card>
+                    <CardContent class="p-6">
+                        <div class="flex items-start justify-between">
+                            <div class="space-y-1">
+                                <div class="text-[10px] uppercase tracking-widest text-(--color-primary) font-black flex items-center gap-2">
+                                    <span class="h-2 w-2 rounded-full bg-primary animate-pulse"></span>
+                                    LIVE SESSION
+                                </div>
+                                <h3 class="text-2xl font-extrabold tracking-tight">{currentEvent.name}</h3>
+                                <div class="text-sm text-muted-foreground mt-1 flex items-center gap-2"><MapPin class="h-4 w-4" /> {currentEvent.place}</div>
+                            </div>
+                            <div class="text-right">
+                                <div class="text-sm font-bold">{currentEvent.time}</div>
+                                <div class="text-xs text-muted-foreground mt-1 uppercase tracking-widest">Time</div>
+                                <div class="mt-4">
+                                    <Popover>
+                                        <PopoverTrigger>
+                                            <Button variant="outline" size="sm">Details &nbsp; <ChevronRight class="h-3 w-3" /></Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent class="w-80">
+                                            <div class="space-y-3">
+                                                <div>
+                                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                        <FileText class="h-4 w-4" />
+                                                        Event Name
+                                                    </h4>
+                                                    <p class="text-lg font-bold">{currentEvent.name}</p>
+                                                </div>
+                                                <div>
+                                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                        <Calendar class="h-4 w-4" />
+                                                        Date
+                                                    </h4>
+                                                    <p class="text-base">{currentEvent.date || currentEvent.day}</p>
+                                                </div>
+                                                <div>
+                                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                        <Clock class="h-4 w-4" />
+                                                        Time
+                                                    </h4>
+                                                    <p class="text-base">{currentEvent.time}</p>
+                                                </div>
+                                                <div>
+                                                    <h4 class="font-semibold text-sm text-muted-foreground uppercase tracking-widest flex items-center gap-2">
+                                                        <MapPin class="h-4 w-4" />
+                                                        Place
+                                                    </h4>
+                                                    <p class="text-base">{currentEvent.place}</p>
+                                                </div>
+                                            </div>
+                                        </PopoverContent>
+                                    </Popover>
+                                </div>
+                            </div>
                         </div>
-                        <div class="text-xs text-muted-foreground">{scan.time}</div>
-                    </div>
+                    </CardContent>
+                </Card>
+
+                <Card>
+                    <CardContent class="p-6 flex gap-6 items-center">
+                        <div class="w-44">
+                            <Chart.Container config={chartConfig} class="aspect-square">
+                                <ArcChart
+                                    label="label"
+                                    value="value"
+                                    outerRadius={72}
+                                    innerRadius={55}
+                                    trackOuterRadius={70}
+                                    trackInnerRadius={58}
+                                    padding={20}
+                                    range={[0, 360]}
+                                    maxValue={100}
+                                    series={sessionProgressData.map((d) => ({
+                                        key: d.label,
+                                        color: "var(--color-primary)",
+                                        data: [d],
+                                    }))}
+                                    props={{
+                                        arc: { track: { fill: "var(--muted)" }, motion: "tween" },
+                                        tooltip: { context: { hideDelay: 350 } },
+                                    }}
+                                    tooltip={false}
+                                >
+                                    {#snippet belowMarks()}
+                                        <circle cx="0" cy="0" r="55" class="fill-background" />
+                                    {/snippet}
+                                    {#snippet aboveMarks()}
+                                        <Text
+                                            value={`${participationRate}%`}
+                                            textAnchor="middle"
+                                            verticalAnchor="middle"
+                                            class="fill-foreground text-3xl! font-bold"
+                                            dy={3}
+                                        />
+                                    {/snippet}
+                                </ArcChart>
+                            </Chart.Container>
+                        </div>
+                        <div class="flex-1">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <div class="text-sm font-medium flex items-center gap-2">
+                                        <TrendingUp class="h-4 w-4" />
+                                        Session Progress
+                                    </div>
+                                    <div class="text-xs text-muted-foreground mt-1">Live Updates</div>
+                                </div>
+                                <div class="text-sm text-muted-foreground">
+                                    <div class="text-xs font-bold">{stats.present} / {stats.expected}</div>
+                                    <div class="text-[10px] uppercase tracking-tighter text-right">Attending</div>
+                                </div>
+                            </div>
+
+                            <div class="mt-6">
+                                <div class="text-xs uppercase text-muted-foreground tracking-widest">Overall Participation</div>
+                                <div class="text-3xl font-bold text-(--color-primary) mt-1">{participationRate}%</div>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <Card class="p-0">
+                        <CardContent class="p-4">
+                            <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                                <CheckCircle2 class="h-4 w-4 text-(--stat-success)" />
+                                <div class="uppercase tracking-widest">Checked In</div>
+                            </div>
+                            <div class="text-2xl font-extrabold mt-2">{stats.present}</div>
+                        </CardContent>
+                    </Card>
+
+                    <Card class="p-0">
+                        <CardContent class="p-4">
+                            <div class="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                                <Users class="h-4 w-4 text-(--color-primary)" />
+                                <div class="uppercase tracking-widest">Expected</div>
+                            </div>
+                            <div class="text-2xl font-extrabold mt-2">{stats.expected}</div>
+                        </CardContent>
+                    </Card>
+                </div>
+            {:else}
+                <Card class="bg-muted/30 border-dashed border-2 p-12 w-full">
+                    <CardContent class="flex flex-col items-center justify-center text-center space-y-4">
+                        <div class="p-4 rounded-full bg-muted">
+                            <Calendar class="h-12 w-12 text-muted-foreground opacity-30" />
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold">No Ongoing Events</h3>
+                            <p class="text-muted-foreground max-w-md mx-auto mt-2">There are no live sessions currently active. Start or schedule an event from the Events Management page to see live attendance tracking.</p>
+                        </div>
+                        <Button variant="outline" onclick={() => goto('/events')}>Go to Events</Button>
+                    </CardContent>
+                </Card>
+            {/if}
+
+            <div class="flex items-center justify-between pb-2 border-b mt-8">
+                <h3 class="text-xl font-bold tracking-tight">Recent Sessions</h3>
+                <a href="/attendance/history" class="text-sm text-primary font-bold hover:underline">View History</a>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                {#each events.slice(0, 4) as e}
+                    <Card class="hover:border-primary/50 transition-colors cursor-pointer" onclick={() => goto(`/attendance/history?event=${e.id}`)}>
+                        <CardContent class="p-4">
+                            <div class="flex items-start justify-between">
+                                <div class="min-w-0">
+                                    <div class="text-xs text-muted-foreground font-medium uppercase mb-1">{new Date(e.date).toLocaleDateString()}</div>
+                                    <h4 class="font-bold truncate">{e.name}</h4>
+                                </div>
+                                <Badge variant="secondary" class="font-bold">{e.attendees}</Badge>
+                            </div>
+                        </CardContent>
+                    </Card>
                 {/each}
-            </CardContent>
-            <CardFooter class="pt-0">
-                <Button class="w-full h-14 rounded-xl bg-(--color-primary) text-(--color-primary-foreground) font-bold" onclick={() => {/* open scanner */}}>
-                    <QrCode class="h-5 w-5 mr-2" />
-                    Open Scanner
-                </Button>
-            </CardFooter>
-        </Card>
-    </aside>
-</div>
+            </div>
+        </div>
+
+        <!-- Right / Sidebar -->
+        <aside class="col-span-1 flex flex-col h-full gap-6">
+            <Card class="flex-1 flex flex-col h-full">
+                <CardHeader class="flex flex-row items-center justify-between space-y-0">
+                    <div>
+                        <CardTitle class="flex items-center gap-2">
+                            <ScanLine class="h-5 w-5" />
+                            Recent Scans
+                        </CardTitle>
+                        <CardDescription>Latest check-ins</CardDescription>
+                    </div>
+                </CardHeader>
+                <CardContent class="space-y-3 overflow-auto flex-1 p-4">
+                    {#if recentScans.length > 0}
+                        {#each recentScans as scan}
+                            <div class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                                <Avatar class="h-10 w-10 border border-border/50">
+                                    <AvatarImage src={scan.avatar} alt={scan.name} />
+                                    <AvatarFallback>{scan.name.charAt(0)}</AvatarFallback>
+                                </Avatar>
+                                <div class="flex-1 min-w-0">
+                                    <div class="font-bold text-sm truncate uppercase tracking-tight">{scan.name}</div>
+                                    <div class="text-[10px] text-muted-foreground uppercase">{scan.role}</div>
+                                </div>
+                                <div class="text-[10px] font-bold text-muted-foreground">{scan.time}</div>
+                            </div>
+                        {/each}
+                    {:else}
+                        <div class="flex flex-col items-center justify-center p-12 opacity-20 italic text-sm h-full">
+                            <ScanLine class="h-12 w-12 mb-2" />
+                            No scans yet
+                        </div>
+                    {/if}
+                </CardContent>
+                <CardFooter class="p-4 border-t">
+                    <Button class="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20" onclick={() => goto('/scan')}>
+                        <QrCode class="h-4 w-4 mr-2" />
+                        Open Scanner
+                    </Button>
+                </CardFooter>
+            </Card>
+        </aside>
+    </div>
+{/if}

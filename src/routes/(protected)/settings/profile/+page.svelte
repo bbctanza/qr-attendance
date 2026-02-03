@@ -9,13 +9,22 @@
 	import { ChevronLeft, Lock, Shield, Smartphone, Eye, EyeOff, Trash2, LogOut } from "@lucide/svelte";
 	import { goto } from "$app/navigation";
 	import { toast } from "svelte-sonner";
+	import { supabase } from "$lib/supabase";
+	import { onMount } from "svelte";
+	import FullPageLoading from "$lib/components/full-page-loading.svelte";
 
 	// Profile state
 	let profile = $state({
-		name: "Alex Chen",
-		email: "alex.chen@example.com",
-		avatar: ""
+		id: "",
+		name: "",
+		email: "",
+		avatar: "",
+		role: "staff"
 	});
+
+	let isLoading = $state(true);
+	let isSavingProfile = $state(false);
+	let isSavingPassword = $state(false);
 
 	let passwordForm = $state({
 		currentPassword: "",
@@ -27,8 +36,6 @@
 	});
 
 	let twoFaEnabled = $state(false);
-	let isSavingProfile = $state(false);
-	let isSavingPassword = $state(false);
 
 	let activeSessions = $state([
 		{ id: 1, device: "iPhone 14 Pro", location: "San Francisco, CA", lastActive: "Now", current: true },
@@ -36,19 +43,92 @@
 		{ id: 3, device: "Windows PC", location: "New York, NY", lastActive: "1 day ago", current: false }
 	]);
 
-	function handleSaveProfile() {
+	onMount(async () => {
+		await fetchProfile();
+	});
+
+	async function fetchProfile() {
+		isLoading = true;
+		try {
+			const { data: { user } } = await supabase.auth.getUser();
+			if (!user) {
+				goto('/login');
+				return;
+			}
+
+			const { data: prof, error } = await supabase
+				.from('profiles')
+				.select('*')
+				.eq('id', user.id)
+				.single();
+
+			if (error) {
+				console.error("Error fetching profile:", error);
+				// If profile doesn't exist yet (unlikely due to trigger, but possible)
+				profile = {
+					id: user.id,
+					name: user.user_metadata?.full_name || "User",
+					email: user.email || "",
+					avatar: user.user_metadata?.avatar_url || "",
+					role: "staff"
+				};
+			} else {
+				// We'll use field aliasing or just assume columns exist
+				// Cast to any to avoid TS errors if columns are literally missing in type defs
+				const p = prof as any;
+				profile = {
+					id: p.id,
+					name: p.full_name || user.user_metadata?.full_name || "User",
+					email: p.email,
+					avatar: p.avatar_url || user.user_metadata?.avatar_url || "",
+					role: p.role
+				};
+			}
+		} catch (e) {
+			console.error("Profile fetch exception:", e);
+		} finally {
+			isLoading = false;
+		}
+	}
+
+	async function handleSaveProfile() {
 		if (!profile.name.trim() || !profile.email.trim()) {
 			toast.error("Please fill in all fields");
 			return;
 		}
 		isSavingProfile = true;
-		setTimeout(() => {
-			isSavingProfile = false;
+		try {
+			// 1. Update auth metadata (useful for SSR and immediate UI updates elsewhere)
+			const { error: authError } = await supabase.auth.updateUser({
+				data: { full_name: profile.name, avatar_url: profile.avatar }
+			});
+
+			if (authError) throw authError;
+
+			// 2. Update profiles table
+			const { error: profError } = await supabase
+				.from('profiles')
+				.update({
+					full_name: profile.name,
+					avatar_url: profile.avatar,
+					updated_at: new Date().toISOString()
+				} as any)
+				.eq('id', profile.id);
+
+			if (profError) {
+				console.error("Profile table update failed:", profError);
+				// We don't necessarily throw here if auth metadata succeeded
+			}
+
 			toast.success("Profile updated successfully");
-		}, 1000);
+		} catch (e: any) {
+			toast.error(e.message || "Failed to update profile");
+		} finally {
+			isSavingProfile = false;
+		}
 	}
 
-	function handleChangePassword() {
+	async function handleChangePassword() {
 		if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
 			toast.error("Please fill in all password fields");
 			return;
@@ -62,8 +142,13 @@
 			return;
 		}
 		isSavingPassword = true;
-		setTimeout(() => {
-			isSavingPassword = false;
+		try {
+			const { error } = await supabase.auth.updateUser({
+				password: passwordForm.newPassword
+			});
+
+			if (error) throw error;
+
 			passwordForm = {
 				currentPassword: "",
 				newPassword: "",
@@ -73,7 +158,11 @@
 				showConfirm: false
 			};
 			toast.success("Password changed successfully");
-		}, 1000);
+		} catch (e: any) {
+			toast.error(e.message || "Failed to change password");
+		} finally {
+			isSavingPassword = false;
+		}
 	}
 
 	function handleToggle2FA() {
@@ -97,6 +186,9 @@
 	}
 </script>
 
+{#if isLoading}
+	<FullPageLoading message="Loading profile..." />
+{:else}
 <!-- Mobile View -->
 <div class="md:hidden flex flex-col min-h-screen bg-background pb-20">
 	<!-- Header -->
@@ -471,3 +563,4 @@
 		</div>
 	</div>
 </div>
+{/if}

@@ -9,6 +9,7 @@
 	import { eventsApi } from '$lib/api/events';
 	import { supabase } from '$lib/supabase';
 	import Progress from '$lib/components/ui/progress';
+	import FullPageLoading from "$lib/components/full-page-loading.svelte";
 
 	type Event = {
 		event_id: number;
@@ -22,23 +23,34 @@
 
 	let events = $state<Event[]>([]);
 	let openEventId = $state<number | null>(null);
-	let selectedMonth = $state('ALL'); // Default to ALL to show something initially
+	let selectedMonth = $state('ALL'); 
 	let filterPresent = $state(true);
 	let months = ['ALL', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP'];
+	let monthMap: Record<string, number> = {
+		'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
+		'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
+	};
 	let monthPage = $state(0);
 	let monthsPerPage = 4;
 	let isLoading = $state(true);
 
-	let visibleMonths = $derived(() => months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage));
-	let hasPrev = $derived(() => monthPage > 0);
-	let hasNext = $derived(() => (monthPage + 1) * monthsPerPage < months.length);
+	let visibleMonths = $derived(months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage));
+	let hasPrev = $derived(monthPage > 0);
+	let hasNext = $derived((monthPage + 1) * monthsPerPage < months.length);
 
-	// Attendance calculations using $derived
-	let totalAttendees = $derived(() => events.reduce((s, e) => s + (e.attendees ? e.attendees.length : 0), 0));
-	// Default average event size (fallback) — could be computed dynamically later
-	let defaultAvgSize = 18;
-	let averageSize = $derived(() => events.length ? Math.round(totalAttendees() / events.length) || defaultAvgSize : defaultAvgSize);
-	let attendanceRate = $derived(() => events.length ? Math.round((totalAttendees() / (events.length * defaultAvgSize)) * 100) : 0);
+	// Filtering
+	let filteredEvents = $derived(
+		selectedMonth === 'ALL' 
+			? events 
+			: events.filter(e => new Date(e.event_date).getMonth() === monthMap[selectedMonth])
+	);
+
+	// Attendance calculations
+	let totalAttendees = $derived(filteredEvents.reduce((s, e) => s + (e.attendees ? e.attendees.length : 0), 0));
+	let totalExpected = $derived(filteredEvents.reduce((s, e) => s + ((e.attendees?.length || 0) + (e.absent?.length || 0)), 0));
+	
+	let averageSize = $derived(filteredEvents.length ? Math.round(totalAttendees / filteredEvents.length) : 0);
+	let attendanceRate = $derived(totalExpected > 0 ? Math.round((totalAttendees / totalExpected) * 100) : 0);
 
 	onMount(async () => {
 		isLoading = true;
@@ -121,7 +133,10 @@
   }
 </script>
 
-<div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12">
+{#if isLoading}
+	<FullPageLoading message="Loading attendance history..." />
+{:else}
+	<div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12">
 
   <Card>
     <CardHeader>
@@ -129,11 +144,11 @@
     </CardHeader>
     <CardContent>
       <div class="flex items-center justify-between">
-        <div class="text-4xl font-black">85<small class="text-primary">%</small></div>
+        <div class="text-4xl font-black">{attendanceRate}<small class="text-primary">%</small></div>
         <div class="text-sm text-muted-foreground">{selectedMonth}</div>
       </div>
       <div class="mt-4">
-        <Progress value={85} max={100} />
+        <Progress value={attendanceRate} max={100} />
       </div>
     </CardContent>
   </Card>
@@ -141,25 +156,25 @@
   <div class="grid grid-cols-2 gap-4 md:gap-6">
     <div class="rounded-2xl border border-border/20 bg-card p-4">
       <div class="text-xs text-muted-foreground uppercase">Events</div>
-      <div class="text-xl font-bold mt-2">{events.length}</div>
+      <div class="text-xl font-bold mt-2">{filteredEvents.length}</div>
       <div class="text-sm text-muted-foreground">This month</div>
     </div>
     <div class="rounded-2xl border border-border/20 bg-card p-4">
       <div class="text-xs text-muted-foreground uppercase">Average</div>
-      <div class="text-xl font-bold mt-2">{averageSize()}</div>
+      <div class="text-xl font-bold mt-2">{averageSize}</div>
       <div class="text-sm text-muted-foreground">Members</div>
     </div>
   </div>
 
   <div class="flex flex-col items-center md:flex-row md:justify-between md:items-center mt-2 md:mt-4">
     <div class="flex items-center gap-2 mb-2 md:mb-0">
-      <button class="p-2 rounded-full bg-card/30 text-muted-foreground hover:bg-card/50 disabled:opacity-50" disabled={!hasPrev()} onclick={() => monthPage--}>
+      <button class="p-2 rounded-full bg-card/30 text-muted-foreground hover:bg-card/50 disabled:opacity-50" disabled={!hasPrev} onclick={() => monthPage--}>
         <ChevronLeft class="h-4 w-4" />
       </button>
-      {#each visibleMonths() as m}
+      {#each visibleMonths as m}
         <button class="rounded-full px-4 py-2 md:px-6 md:py-3 text-sm font-bold {m === selectedMonth ? 'bg-primary text-primary-foreground' : 'bg-card/30 text-muted-foreground'}" onclick={() => selectedMonth = m}>{m}</button>
       {/each}
-      <button class="p-2 rounded-full bg-card/30 text-muted-foreground hover:bg-card/50 disabled:opacity-50" disabled={!hasNext()} onclick={() => monthPage++}>
+      <button class="p-2 rounded-full bg-card/30 text-muted-foreground hover:bg-card/50 disabled:opacity-50" disabled={!hasNext} onclick={() => monthPage++}>
         <ChevronRight class="h-4 w-4" />
       </button>
     </div>
@@ -184,7 +199,7 @@
   </div>
 
   <div class="space-y-4">
-    {#each events as ev}
+    {#each filteredEvents as ev}
       <div class="rounded-2xl border border-border/20 bg-card overflow-hidden">
         <div class="flex items-center justify-between p-4 md:p-6">
           <div class="flex items-center gap-3">
@@ -247,3 +262,4 @@
     {/each}
   </div>
 </div>
+{/if}

@@ -25,6 +25,8 @@ CREATE TYPE user_role AS ENUM ('developer', 'admin', 'staff');
 CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
+    full_name TEXT,
+    avatar_url TEXT,
     role user_role DEFAULT 'staff' NOT NULL,
     updated_at TIMESTAMP DEFAULT NOW(),
     created_at TIMESTAMP DEFAULT NOW()
@@ -34,8 +36,8 @@ CREATE TABLE profiles (
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-    INSERT INTO public.profiles (id, email, role)
-    VALUES (new.id, new.email, 'staff'); -- Default to staff
+    INSERT INTO public.profiles (id, email, full_name, role)
+    VALUES (new.id, new.email, new.raw_user_meta_data->>'full_name', 'staff'); -- Default to staff
     RETURN new;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

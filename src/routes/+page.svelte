@@ -9,6 +9,7 @@
     import { goto } from '$app/navigation';
     import * as Table from "$lib/components/ui/table";
     import { supabase } from '$lib/supabase';
+    import FullPageLoading from '$lib/components/full-page-loading.svelte';
 
     // State
     let isLoading = $state(true);
@@ -149,18 +150,14 @@
 
 </script>
 
-<!-- Mobile Content (Matching provided image) -->
-<div class="flex flex-col gap-6 p-4 md:hidden bg-background min-h-screen pb-28">
-    <!-- Live Event Card -->
-    <div class="rounded-3xl bg-card border border-border/40 p-6 shadow-xl space-y-6">
-        {#if isLoading}
-            <div class="space-y-4 animate-pulse">
-                <div class="h-4 w-24 bg-muted rounded"></div>
-                <div class="h-8 w-3/4 bg-muted rounded"></div>
-                <div class="h-4 w-1/2 bg-muted rounded"></div>
-                <div class="h-12 w-full bg-muted rounded-2xl"></div>
-            </div>
-        {:else if liveEvent}
+{#if isLoading}
+    <FullPageLoading message="Loading overview..." />
+{:else}
+    <!-- Mobile Content (Matching provided image) -->
+    <div class="flex flex-col gap-6 p-4 md:hidden bg-background min-h-screen pb-28">
+        <!-- Live Event Card -->
+        <div class="rounded-3xl bg-card border border-border/40 p-6 shadow-xl space-y-6">
+            {#if liveEvent}
             <div class="flex items-center justify-between uppercase tracking-wider text-[10px] font-bold">
                 <div class="flex items-center gap-2 text-primary">
                     <span class="h-2 w-2 rounded-full bg-primary animate-pulse"></span>
@@ -280,14 +277,7 @@
 	<Card class="relative overflow-hidden border-border bg-linear-to-br from-card to-card/50 shadow-lg">
          <div class="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/5 blur-3xl"></div>
 
-        {#if isLoading}
-            <CardHeader class="pb-2">
-                <div class="animate-pulse space-y-3">
-                    <div class="h-6 w-24 bg-muted rounded"></div>
-                    <div class="h-10 w-1/2 bg-muted rounded"></div>
-                </div>
-            </CardHeader>
-        {:else if liveEvent}
+        {#if liveEvent}
             <CardHeader class="pb-2">
                 <div class="flex items-center justify-between">
                     {#if liveEvent.isActive}
@@ -460,4 +450,5 @@
         </div>
     </div>
 </div>
+{/if}
 

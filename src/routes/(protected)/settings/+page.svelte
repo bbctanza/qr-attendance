@@ -5,21 +5,68 @@
     import { Separator } from "$lib/components/ui/separator";
     import { goto } from '$app/navigation';
     import { ChevronRight, Edit, Clock, Calendar, Users, Settings, LogOut, BarChart3 } from '@lucide/svelte';
+    import { supabase } from '$lib/supabase';
+    import { onMount } from 'svelte';
+    import FullPageLoading from '$lib/components/full-page-loading.svelte';
 
-    let user = $state({ name: 'Alex Chen', role: 'Administrator', avatar: '' });
+    let user = $state({ name: 'User', role: 'Staff', avatar: '' });
+    let isLoading = $state(true);
     let version = $state('QR Attendance System v1.2.0');
+
+    onMount(async () => {
+        await fetchProfile();
+    });
+
+    async function fetchProfile() {
+        isLoading = true;
+        try {
+            const { data: { user: authUser } } = await supabase.auth.getUser();
+            if (authUser) {
+                const { data: prof } = await supabase
+                    .from('profiles')
+                    .select('*')
+                    .eq('id', authUser.id)
+                    .single();
+
+                if (prof) {
+                    user = {
+                        name: prof.full_name || authUser.user_metadata?.full_name || 'User',
+                        role: prof.role ? prof.role.charAt(0).toUpperCase() + prof.role.slice(1) : 'Staff',
+                        avatar: prof.avatar_url || authUser.user_metadata?.avatar_url || ''
+                    };
+                } else {
+                    user = {
+                        name: authUser.user_metadata?.full_name || 'User',
+                        role: 'Staff',
+                        avatar: authUser.user_metadata?.avatar_url || ''
+                    };
+                }
+            }
+        } catch (e) {
+            console.error('Error fetching profile in settings:', e);
+        } finally {
+            isLoading = false;
+        }
+    }
 
     function open(path: string) {
         // navigate to route if provided
         if (path) goto(path);
     }
 
-    function handleLogout() {
-        // placeholder for logout
-        console.log('logout');
+    async function handleLogout() {
+        const { error } = await supabase.auth.signOut();
+        if (error) {
+            console.error('Error logging out:', error);
+        } else {
+            goto('/login');
+        }
     }
 </script> 
 
+{#if isLoading}
+    <FullPageLoading message="Loading settings..." />
+{:else}
 <div class="flex flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8 max-w-6xl mx-auto">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -126,3 +173,4 @@
         <div class="text-xs text-muted-foreground text-center sm:text-right">{version}</div>
     </div>
 </div>
+{/if}
