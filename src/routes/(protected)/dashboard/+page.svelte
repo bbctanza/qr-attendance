@@ -9,6 +9,7 @@
     import * as Table from "$lib/components/ui/table";
     import { supabase } from '$lib/supabase';
 	import type { AttendanceEvent } from '$lib/types';
+    import FullPageLoading from '$lib/components/full-page-loading.svelte';
 
     // State
     let liveEvent = $state<any>(null);
@@ -144,7 +145,10 @@
 
 </script>
 
-<div class="flex flex-1 flex-col gap-4 p-4 pt-0">
+{#if isLoading}
+    <FullPageLoading message="Loading dashboard..." />
+{:else}
+    <div class="flex flex-1 flex-col gap-4 p-4 pt-0">
     <!-- Top Header / Quick Actions for Mobile -->
     <div class="flex items-center justify-end space-y-2">
         <div class="flex items-center space-x-2">
@@ -319,3 +323,4 @@
 
     </div>
 </div>
+{/if}
