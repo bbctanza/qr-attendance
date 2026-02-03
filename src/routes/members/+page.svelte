@@ -44,6 +44,7 @@
     let selectedMemberForEdit = $state<typeof members[0] | null>(null);
     let showQrModal = $state(false);
     let selectedMemberForQr = $state<typeof members[0] | null>(null);
+    let isMobileView = $state(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     let formData = $state({
         lastName: "",
         firstName: "",
@@ -144,6 +145,17 @@
             groups[m.group].push(m);
         });
         return groups;
+    });
+
+    // Track window size for mobile view
+    $effect.pre(() => {
+        if (typeof window !== 'undefined') {
+            const handleResize = () => {
+                isMobileView = window.innerWidth < 768;
+            };
+            window.addEventListener('resize', handleResize);
+            return () => window.removeEventListener('resize', handleResize);
+        }
     });
 
     const groupColors: Record<string, string> = {
@@ -511,8 +523,11 @@
 
                 <Collapsible.Content class="space-y-3">
                     {#each groupMembers as member}
-                        <div class="bg-card/40 border border-border/40 rounded-2xl p-4 flex items-center justify-between group active:scale-[0.98] transition-all">
-                            <div class="flex items-center gap-4">
+                        <button 
+                            onclick={() => openEditDrawer(member)} 
+                            class="w-full bg-card/40 border border-border/40 rounded-2xl p-4 flex items-center justify-between group active:scale-[0.98] hover:bg-card/60 hover:border-border/60 transition-all text-left"
+                        >
+                            <div class="flex items-center gap-4 flex-1">
                                 <div class="relative">
                                     {#if member.avatar}
                                         <img src={member.avatar} alt={member.name} class="w-12 h-12 rounded-2xl object-cover" />
@@ -535,10 +550,24 @@
                                 </div>
                             </div>
                             
-                            <button onclick={() => openQrModal(member)} class="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-transform">
+                            <div 
+                                role="button"
+                                tabindex="0"
+                                onclick={(e) => {
+                                    e.stopPropagation();
+                                    openQrModal(member);
+                                }}
+                                onkeydown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                        e.preventDefault();
+                                        openQrModal(member);
+                                    }
+                                }}
+                                class="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-transform shrink-0 cursor-pointer"
+                            >
                                 <QrCode size={18} />
-                            </button>
-                        </div>
+                            </div>
+                        </button>
                     {/each}
                 </Collapsible.Content>
             </Collapsible.Root>
@@ -1233,89 +1262,182 @@
     </Drawer>
 </div>
 
-<!-- QR Modal -->
-{#if showQrModal && selectedMemberForQr}
-    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-        <div class="bg-card rounded-lg shadow-lg p-6 w-full max-w-sm mx-4">
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-6">
-                <h2 class="text-xl font-bold">QR Code</h2>
-                <button 
+<!-- QR Modal - Desktop -->
+<div class="hidden md:block">
+    {#if showQrModal && selectedMemberForQr}
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div class="bg-card rounded-lg shadow-lg p-6 w-full max-w-sm mx-4">
+                <!-- Header -->
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-xl font-bold">QR Code</h2>
+                    <button 
+                        onclick={() => {
+                            showQrModal = false;
+                            selectedMemberForQr = null;
+                        }}
+                        class="p-1 text-muted-foreground hover:text-foreground"
+                    >
+                        <X class="h-5 w-5" />
+                    </button>
+                </div>
+
+                <!-- QR Code Placeholder -->
+                <div class="flex justify-center mb-6">
+                    <div class="w-40 h-40 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
+                        <div class="text-center text-muted-foreground">
+                            <QrCode class="h-16 w-16 mx-auto mb-2" />
+                            <p class="text-xs">QR Code</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Member Details -->
+                <div class="space-y-3 mb-6 p-4 bg-muted/50 rounded-lg">
+                    <div>
+                        <p class="text-xs text-muted-foreground uppercase tracking-wide">Name</p>
+                        <p class="font-semibold text-foreground">{selectedMemberForQr.name}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-muted-foreground uppercase tracking-wide">Group</p>
+                        <p class="font-semibold text-foreground">{selectedMemberForQr.group}</p>
+                    </div>
+                    <div>
+                        <p class="text-xs text-muted-foreground uppercase tracking-wide">ID</p>
+                        <p class="font-mono font-semibold text-primary">{selectedMemberForQr.qrId}</p>
+                    </div>
+                </div>
+
+                <!-- Download Section -->
+                <div class="space-y-3">
+                    <p class="text-sm font-semibold text-muted-foreground">Download</p>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger>
+                            {#snippet child({ props })}
+                                <Button 
+                                    {...props} 
+                                    class="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                                >
+                                    <FileDown class="mr-2 h-4 w-4" />
+                                    Download QR
+                                </Button>
+                            {/snippet}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="center" class="w-48">
+                            <DropdownMenuLabel>Download Format</DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onclick={() => downloadQr("qr-only")}>
+                                QR Code Only
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onclick={() => downloadQr("qr-details")}>
+                                QR Code + Details
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
+
+                <!-- Close Button -->
+                <Button 
+                    variant="outline" 
+                    class="w-full mt-4"
                     onclick={() => {
                         showQrModal = false;
                         selectedMemberForQr = null;
                     }}
-                    class="p-1 text-muted-foreground hover:text-foreground"
                 >
-                    <X class="h-5 w-5" />
-                </button>
+                    Close
+                </Button>
             </div>
-
-            <!-- QR Code Placeholder -->
-            <div class="flex justify-center mb-6">
-                <div class="w-40 h-40 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
-                    <div class="text-center text-muted-foreground">
-                        <QrCode class="h-16 w-16 mx-auto mb-2" />
-                        <p class="text-xs">QR Code</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Member Details -->
-            <div class="space-y-3 mb-6 p-4 bg-muted/50 rounded-lg">
-                <div>
-                    <p class="text-xs text-muted-foreground uppercase tracking-wide">Name</p>
-                    <p class="font-semibold text-foreground">{selectedMemberForQr.name}</p>
-                </div>
-                <div>
-                    <p class="text-xs text-muted-foreground uppercase tracking-wide">Group</p>
-                    <p class="font-semibold text-foreground">{selectedMemberForQr.group}</p>
-                </div>
-                <div>
-                    <p class="text-xs text-muted-foreground uppercase tracking-wide">ID</p>
-                    <p class="font-mono font-semibold text-primary">{selectedMemberForQr.qrId}</p>
-                </div>
-            </div>
-
-            <!-- Download Section -->
-            <div class="space-y-3">
-                <p class="text-sm font-semibold text-muted-foreground">Download</p>
-                <DropdownMenu>
-                    <DropdownMenuTrigger>
-                        {#snippet child({ props })}
-                            <Button 
-                                {...props} 
-                                class="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                            >
-                                <FileDown class="mr-2 h-4 w-4" />
-                                Download QR
-                            </Button>
-                        {/snippet}
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="center" class="w-48">
-                        <DropdownMenuLabel>Download Format</DropdownMenuLabel>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onclick={() => downloadQr("qr-only")}>
-                            QR Code Only
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onclick={() => downloadQr("qr-details")}>
-                            QR Code + Details
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            </div>
-
-            <!-- Close Button -->
-            <Button 
-                variant="outline" 
-                class="w-full mt-4"
-                onclick={() => {
-                    showQrModal = false;
-                    selectedMemberForQr = null;
-                }}
-            >
-                Close
-            </Button>
         </div>
-    </div>
+    {/if}
+</div>
+
+<!-- QR Drawer - Mobile Only -->
+{#if showQrModal && isMobileView}
+    <Drawer bind:open={showQrModal}>
+        <DrawerContent>
+            <DrawerHeader class="flex flex-row items-center justify-between">
+                <DrawerTitle class="flex items-center gap-3">
+                    <div class="p-2 bg-primary/10 rounded-lg">
+                        <QrCode size={20} class="text-primary" />
+                    </div>
+                    QR CODE
+                </DrawerTitle>
+                <DrawerClose>
+                    <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+                        <X class="h-4 w-4" />
+                    </Button>
+                </DrawerClose>
+            </DrawerHeader>
+
+            {#if selectedMemberForQr}
+                <div class="px-4 pb-4">
+                    <!-- QR Code Placeholder -->
+                    <div class="flex justify-center mb-6">
+                        <div class="w-48 h-48 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
+                            <div class="text-center text-muted-foreground">
+                                <QrCode class="h-20 w-20 mx-auto mb-2" />
+                                <p class="text-xs">QR Code</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Member Details -->
+                    <div class="space-y-3 mb-6 p-4 bg-muted/50 rounded-lg">
+                        <div>
+                            <p class="text-xs text-muted-foreground uppercase tracking-wide">Name</p>
+                            <p class="font-semibold text-foreground">{selectedMemberForQr.name}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-muted-foreground uppercase tracking-wide">Group</p>
+                            <p class="font-semibold text-foreground">{selectedMemberForQr.group}</p>
+                        </div>
+                        <div>
+                            <p class="text-xs text-muted-foreground uppercase tracking-wide">ID</p>
+                            <p class="font-mono font-semibold text-primary">{selectedMemberForQr.qrId}</p>
+                        </div>
+                    </div>
+
+                    <!-- Download Section -->
+                    <div class="space-y-3">
+                        <p class="text-sm font-semibold text-muted-foreground">Download</p>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger>
+                                {#snippet child({ props })}
+                                    <Button 
+                                        {...props} 
+                                        class="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                                    >
+                                        <FileDown class="mr-2 h-4 w-4" />
+                                        Download QR
+                                    </Button>
+                                {/snippet}
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center" class="w-48">
+                                <DropdownMenuLabel>Download Format</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onclick={() => downloadQr("qr-only")}>
+                                    QR Code Only
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onclick={() => downloadQr("qr-details")}>
+                                    QR Code + Details
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </div>
+
+                    <!-- Close Button -->
+                    <Button 
+                        variant="outline" 
+                        class="w-full mt-4"
+                        onclick={() => {
+                            showQrModal = false;
+                            selectedMemberForQr = null;
+                        }}
+                    >
+                        Close
+                    </Button>
+                </div>
+            {/if}
+        </DrawerContent>
+    </Drawer>
 {/if}
