@@ -7,30 +7,49 @@
 	import { QrCode, Eye, EyeOff, Loader2, Mail, Lock } from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
+	import { Turnstile } from 'svelte-turnstile';
+	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
+	import * as Dialog from '$lib/components/ui/dialog';
 
 	// State
 	let email = $state('');
 	let password = $state('');
 	let showPassword = $state(false);
 	let isLoading = $state(false);
+	let isVerifying = $state(false);
 	let errorMessage = $state('');
 	let rememberMe = $state(false);
+	let showTurnstileModal = $state(false);
 
-	async function handleLogin() {
-		isLoading = true;
+	async function startLogin() {
 		errorMessage = '';
+		if (!email || !password) {
+			errorMessage = 'Please enter both email and password.';
+			return;
+		}
+		
+		// Open modal to trigger Turnstile
+		showTurnstileModal = true;
+	}
 
+	async function handleTurnstileCallback(token: string) {
+		showTurnstileModal = false;
+		isLoading = true;
+		
 		try {
 			const { error } = await supabase.auth.signInWithPassword({
 				email,
-				password
+				password,
+				options: {
+					captchaToken: token
+				}
 			});
 
 			if (error) {
 				errorMessage = error.message;
 			} else {
 				// Login successful
-				goto('/dashboard'); // Redirect to dashboard
+				goto('/dashboard');
 			}
 		} catch (e) {
 			errorMessage = 'An unexpected error occurred.';
@@ -142,7 +161,7 @@
 
 				<Button 
 					class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium" 
-					onclick={handleLogin} 
+					onclick={startLogin} 
 					disabled={isLoading}
 				>
 					{#if isLoading}
@@ -157,3 +176,20 @@
 		</div>
 	</div>
 </div>
+
+<Dialog.Root bind:open={showTurnstileModal}>
+	<Dialog.Content class="sm:max-w-md">
+		<Dialog.Header>
+			<Dialog.Title>Security Verification</Dialog.Title>
+			<Dialog.Description>
+				Please complete the captcha to securely sign in to your account.
+			</Dialog.Description>
+		</Dialog.Header>
+		<div class="flex items-center justify-center p-6 min-h-32">
+			<Turnstile 
+				siteKey={PUBLIC_TURNSTILE_SITE_KEY} 
+				on:turnstile-callback={(e) => handleTurnstileCallback(e.detail.token)} 
+			/>
+		</div>
+	</Dialog.Content>
+</Dialog.Root>

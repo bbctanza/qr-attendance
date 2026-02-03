@@ -19,7 +19,7 @@ export const loadSettings = async () => {
             .from('system_settings')
             .select('*')
             .eq('id', 1)
-            .single();
+            .maybeSingle();
 
         if (error) {
             console.error('Error loading settings:', error);

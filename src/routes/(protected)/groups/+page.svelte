@@ -9,6 +9,7 @@
 	import { toast } from "svelte-sonner";
 	import { onMount } from "svelte";
 	import Color from "svelte-awesome-color-picker";
+    import { supabase } from "$lib/supabase";
 
 	// Get the primary theme color from CSS variable
 	function getThemeColor(): string {
@@ -54,14 +55,8 @@
 		return '#' + toHex(r) + toHex(g) + toHex(bl);
 	}
 
-	// Mock groups data
-	let groups = $state([
-		{ id: 1, name: 'ENGINEERING', description: 'Platform and backend teams', members: 12, active: true, color: '#3B82F6' },
-		{ id: 2, name: 'PRODUCT DESIGN', description: 'Design and UX', members: 8, active: true, color: '#EC4899' },
-		{ id: 3, name: 'MARKETING', description: 'Content and growth', members: 6, active: false, color: '#F59E0B' },
-		{ id: 4, name: 'SALES', description: 'Sales and BD', members: 15, active: true, color: '#10B981' },
-		{ id: 5, name: 'OPERATIONS', description: 'Ops team', members: 4, active: true, color: '#8B5CF6' }
-	]);
+	// Real groups data
+	let groups = $state<any[]>([]);
 
 	let showGroupDialog = $state(false);
 	let isEditingGroup = $state(false);
@@ -71,6 +66,34 @@
 
 	let defaultColor = $state('#3B82F6');
 	let groupForm: any = $state({ name: '', description: '', members: 0, color: '#3B82F6' });
+
+    onMount(() => {
+        fetchGroups();
+    });
+
+    async function fetchGroups() {
+        const { data: groupsData, error } = await supabase.from('groups').select('*');
+        if (groupsData) {
+            // Fetch member counts for each group
+            const groupsWithCounts = await Promise.all(groupsData.map(async (g) => {
+                 const { count } = await supabase
+                    .from('members')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('group_id', g.group_id);
+                 
+                 return {
+                    id: g.group_id,
+                    name: g.group_code,
+                    description: g.name || '',
+                    members: count || 0,
+                    active: true,
+                    color: g.metadata?.color || defaultColor
+                 };
+            }));
+            
+            groups = groupsWithCounts;
+        }
+    }
 
 	// Derived stats
 	let totalGroups = $derived(groups.length);
@@ -101,30 +124,62 @@
 		showGroupDialog = true;
 	}
 
-	function saveGroup() {
+	async function saveGroup() {
 		if (!groupForm.name.trim()) {
 			toast.error('Please enter a group name');
 			return;
 		}
 
 		if (isEditingGroup && editingGroupId != null) {
-			groups = groups.map(g => g.id === editingGroupId ? { ...g, name: groupForm.name, description: groupForm.description, members: groupForm.members, color: groupForm.color } : g);
+            const { error } = await supabase.from('groups').update({
+                group_code: groupForm.name,
+                name: groupForm.description,
+                metadata: { color: groupForm.color }
+            }).eq('group_id', editingGroupId);
+
+            if (error) {
+                console.error(error);
+                toast.error("Failed to update group");
+                return;
+            }
+
 			toast.success(`Group "${groupForm.name}" updated`);
 		} else {
-			const nextId = groups.length ? Math.max(...groups.map(g => g.id)) + 1 : 1;
-			groups = [...groups, { id: nextId, name: groupForm.name, description: groupForm.description, members: groupForm.members, color: groupForm.color, active: true }];
+            const { error } = await supabase.from('groups').insert({
+                group_code: groupForm.name,
+                name: groupForm.description,
+                metadata: { color: groupForm.color }
+            });
+
+             if (error) {
+                console.error(error);
+                toast.error("Failed to create group");
+                return;
+            }
+
 			toast.success(`Group "${groupForm.name}" created`);
 		}
-
+        
+        await fetchGroups();
 		showGroupDialog = false;
 	}
 
-	function deleteGroup(id: number) {
+	async function deleteGroup(id: number) {
 		// simple placeholder; confirm
 		if (!confirm('Delete this group? This action cannot be undone.')) return;
-		groups = groups.filter(g => g.id !== id);
+        
+        const { error } = await supabase.from('groups').delete().eq('group_id', id);
+
+        if (error) {
+            console.error(error);
+            toast.error("Failed to delete group");
+            return;
+        }
+
+        await fetchGroups();
 		toast.success('Group deleted');
 	}
+
 
 	// Media query listener for responsive drawer/dialog
 	onMount(() => {

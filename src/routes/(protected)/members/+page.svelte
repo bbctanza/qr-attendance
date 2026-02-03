@@ -34,6 +34,8 @@
     } from "$lib/components/ui/sheet";
     import QRCode from 'qrcode';
     import { systemSettings } from "$lib/stores/settings";
+    import { onMount } from "svelte";
+    import { supabase } from "$lib/supabase";
 
     // Modal state
     let showAddMemberModal = $state(false);
@@ -41,9 +43,9 @@
     let showAddMemberDrawer = $state(false);
     let showEditMemberModal = $state(false);
     let showEditMemberDrawer = $state(false);
-    let selectedMemberForEdit = $state<typeof members[0] | null>(null);
+    let selectedMemberForEdit = $state<any | null>(null);
     let showQrModal = $state(false);
-    let selectedMemberForQr = $state<typeof members[0] | null>(null);
+    let selectedMemberForQr = $state<any | null>(null);
     let isMobileView = $state(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     let qrCodeDataUrl = $state<string>("");
     let formData = $state({
@@ -59,21 +61,15 @@
     // Web view toggle (table or card)
     let webViewMode = $state<"table" | "card">("table");
 
-    // Mock Data
-    let members = $state([
-        { id: 1, name: "Mike Ross", email: "mike@example.com", role: "Engineering Lead", group: "ENGINEERING", qrId: "ENG-8821", status: "Active", avatar: "" },
-        { id: 2, name: "James Wilson", email: "james@example.com", role: "Backend Dev", group: "ENGINEERING", qrId: "ENG-4192", status: "Active", avatar: "" },
-        { id: 3, name: "Sarah Jenkins", email: "sarah@example.com", role: "Product Designer", group: "PRODUCT DESIGN", qrId: "DSG-1029", status: "Active", avatar: "" },
-        { id: 4, name: "Emily Chen", email: "emily@example.com", role: "UX Researcher", group: "PRODUCT DESIGN", qrId: "DSG-3391", status: "Active", avatar: "" },
-        { id: 5, name: "David Chen", email: "david@example.com", role: "Specialist", group: "MARKETING", qrId: "MKT-1102", status: "Active", avatar: "" },
-    ]);
+    // Real Data
+    let members = $state<any[]>([]);
+    let groupOptions = $state<string[]>([]);
+    let groupsMap = $state<Record<string, any>>({});
 
-    const groupOptions = ["ENGINEERING", "PRODUCT DESIGN", "MARKETING"];
-
-    const groupItems = groupOptions.map(group => ({
+    let groupItems = $derived(groupOptions.map(group => ({
         value: group,
         label: group
-    }));
+    })));
 
     const groupTriggerContent = $derived(
         groupItems.find((g) => g.value === formData.group)?.label ?? "Select Group..."
@@ -82,7 +78,61 @@
     let searchQuery = $state("");
 
     // Group filter state
-    let selectedGroups = $state(new Set(groupOptions));
+    let selectedGroups = $state(new Set<string>());
+
+    onMount(async () => {
+        await fetchGroups();
+        await fetchMembers();
+    });
+
+    async function fetchGroups() {
+        const { data, error } = await supabase.from('groups').select('*');
+        if (data) {
+            // Sort groups alphabetically
+            const sortedGroups = data.sort((a, b) => a.group_code.localeCompare(b.group_code));
+            
+            groupOptions = sortedGroups.map(g => g.group_code);
+            groupsMap = sortedGroups.reduce((acc, g) => ({...acc, [g.group_code]: g}), {});
+            
+            // Add 'Unassigned' if not present (handled dynamically in fetchMembers)
+            selectedGroups = new Set(groupOptions);
+        }
+    }
+
+    async function fetchMembers() {
+        const { data, error } = await supabase.from('members').select('*, groups(*)');
+        if (data) {
+            let hasUnassigned = false;
+            
+            members = data.map(m => {
+                const grp = m.groups?.group_code || "Unassigned";
+                if (grp === "Unassigned") hasUnassigned = true;
+                
+                return {
+                    id: m.member_id, // Use string ID for internal ref
+                    firstName: m.first_name,
+                    lastName: m.last_name,
+                    name: `${m.first_name} ${m.last_name}`,
+                    email: m.metadata?.email || "No email",
+                    role: m.metadata?.role || "Member",
+                    group: grp,
+                    qrId: m.member_id,
+                    status: m.metadata?.status || "Active",
+                    avatar: m.metadata?.avatar || ""
+                };
+            });
+
+            // Dynamically add Unassigned to filters if needed
+            if (hasUnassigned && !groupOptions.includes("Unassigned")) {
+                groupOptions = [...groupOptions, "Unassigned"];
+                selectedGroups.add("Unassigned");
+                selectedGroups = new Set(selectedGroups); // Trigger reactivity
+            }
+        } else if (error) {
+            console.error("Error fetching members:", error);
+        }
+    }
+
 
     // Sort state
     let sortColumn = $state("name");
@@ -191,26 +241,40 @@
             return;
         }
 
-        // Generate QR ID based on group
-        const groupCode = formData.group === "ENGINEERING" ? "ENG" : 
-                         formData.group === "PRODUCT DESIGN" ? "DSG" : "MKT";
-        const newId = Math.floor(Math.random() * 9000) + 1000;
-        const qrId = `${groupCode}-${newId}`;
+        // 1. Get Group Info
+        const groupObj = groupsMap[formData.group];
+        if (!groupObj) {
+            alert("Invalid Group");
+            return;
+        }
+        
+        // 2. Generate Unique ID
+        const groupCode = groupObj.group_code;
+        const newIdNum = Math.floor(Math.random() * 90000) + 10000;
+        const qrId = `${groupCode}-${newIdNum}`;
 
-        // Add new member
-        const nameParts = [formData.firstName, formData.middleInitial, formData.lastName].filter(Boolean);
-        const newMember = {
-            id: members.length + 1,
-            name: nameParts.join(' '),
-            email: "",
-            role: "",
-            group: formData.group,
-            qrId: qrId,
-            status: "Active",
-            avatar: ""
-        };
+        // 3. Insert to DB
+        const { error } = await supabase.from('members').insert({
+            member_id: qrId,
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            middle_name: formData.middleInitial,
+            group_id: groupObj.group_id,
+            metadata: {
+                role: "Member",
+                status: "Active",
+                email: ""
+            }
+        });
 
-        members = [...members, newMember];
+        if (error) {
+            console.error(error);
+            alert("Failed to add member");
+            return;
+        }
+
+        // 4. Refresh List
+        await fetchMembers();
 
         // Reset form and close modal/drawer
         formData = {
@@ -219,7 +283,6 @@
             middleInitial: "",
             group: ""
         };
-        selectedMemberForEdit = null;
         showAddMemberModal = false;
         showAddMemberDrawer = false;
     }
@@ -271,10 +334,10 @@
 
     function openEditModal(member: typeof members[0]) {
         selectedMemberForEdit = member;
-        const nameParts = member.name.split(' ');
+        // Use stored parts if available, else split name
         formData = {
-            firstName: nameParts[0] || "",
-            lastName: nameParts.slice(1).join(' ') || "",
+            firstName: member.firstName || member.name.split(' ')[0],
+            lastName: member.lastName || member.name.split(' ').slice(1).join(' '),
             middleInitial: "",
             group: member.group
         };
@@ -283,10 +346,9 @@
 
     function openEditDrawer(member: typeof members[0]) {
         selectedMemberForEdit = member;
-        const nameParts = member.name.split(' ');
         formData = {
-            firstName: nameParts[0] || "",
-            lastName: nameParts.slice(1).join(' ') || "",
+            firstName: member.firstName || member.name.split(' ')[0],
+            lastName: member.lastName || member.name.split(' ').slice(1).join(' '),
             middleInitial: "",
             group: member.group
         };
@@ -301,14 +363,25 @@
 
         if (!selectedMemberForEdit) return;
 
-        // Update member
-        const memberIndex = members.findIndex(m => m.id === selectedMemberForEdit!.id);
-        if (memberIndex !== -1) {
-            const nameParts = [formData.firstName, formData.middleInitial, formData.lastName].filter(Boolean);
-            members[memberIndex].name = nameParts.join(' ');
-            members[memberIndex].group = formData.group;
-            members = [...members];
+        const groupObj = groupsMap[formData.group];
+        
+        const { error } = await supabase
+            .from('members')
+            .update({
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                middle_name: formData.middleInitial,
+                group_id: groupObj?.group_id
+            })
+            .eq('member_id', selectedMemberForEdit.id);
+
+        if (error) {
+            console.error(error);
+            alert("Failed to update member");
+            return;
         }
+
+        await fetchMembers();
 
         // Reset form and close modals
         formData = {

@@ -1,109 +1,115 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
-  import { Button } from '$lib/components/ui/button';
-  import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
-  import { Badge } from '$lib/components/ui/badge';
-  import { ChevronRight, ChevronDown, ChevronLeft, QrCode } from '@lucide/svelte';
-  import { attendanceApi } from '$lib/api/attendance';
-  import { eventsApi } from '$lib/api/events';
-  import Progress from '$lib/components/ui/progress';
+	import { onMount } from 'svelte';
+	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
+	import { Button } from '$lib/components/ui/button';
+	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
+	import { Badge } from '$lib/components/ui/badge';
+	import { ChevronRight, ChevronDown, ChevronLeft, QrCode } from '@lucide/svelte';
+	import { attendanceApi } from '$lib/api/attendance';
+	import { eventsApi } from '$lib/api/events';
+	import { supabase } from '$lib/supabase';
+	import Progress from '$lib/components/ui/progress';
 
-  type Event = {
-    event_id: number;
-    event_name: string;
-    event_date: string;
-    start_datetime: string;
-    end_datetime: string;
-    attendees?: { member_id: string; first_name: string; last_name: string; time?: string }[];
-    absent?: { member_id: string; first_name: string; last_name: string }[];
-  };
+	type Event = {
+		event_id: number;
+		event_name: string;
+		event_date: string;
+		start_datetime: string;
+		end_datetime: string;
+		attendees?: { member_id: string; first_name: string; last_name: string; time?: string }[];
+		absent?: { member_id: string; first_name: string; last_name: string }[];
+	};
 
-  let events = $state<Event[]>([]);
-  let openEventId = $state<number | null>(null);
-  let selectedMonth = $state('OCT');
-  let filterPresent = $state(true);
-  let months = ['ALL', 'OCT', 'NOV', 'DEC', 'JAN'];
-  let monthPage = $state(0);
-  let monthsPerPage = 4;
+	let events = $state<Event[]>([]);
+	let openEventId = $state<number | null>(null);
+	let selectedMonth = $state('ALL'); // Default to ALL to show something initially
+	let filterPresent = $state(true);
+	let months = ['ALL', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP'];
+	let monthPage = $state(0);
+	let monthsPerPage = 4;
+	let isLoading = $state(true);
 
-  let visibleMonths = $derived(() => months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage));
-  let hasPrev = $derived(() => monthPage > 0);
-  let hasNext = $derived(() => (monthPage + 1) * monthsPerPage < months.length);
+	let visibleMonths = $derived(() => months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage));
+	let hasPrev = $derived(() => monthPage > 0);
+	let hasNext = $derived(() => (monthPage + 1) * monthsPerPage < months.length);
 
-  // Attendance calculations using $derived
-  let totalAttendees = $derived(() => events.reduce((s, e) => s + (e.attendees ? e.attendees.length : 0), 0));
-  // Default average event size (fallback) — could be computed dynamically later
-  let defaultAvgSize = 18;
-  let averageSize = $derived(() => events.length ? Math.round(totalAttendees() / events.length) || defaultAvgSize : defaultAvgSize);
-  let attendanceRate = $derived(() => events.length ? Math.round((totalAttendees() / (events.length * defaultAvgSize)) * 100) : 0);
+	// Attendance calculations using $derived
+	let totalAttendees = $derived(() => events.reduce((s, e) => s + (e.attendees ? e.attendees.length : 0), 0));
+	// Default average event size (fallback) — could be computed dynamically later
+	let defaultAvgSize = 18;
+	let averageSize = $derived(() => events.length ? Math.round(totalAttendees() / events.length) || defaultAvgSize : defaultAvgSize);
+	let attendanceRate = $derived(() => events.length ? Math.round((totalAttendees() / (events.length * defaultAvgSize)) * 100) : 0);
 
-  // Mock placeholder until backend returns data
-  const mockEvents: Event[] = [
-    {
-      event_id: 101,
-      event_name: 'Q3 PLANNING SESSION',
-      event_date: '2023-10-24',
-      start_datetime: '2023-10-24T09:00:00Z',
-      end_datetime: '2023-10-24T11:00:00Z',
-      attendees: [
-        { member_id: 'm1', first_name: 'Alex', last_name: 'Chen', time: '09:00 AM' },
-        { member_id: 'm2', first_name: 'Sarah', last_name: 'Jones', time: '09:05 AM' },
-        { member_id: 'm3', first_name: 'Marcus', last_name: 'Lee', time: '09:12 AM' }
-      ],
-      absent: [
-        { member_id: 'm4', first_name: 'Mary', last_name: 'Smith' },
-        { member_id: 'm5', first_name: 'John', last_name: 'Doe' }
-      ]
-    },
-    {
-      event_id: 102,
-      event_name: 'DESIGN WORKSHOP A',
-      event_date: '2023-10-20',
-      start_datetime: '2023-10-20T10:00:00Z',
-      end_datetime: '2023-10-20T12:00:00Z',
-      attendees: [
-        { member_id: 'm1', first_name: 'Alex', last_name: 'Chen', time: '10:05 AM' },
-        { member_id: 'm4', first_name: 'Mary', last_name: 'Smith', time: '10:12 AM' }
-      ],
-      absent: [
-        { member_id: 'm2', first_name: 'Sarah', last_name: 'Jones' },
-        { member_id: 'm3', first_name: 'Marcus', last_name: 'Lee' }
-      ]
-    }
-  ];
+	onMount(async () => {
+		isLoading = true;
+		try {
+			await fetchHistory();
+		} finally {
+			isLoading = false;
+		}
+	});
 
-  onMount(async () => {
-    try {
-      // Try to load completed events with pending scans
-      const loaded = await eventsApi.getCompletedEventsWithPendingScans();
-      if (loaded && loaded.length > 0) {
-        // Map minimal fields
-        events = loaded.map(e => ({
-          event_id: e.event_id,
-          event_name: e.event_name,
-          event_date: e.event_date,
-          start_datetime: e.start_datetime,
-          end_datetime: e.end_datetime,
-          attendees: []
-        }));
-      } else {
-        events = mockEvents;
-      }
+	async function fetchHistory() {
+		// 1. Fetch completed events
+		const { data: completedEvents, error } = await supabase
+			.from('events')
+			.select('*')
+			.eq('status', 'completed')
+			.order('end_datetime', { ascending: false });
+		
+		if (error) {
+			console.error('Error fetching history events:', error);
+			return;
+		}
 
-      // Try to fetch attendee counts for each event (confirmed)
-      for (let ev of events) {
-        try {
-          const confirmed = await attendanceApi.getConfirmedAttendance(ev.event_id);
-          ev.attendees = confirmed.map(c => ({ member_id: c.member_id, first_name: c.members.first_name, last_name: c.members.last_name, time: new Date(c.scan_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) }));
-        } catch (e) {
-          // Keep mock attendees if API fails
-        }
-      }
-    } catch (e) {
-      events = mockEvents;
-    }
-  });
+		if (!completedEvents) {
+			events = [];
+			return;
+		}
+
+		// 2. Hydrate events with attendance data
+		// Optimized approach: Fetch all history for these events in parallel or one batch if possible.
+		// For now, simpler map loop until performance is an issue.
+		const eventsWithDetails = await Promise.all(completedEvents.map(async (ev) => {
+			// Get Present
+			const { data: presentData } = await supabase
+				.from('attendance_present')
+				.select('member_id, scan_datetime, members(first_name, last_name)')
+				.eq('event_id', ev.event_id);
+
+			const attendees = (presentData || []).map((p: any) => ({
+				member_id: p.member_id,
+				first_name: p.members?.first_name || 'Unknown',
+				last_name: p.members?.last_name || 'Member',
+				time: new Date(p.scan_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+			}));
+
+			// Get Absent
+			// If we want to show absent people, we need to query attendance_absent
+			const { data: absentData } = await supabase
+				.from('attendance_absent')
+				.select('member_id, members(first_name, last_name)')
+				.eq('event_id', ev.event_id);
+			
+			const absent = (absentData || []).map((a: any) => ({
+				member_id: a.member_id,
+				first_name: a.members?.first_name || 'Unknown',
+				last_name: a.members?.last_name || 'Member'
+			}));
+
+			return {
+				event_id: ev.event_id,
+				event_name: ev.event_name,
+				event_date: ev.event_date,
+				start_datetime: ev.start_datetime,
+				end_datetime: ev.end_datetime,
+				attendees,
+				absent
+			};
+		}));
+
+		events = eventsWithDetails;
+	}
 
   function toggleEvent(id: number) {
     openEventId = openEventId === id ? null : id;

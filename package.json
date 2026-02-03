@@ -63,6 +63,7 @@
 		"@types/qrcode": "^1.5.6",
 		"lucide-svelte": "^0.563.0",
 		"mode-watcher": "^1.1.0",
-		"qrcode": "^1.5.4"
+		"qrcode": "^1.5.4",
+		"svelte-turnstile": "^0.11.0"
 	}
 }

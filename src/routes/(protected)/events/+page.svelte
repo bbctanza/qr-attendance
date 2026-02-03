@@ -10,171 +10,116 @@
 	import { Input } from "$lib/components/ui/input";
 	import { Checkbox } from "$lib/components/ui/checkbox";
 	import * as Select from "$lib/components/ui/select";
+	import { supabase } from "$lib/supabase";
+	import { onMount } from "svelte";
 
-	// Mock data
-	let totalEvents = $state(12);
-	let activeEvents = $state(8);
-	let inactiveEvents = $state(4);
+	// Data
+	let events = $state<any[]>([]);
+	let totalEvents = $derived(events.length);
+	let activeEvents = $derived(events.filter(e => e.status === 'Active').length);
+	let inactiveEvents = $derived(events.filter(e => e.status !== 'Active').length);
 
-	let recurringEvents = $state([
-		{
-			id: 1,
-			title: "Sunday Morning Service",
-			schedule: "Every Sunday",
-			time: "09:00 AM - 11:00 AM",
-			place: "Main Sanctuary",
-			active: true
-		},
-		{
-			id: 2,
-			title: "Wednesday Bible Study",
-			schedule: "Every Wednesday",
-			time: "07:00 PM - 08:30 PM",
-			place: "Fellowship Hall",
-			active: true
-		},
-		{
-			id: 3,
-			title: "Monthly Prayer Meeting",
-			schedule: "1st Saturday of month",
-			time: "10:00 AM - 12:00 PM",
-			place: "Prayer Room",
-			active: false
-		}
-	]);
+	// Computed lists for the UI
+	let recurringEvents = $derived(events.filter(e => e.type === 'Recurring'));
+	let customEvents = $derived(events.filter(e => e.type === 'Custom' || (e.type === 'One-time' && new Date(e.event_date) >= new Date())));
+	let pastEvents = $derived(events.filter(e => e.type === 'One-time' && new Date(e.event_date) < new Date()));
 
-	let customEvents = $state([
-		{
-			id: 4,
-			title: "Q3 Planning Session",
-			date: "2023-10-24",
-			time: "02:00 PM - 04:00 PM",
-			place: "Conference Room A",
-			active: true
-		},
-		{
-			id: 5,
-			title: "Design Workshop A",
-			date: "2023-10-20",
-			time: "10:00 AM - 12:00 PM",
-			place: "Design Studio",
-			active: true
-		}
-	]);
+    let isMobile = $state(false);
 
-	let pastEvents = $state([
-		{
-			id: 6,
-			title: "Annual Retreat",
-			date: "2023-09-15",
-			time: "09:00 AM - 05:00 PM",
-			place: "Mountain Resort"
-		}
-	]);
+	onMount(() => {
+		fetchEvents();
 
-	function toggleActive(id: number, type: 'recurring' | 'custom') {
-		let eventTitle = '';
-		let wasActive = false;
+        if (typeof window !== 'undefined') {
+            const mediaQuery = window.matchMedia('(min-width: 640px)');
+            isMobile = !mediaQuery.matches;
+            
+            const handleChange = (e: MediaQueryListEvent) => {
+                isMobile = !e.matches;
+            };
+            
+            mediaQuery.addEventListener('change', handleChange);
+            return () => mediaQuery.removeEventListener('change', handleChange);
+        }
+	});
+
+	async function fetchEvents() {
+		const { data, error } = await supabase
+			.from('events')
+			.select('*')
+			.order('created_at', { ascending: false });
 		
-		if (type === 'recurring') {
-			const event = recurringEvents.find(e => e.id === id);
-			if (event) {
-				wasActive = event.active;
-				event.active = !event.active;
-				eventTitle = event.title;
-			}
-		} else {
-			const event = customEvents.find(e => e.id === id);
-			if (event) {
-				wasActive = event.active;
-				event.active = !event.active;
-				eventTitle = event.title;
-			}
+		if (error) {
+			toast.error("Failed to fetch events");
+			console.error(error);
+			return;
 		}
+		events = data || [];
+	}
+
+	async function toggleActive(id: string) {
+		const event = events.find(e => e.event_id === id);
+		if (!event) return;
+
+		const newStatus = event.status === 'Active' ? 'Inactive' : 'Active';
 		
-		// Update counts
-		activeEvents = recurringEvents.filter(e => e.active).length + customEvents.filter(e => e.active).length;
-		inactiveEvents = recurringEvents.filter(e => !e.active).length + customEvents.filter(e => !e.active).length;
-		
-		// Show toast
-		if (eventTitle) {
-			const action = wasActive ? 'deactivated' : 'activated';
-			toast.success(`"${eventTitle}" has been ${action}`);
+		const { error } = await supabase
+			.from('events')
+			.update({ status: newStatus })
+			.eq('event_id', id);
+
+		if (error) {
+			toast.error("Failed to update status");
+			return;
 		}
+
+		events = events.map(e => e.event_id === id ? { ...e, status: newStatus } : e);
+		toast.success(`"${event.name}" has been ${newStatus.toLowerCase()}`);
 	}
 
 	let isEditing = $state(false);
-	let editingId: number | null = $state(null);
-	let editingType: 'recurring' | 'custom' | null = $state(null);
+	let editingId: string | null = $state(null);
 
-	function editEvent(id: number) {
-		// Find in recurring
-		const r = recurringEvents.find(e => e.id === id);
-		if (r) {
-			// populate form for recurring
-			newEvent.name = r.title;
-			newEvent.type = 'recurring';
+	function editEvent(id: string) {
+		const e = events.find(event => event.event_id === id);
+		if (!e) return;
 
-			// try to detect weekly vs monthly from schedule text
-			const scheduleText = r.schedule || '';
-			const foundDays = weekdays.filter(d => scheduleText.includes(d));
-			if (foundDays.length) {
-				newEvent.schedule = 'weekly';
-				newEvent.days = foundDays;
-			} else if (/First|Second|Third|Fourth|Last/.test(scheduleText)) {
-				newEvent.schedule = 'monthly';
-				const parts = scheduleText.split(' ');
-				newEvent.monthlyOrdinal = parts[0] || 'First';
-				newEvent.monthlyWeekday = parts[parts.length - 1] || 'Monday';
-			} else {
-				newEvent.schedule = 'one-time';
-				newEvent.date = scheduleText;
-			}
+		newEvent = {
+			name: e.name,
+			type: e.type === 'Recurring' ? 'recurring' : 'custom',
+			schedule: e.type === 'Recurring' ? (e.schedule.includes(',') ? 'weekly' : 'monthly') : 'one-time',
+			days: e.type === 'Recurring' && e.schedule.includes(',') ? e.schedule.split(',').map((s: string) => s.trim()) : [],
+			monthlyOrdinal: 'First', // Fallback as DB schema might not have this detailed breakdown
+			monthlyWeekday: 'Monday',
+			date: e.event_date || '',
+			startTime: e.start_time || '',
+			endTime: e.end_time || '',
+			location: e.location || ''
+		};
 
-			// time
-			const times = (r.time || '').split(' - ');
-			newEvent.startTime = times[0] || '';
-			newEvent.endTime = times[1] || '';
-			newEvent.location = r.place || '';
-
-			isEditing = true;
-			editingId = id;
-			editingType = 'recurring';
-			showAddEventDialog = true;
-			return;
-		}
-
-		// Find in custom
-		const c = customEvents.find(e => e.id === id);
-		if (c) {
-			newEvent.name = c.title;
-			newEvent.type = 'custom';
-			newEvent.schedule = 'one-time';
-			newEvent.date = c.date || '';
-
-			const times = (c.time || '').split(' - ');
-			newEvent.startTime = times[0] || '';
-			newEvent.endTime = times[1] || '';
-			newEvent.location = c.place || '';
-
-			isEditing = true;
-			editingId = id;
-			editingType = 'custom';
-			showAddEventDialog = true;
-			return;
-		}
-
-		console.warn('Event to edit not found', id);
+		isEditing = true;
+		editingId = id;
+		showAddEventDialog = true;
 	}
 
-	function deleteEvent(id: number) {
-		// Placeholder
-		console.log('Delete event', id);
+	async function deleteEvent(id: string) {
+		if (!confirm("Are you sure you want to delete this event?")) return;
+
+		const { error } = await supabase
+			.from('events')
+			.delete()
+			.eq('event_id', id);
+
+		if (error) {
+			toast.error("Failed to delete event");
+			return;
+		}
+
+		events = events.filter(e => e.event_id !== id);
+		toast.success("Event deleted");
 	}
 
 	// Add Event Dialog State
 	let showAddEventDialog = $state(false);
-	let isMobile = $state(false);
 	let weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 	let newEvent: any = $state({
 		name: '',
@@ -199,10 +144,8 @@
 	});
 
 	function addEvent() {
-		// start fresh for creating new event
 		isEditing = false;
 		editingId = null;
-		editingType = null;
 		newEvent = {
 			name: '',
 			type: 'recurring',
@@ -224,131 +167,54 @@
 		else newEvent.days.splice(idx, 1);
 	}
 
-	function addNewEvent() {
+	async function addNewEvent() {
 		if (!newEvent.name.trim()) {
 			toast.error('Please enter event name');
 			return;
 		}
 
-		// If editing, update existing
-		if (isEditing && editingId != null) {
-			const id = editingId;
-			// determine schedule label for recurring
-			const scheduleLabel = newEvent.schedule === 'weekly'
-				? newEvent.days.join(', ')
-				: newEvent.schedule === 'monthly'
-				? `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`
-				: newEvent.date || '';
+		const scheduleLabel = newEvent.type === 'recurring' 
+			? (newEvent.schedule === 'weekly' ? newEvent.days.join(', ') : `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`)
+			: '';
 
-			// Same type: update in place
-			if (editingType === newEvent.type) {
-				if (newEvent.type === 'recurring') {
-					recurringEvents = recurringEvents.map(e => e.id === id ? { ...e, title: newEvent.name, schedule: scheduleLabel, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location } : e);
-				} else {
-					customEvents = customEvents.map(e => e.id === id ? { ...e, title: newEvent.name, date: newEvent.date, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location } : e);
-				}
-			} else {
-				// Type changed: move between arrays keeping the same id and active state
-				if (editingType === 'recurring' && newEvent.type === 'custom') {
-					const old = recurringEvents.find(e => e.id === id);
-					recurringEvents = recurringEvents.filter(e => e.id !== id);
-					customEvents = [
-						...customEvents,
-						{ id, title: newEvent.name, date: newEvent.date, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location, active: old?.active ?? true }
-					];
-				} else if (editingType === 'custom' && newEvent.type === 'recurring') {
-					const old = customEvents.find(e => e.id === id);
-					customEvents = customEvents.filter(e => e.id !== id);
-					recurringEvents = [
-						...recurringEvents,
-						{ id, title: newEvent.name, schedule: scheduleLabel, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location, active: old?.active ?? true }
-					];
-				}
+		const payload = {
+			name: newEvent.name,
+			type: newEvent.type === 'recurring' ? 'Recurring' : 'One-time',
+			schedule: scheduleLabel,
+			event_date: newEvent.type === 'recurring' ? null : newEvent.date,
+			start_time: newEvent.startTime,
+			end_time: newEvent.endTime,
+			location: newEvent.location,
+			status: 'Active'
+		};
+
+		if (isEditing && editingId) {
+			const { error } = await supabase
+				.from('events')
+				.update(payload)
+				.eq('event_id', editingId);
+
+			if (error) {
+				toast.error("Failed to update event");
+				return;
 			}
-
-			// recalc
-			totalEvents = recurringEvents.length + customEvents.length;
-			activeEvents = recurringEvents.filter(e => e.active).length + customEvents.filter(e => e.active).length;
-			inactiveEvents = totalEvents - activeEvents;
-
-			toast.success(`"${newEvent.name}" updated`);
-
-			// reset
-			isEditing = false;
-			editingId = null;
-			editingType = null;
-			newEvent = {
-				name: '',
-				type: 'recurring',
-				schedule: 'weekly',
-				days: [],
-				monthlyOrdinal: 'First',
-				monthlyWeekday: 'Monday',
-				date: '',
-				startTime: '',
-				endTime: '',
-				location: ''
-			};
-			showAddEventDialog = false;
-			return;
-		}
-
-		// Not editing -> create new
-		const existingIds = [...recurringEvents.map(e => e.id), ...customEvents.map(e => e.id)];
-		const nextId = existingIds.length ? Math.max(...existingIds) + 1 : 1;
-
-		if (newEvent.type === 'recurring') {
-			let scheduleLabel = '';
-			if (newEvent.schedule === 'weekly') scheduleLabel = newEvent.days.join(', ');
-			else if (newEvent.schedule === 'monthly') scheduleLabel = `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`;
-			else scheduleLabel = newEvent.date || '';
-
-			recurringEvents = [
-				...recurringEvents,
-				{ id: nextId, title: newEvent.name, schedule: scheduleLabel, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location, active: true }
-			];
+			toast.success("Event updated");
 		} else {
-			customEvents = [
-				...customEvents,
-				{ id: nextId, title: newEvent.name, date: newEvent.date, time: `${newEvent.startTime} - ${newEvent.endTime}`, place: newEvent.location, active: true }
-			];
+			const { data, error } = await supabase
+				.from('events')
+				.insert([payload])
+				.select();
+
+			if (error) {
+				toast.error("Failed to add event");
+				return;
+			}
+			toast.success("Event added");
 		}
 
-		totalEvents = recurringEvents.length + customEvents.length;
-		activeEvents = recurringEvents.filter(e => e.active).length + customEvents.filter(e => e.active).length;
-		inactiveEvents = totalEvents - activeEvents;
-
-		toast.success(`"${newEvent.name}" created`);
-
-		// reset form
-		newEvent = {
-			name: '',
-			type: 'recurring',
-			schedule: 'weekly',
-			days: [],
-			monthlyOrdinal: 'First',
-			monthlyWeekday: 'Monday',
-			date: '',
-			startTime: '',
-			endTime: '',
-			location: ''
-		};
 		showAddEventDialog = false;
+		fetchEvents();
 	}
-
-	// Media query listener for responsive drawer/sheet
-	import { onMount } from 'svelte';
-	onMount(() => {
-		const mediaQuery = window.matchMedia('(min-width: 640px)');
-		isMobile = !mediaQuery.matches;
-		
-		const handleChange = (e: MediaQueryListEvent) => {
-			isMobile = !e.matches;
-		};
-		
-		mediaQuery.addEventListener('change', handleChange);
-		return () => mediaQuery.removeEventListener('change', handleChange);
-	});
 </script>
 
 <div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12 max-w-7xl mx-auto">
@@ -666,12 +532,12 @@
 		<div>
 			<h2 class="text-xl font-semibold mb-4">Recurring Events</h2>
 			<div class="space-y-3 sm:space-y-4">
-				{#each recurringEvents as event}
+				{#each recurringEvents as event (event.event_id)}
 					<Card>
 						<CardContent class="p-3 sm:p-4">
 							<div class="flex items-center justify-between">
 								<div class="min-w-0 flex-1">
-								<h3 class="font-medium truncate text-sm sm:text-base">{event.title}</h3>
+								<h3 class="font-medium truncate text-sm sm:text-base">{event.name}</h3>
 								<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1 text-xs text-muted-foreground">
 										<div class="flex items-center gap-1">
 											<Calendar class="h-3 w-3" />
@@ -679,20 +545,20 @@
 										</div>
 										<div class="flex items-center gap-1">
 											<Clock class="h-3 w-3" />
-											{event.time}
+											{event.start_time} - {event.end_time}
 										</div>
 										<div class="flex items-center gap-1">
 											<MapPin class="h-3 w-3" />
-											<span class="truncate">{event.place}</span>
+											<span class="truncate">{event.location}</span>
 										</div>
 									</div>
 								</div>
 								<div class="flex items-center gap-1 ml-2 shrink-0">
-									<Switch checked={event.active} onchange={() => toggleActive(event.id, 'recurring')} />
-									<Button variant="ghost" size="sm" onclick={() => editEvent(event.id)}>
+									<Switch checked={event.status === 'Active'} onCheckedChange={() => toggleActive(event.event_id)} />
+									<Button variant="ghost" size="sm" onclick={() => editEvent(event.event_id)}>
 										<Edit class="h-4 w-4" />
 									</Button>
-									<Button variant="ghost" size="sm" onclick={() => deleteEvent(event.id)}>
+									<Button variant="ghost" size="sm" onclick={() => deleteEvent(event.event_id)}>
 										<Trash2 class="h-4 w-4" />
 									</Button>
 								</div>
@@ -705,35 +571,35 @@
 
 		<!-- Custom Events -->
 		<div>
-			<h2 class="text-xl font-semibold mb-4">Custom Events</h2>
+			<h2 class="text-xl font-semibold mb-4">Upcoming Events</h2>
 			<div class="space-y-3 sm:space-y-4">
-				{#each customEvents as event}
+				{#each customEvents as event (event.event_id)}
 					<Card>
 						<CardContent class="p-3 sm:p-4">
 							<div class="flex items-center justify-between">
 								<div class="min-w-0 flex-1">
-								<h3 class="font-medium truncate text-sm sm:text-base">{event.title}</h3>
+								<h3 class="font-medium truncate text-sm sm:text-base">{event.name}</h3>
 								<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1 text-xs text-muted-foreground">
 										<div class="flex items-center gap-1">
 											<Calendar class="h-3 w-3" />
-											<span class="truncate">{new Date(event.date).toLocaleDateString()}</span>
+											<span class="truncate">{event.event_date ? new Date(event.event_date).toLocaleDateString() : 'N/A'}</span>
 										</div>
 										<div class="flex items-center gap-1">
 											<Clock class="h-3 w-3" />
-											{event.time}
+											{event.start_time} - {event.end_time}
 										</div>
 										<div class="flex items-center gap-1">
 											<MapPin class="h-3 w-3" />
-											<span class="truncate">{event.place}</span>
+											<span class="truncate">{event.location}</span>
 										</div>
 									</div>
 								</div>
 								<div class="flex items-center gap-1 ml-2 shrink-0">
-									<Switch checked={event.active} onchange={() => toggleActive(event.id, 'custom')} />
-									<Button variant="ghost" size="sm" onclick={() => editEvent(event.id)}>
+									<Switch checked={event.status === 'Active'} onCheckedChange={() => toggleActive(event.event_id)} />
+									<Button variant="ghost" size="sm" onclick={() => editEvent(event.event_id)}>
 										<Edit class="h-4 w-4" />
 									</Button>
-									<Button variant="ghost" size="sm" onclick={() => deleteEvent(event.id)}>
+									<Button variant="ghost" size="sm" onclick={() => deleteEvent(event.event_id)}>
 										<Trash2 class="h-4 w-4" />
 									</Button>
 								</div>
@@ -748,26 +614,26 @@
 	<!-- Past Events -->
 	{#if pastEvents.length > 0}
 		<div>
-			<h2 class="text-xl font-semibold mb-4">Past Events</h2>
+			<h2 class="text-xl font-semibold mb-4 text-muted-foreground">Past Events</h2>
 			<div class="space-y-3 sm:space-y-4">
-				{#each pastEvents as event}
-					<Card>
+				{#each pastEvents as event (event.event_id)}
+					<Card class="opacity-70">
 						<CardContent class="p-3 sm:p-4">
 							<div class="flex items-center justify-between">
 								<div>
-									<h3 class="font-medium">{event.title}</h3>
+									<h3 class="font-medium">{event.name}</h3>
 									<div class="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
 										<div class="flex items-center gap-1">
 											<Calendar class="h-4 w-4" />
-											{new Date(event.date).toLocaleDateString()}
+											{event.event_date ? new Date(event.event_date).toLocaleDateString() : 'N/A'}
 										</div>
 										<div class="flex items-center gap-1">
 											<Clock class="h-4 w-4" />
-											{event.time}
+											{event.start_time} - {event.end_time}
 										</div>
 										<div class="flex items-center gap-1">
 											<MapPin class="h-4 w-4" />
-											{event.place}
+											{event.location}
 										</div>
 									</div>
 								</div>
