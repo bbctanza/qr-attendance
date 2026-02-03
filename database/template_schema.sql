@@ -271,7 +271,50 @@ CREATE POLICY "Staff can view absent history"
 ON attendance_absent FOR SELECT TO authenticated USING (get_user_role() = 'staff');
 
 -- ============================================
--- 6. INITIAL SETUP INSTRUCTIONS
+-- 6. SYSTEM SETTINGS
+-- ============================================
+-- A single row table to store global configuration
+CREATE TABLE IF NOT EXISTS system_settings (
+    id INT PRIMARY KEY DEFAULT 1, -- Only one row allowed
+    site_name TEXT DEFAULT 'Scan-in System',
+    primary_color TEXT DEFAULT '#275032',
+    qr_header_title TEXT DEFAULT 'Organization Name',
+    qr_subheader_title TEXT DEFAULT 'Tagline or Subtitle',
+    qr_card_color TEXT DEFAULT '#275032',
+    qr_background_image TEXT DEFAULT '',
+    CONSTRAINT one_row_only CHECK (id = 1)
+);
+
+-- Enable RLS for settings
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+
+-- Everyone can view settings
+CREATE POLICY "Everyone can view settings"
+ON system_settings FOR SELECT TO authenticated, anon USING (true);
+
+-- Only admins/devs/staff can insert
+CREATE POLICY "Admins can insert settings"
+ON system_settings FOR INSERT TO authenticated 
+WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+
+-- Only admins/devs/staff can update
+CREATE POLICY "Admins can update settings"
+ON system_settings FOR UPDATE TO authenticated 
+USING (get_user_role() IN ('developer', 'admin', 'staff'))
+WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+
+-- Only developers can delete (generally shouldn't delete the only row)
+CREATE POLICY "Developers can delete settings"
+ON system_settings FOR DELETE TO authenticated 
+USING (get_user_role() = 'developer');
+
+-- Insert default row if not exists
+INSERT INTO system_settings (id, site_name, primary_color, qr_header_title, qr_subheader_title, qr_card_color, qr_background_image)
+VALUES (1, 'Scan-in System', '#275032', 'Organization Name', 'Tagline or Subtitle', '#275032', '')
+ON CONFLICT (id) DO NOTHING;
+
+-- ============================================
+-- 7. INITIAL SETUP INSTRUCTIONS
 -- ============================================
 /*
   HOW TO SET UP YOUR FIRST DEVELOPER:

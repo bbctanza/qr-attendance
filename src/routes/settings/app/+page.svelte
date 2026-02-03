@@ -1,14 +1,18 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, onDestroy } from 'svelte';
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 	import { Label } from "$lib/components/ui/label";
 	import { Input } from "$lib/components/ui/input";
 	import { Switch } from "$lib/components/ui/switch";
-	import { ChevronLeft, Bell, Moon, Eye, Lock, Database } from "@lucide/svelte";
+	import { ChevronLeft, Bell, Moon, Eye, Lock, Database, Palette, Type, Save, QrCode } from "@lucide/svelte";
 	import { toast } from "svelte-sonner";
 	import { goto } from "$app/navigation";
 	import { mode } from "mode-watcher";
+	import { systemSettings, loadSettings } from "$lib/stores/settings";
+	import { supabase } from "$lib/supabase";
+	import ColorPicker from 'svelte-awesome-color-picker';
+    import { fly } from 'svelte/transition';
 
 	// Settings state
 	let settings = $state({
@@ -21,15 +25,65 @@
 		autoRefreshInterval: '30',
 		biometricAuth: false,
 		sessionTimeout: '15',
-		cacheData: true
+		cacheData: true,
+		// System global settings
+		siteName: $systemSettings.siteName || 'Scan-in System',
+		primaryColor: $systemSettings.primaryColor || '#275032',
+		qrHeaderTitle: $systemSettings.qrHeaderTitle || 'Organization Name',
+		qrSubheaderTitle: $systemSettings.qrSubheaderTitle || 'Tagline or Subtitle',
+		qrCardColor: $systemSettings.qrCardColor || '#275032',
+		qrBackgroundImage: $systemSettings.qrBackgroundImage || ''
 	});
 
+    // Track original settings for dirty checking (initialized in onMount)
+    let originalSettings = $state({} as typeof settings);
+    
+    // Check if settings have changed
+    let isDirty = $derived(JSON.stringify(settings) !== JSON.stringify(originalSettings));
+
+    $effect(() => {
+        if (typeof document === 'undefined') return;
+        if (isDirty) document.body.classList.add('hide-mobile-nav');
+        else document.body.classList.remove('hide-mobile-nav');
+        
+        return () => {
+             if (typeof document !== 'undefined') document.body.classList.remove('hide-mobile-nav');
+        };
+    });
+
+    onDestroy(() => {
+        if (typeof document !== 'undefined') document.body.classList.remove('hide-mobile-nav');
+    });
+
 	let isSaving = $state(false);
+	let recentColors = $state<string[]>([]);
 
 	// Load settings from localStorage on mount
-	onMount(() => {
+	onMount(async () => {
 		const savedTheme = localStorage.getItem('theme') || 'light';
 		settings.darkMode = savedTheme === 'dark';
+		
+		// Load recent colors
+		const savedColors = localStorage.getItem('recentColors');
+		if (savedColors) {
+			try {
+				recentColors = JSON.parse(savedColors);
+			} catch (e) {
+				console.error("Failed to parse recent colors", e);
+			}
+		}
+
+		// Load system settings
+		await loadSettings();
+		settings.siteName = $systemSettings.siteName;
+		settings.primaryColor = $systemSettings.primaryColor;
+		settings.qrHeaderTitle = $systemSettings.qrHeaderTitle;
+		settings.qrSubheaderTitle = $systemSettings.qrSubheaderTitle;
+		settings.qrCardColor = $systemSettings.qrCardColor;
+		settings.qrBackgroundImage = $systemSettings.qrBackgroundImage || '';
+        
+        // Update original settings after loading
+        originalSettings = JSON.parse(JSON.stringify(settings));
 	});
 
 	// Watch for dark mode changes and update theme + localStorage
@@ -44,13 +98,47 @@
 		}
 	});
 
-	function handleSaveSettings() {
+	async function handleSaveSettings() {
 		isSaving = true;
-		// Simulate save
-		setTimeout(() => {
+		
+		try {
+			// Update Supabase
+			const { error } = await supabase
+				.from('system_settings')
+				.upsert({ 
+					id: 1, 
+					site_name: settings.siteName, 
+					primary_color: settings.primaryColor,
+					qr_header_title: settings.qrHeaderTitle,
+					qr_subheader_title: settings.qrSubheaderTitle,
+					qr_card_color: settings.qrCardColor,
+					qr_background_image: settings.qrBackgroundImage
+				});
+
+			if (error) throw error;
+
+			// Add to recent colors if new
+			if (!recentColors.includes(settings.primaryColor)) {
+				recentColors = [settings.primaryColor, ...recentColors].slice(0, 5); // Keep last 5
+				localStorage.setItem('recentColors', JSON.stringify(recentColors));
+			}
+
+			// Reload to apply changes everywhere
+			await loadSettings();
+            
+            // Update original settings to match current state (clears dirty flag)
+            originalSettings = JSON.parse(JSON.stringify(settings));
+			
+			// Simulate other saves
+			setTimeout(() => {
+				isSaving = false;
+				toast.success("Settings saved successfully");
+			}, 800);
+		} catch (err) {
+			console.error(err);
 			isSaving = false;
-			toast.success('Settings saved successfully');
-		}, 1000);
+			toast.error("Failed to save settings");
+		}
 	}
 
 	function handleResetSettings() {
@@ -65,7 +153,13 @@
 				autoRefreshInterval: '30',
 				biometricAuth: false,
 				sessionTimeout: '15',
-				cacheData: true
+				cacheData: true,
+				siteName: $systemSettings.siteName,
+				primaryColor: $systemSettings.primaryColor,
+				qrHeaderTitle: $systemSettings.qrHeaderTitle,
+				qrSubheaderTitle: $systemSettings.qrSubheaderTitle,
+				qrCardColor: $systemSettings.qrCardColor,
+				qrBackgroundImage: $systemSettings.qrBackgroundImage || ''
 			};
 			document.documentElement.classList.remove('dark');
 				localStorage.setItem('theme', 'light');
@@ -76,6 +170,87 @@
 	function handleClearCache() {
 		if (confirm('Clear all cached data? This may affect performance temporarily.')) {
 			toast.success('Cache cleared');
+		}
+	}
+
+	async function handleImageUpload(event: Event) {
+		const input = event.target as HTMLInputElement;
+		const file = input.files?.[0];
+		
+		if (!file) return;
+		
+		// Check file size (max 5MB)
+		if (file.size > 5 * 1024 * 1024) {
+			toast.error('Image size must be less than 5MB');
+			return;
+		}
+		
+		// Check file type
+		if (!file.type.startsWith('image/')) {
+			toast.error('Please upload an image file');
+			return;
+		}
+		
+		try {
+			toast.info('Uploading image...');
+			
+			// Delete old image if exists
+			if (settings.qrBackgroundImage) {
+				const oldFileName = settings.qrBackgroundImage.split('/').pop();
+				if (oldFileName) {
+					await supabase.storage.from('qr-bg').remove([oldFileName]);
+				}
+			}
+			
+			// Generate unique filename
+			const timestamp = Date.now();
+			const extension = file.name.split('.').pop();
+			const fileName = `qr-background-${timestamp}.${extension}`;
+			
+			// Upload to Supabase Storage
+			const { data, error } = await supabase.storage
+				.from('qr-bg')
+				.upload(fileName, file, {
+					cacheControl: '3600',
+					upsert: false
+				});
+			
+			if (error) throw error;
+			
+			// Get public URL
+			const { data: urlData } = supabase.storage
+				.from('qr-bg')
+				.getPublicUrl(fileName);
+			
+			settings.qrBackgroundImage = urlData.publicUrl;
+			toast.success('Background image uploaded');
+			
+			// Reset input
+			input.value = '';
+		} catch (error) {
+			console.error('Upload error:', error);
+			toast.error('Failed to upload image');
+		}
+	}
+
+	async function handleRemoveImage() {
+		if (!confirm('Remove background image?')) return;
+		
+		try {
+			// Delete from storage
+			if (settings.qrBackgroundImage) {
+				const fileName = settings.qrBackgroundImage.split('/').pop();
+				if (fileName) {
+					const { error } = await supabase.storage.from('qr-bg').remove([fileName]);
+					if (error) console.error('Failed to delete from storage:', error);
+				}
+			}
+			
+			settings.qrBackgroundImage = '';
+			toast.success('Background image removed');
+		} catch (error) {
+			console.error('Remove error:', error);
+			toast.error('Failed to remove image');
 		}
 	}
 </script>
@@ -94,6 +269,48 @@
 
 	<!-- Settings Sections Grid -->
 	<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-max">
+		<!-- Branding Section -->
+		<Card class="lg:col-span-1 border-primary/20 bg-primary/5">
+			<CardHeader class="pb-3">
+				<div class="flex items-center gap-2">
+					<Palette class="h-5 w-5 text-primary shrink-0" />
+					<CardTitle class="text-base sm:text-lg">Branding & Appearance</CardTitle>
+				</div>
+			</CardHeader>
+			<CardContent class="space-y-4">
+				<div class="space-y-2">
+					<Label for="siteName" class="text-sm sm:text-base font-medium">System Name</Label>
+					<Input id="siteName" bind:value={settings.siteName} placeholder="Scan-in System" />
+					<p class="text-xs sm:text-sm text-muted-foreground">The name displayed in the browser tab and sidebar.</p>
+				</div>
+
+				<div class="space-y-2">
+					<Label for="primaryColor" class="text-sm sm:text-base font-medium">Primary Color</Label>
+					<div class="flex gap-3 items-center">
+						<ColorPicker
+							bind:hex={settings.primaryColor}
+							label="Pick a color"
+						/>
+						
+						<!-- Color History -->
+						{#if recentColors.length > 0}
+							<div class="flex gap-2 ml-4">
+								{#each recentColors as color}
+									<button 
+										class="w-6 h-6 rounded-full border border-border/50 shadow-sm hover:scale-110 transition-transform cursor-pointer ring-offset-background focus:ring-2 focus:ring-ring focus:outline-none"
+										style="background-color: {color}"
+										aria-label="Select color {color}"
+										onclick={() => settings.primaryColor = color}
+									></button>
+								{/each}
+							</div>
+						{/if}
+					</div>
+					<p class="text-xs sm:text-sm text-muted-foreground">The main color used for buttons, links, and branding.</p>
+				</div>
+			</CardContent>
+		</Card>
+
 		<!-- Notifications Section -->
 		<Card class="lg:col-span-1">
 			<CardHeader class="pb-3">
@@ -106,23 +323,16 @@
 				<div class="flex items-start sm:items-center justify-between gap-3">
 					<div class="min-w-0 flex-1">
 						<Label class="text-sm sm:text-base font-medium">Push Notifications</Label>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">Receive real-time alerts and updates</p>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-1">Receive real-time updates</p>
 					</div>
 					<Switch bind:checked={settings.notifications} class="shrink-0" />
 				</div>
 				<div class="flex items-start sm:items-center justify-between gap-3">
 					<div class="min-w-0 flex-1">
 						<Label class="text-sm sm:text-base font-medium">Email Notifications</Label>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">Send summary emails daily</p>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-1">Get updates via email</p>
 					</div>
 					<Switch bind:checked={settings.emailNotifications} class="shrink-0" />
-				</div>
-				<div class="flex items-start sm:items-center justify-between gap-3">
-					<div class="min-w-0 flex-1">
-						<Label class="text-sm sm:text-base font-medium">Sound Alerts</Label>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">Play sound for important notifications</p>
-					</div>
-					<Switch bind:checked={settings.soundEnabled} class="shrink-0" />
 				</div>
 			</CardContent>
 		</Card>
@@ -238,17 +448,139 @@
 				</div>
 			</CardContent>
 		</Card>
+
+		<!-- QR Code Details Section -->
+		<Card class="lg:col-span-2">
+			<CardHeader class="pb-3 border-b border-border/10 mb-6">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <QrCode class="h-5 w-5 text-primary shrink-0" />
+                        <CardTitle class="text-base sm:text-lg">QR Card Generation</CardTitle>
+                    </div>
+                </div>
+			</CardHeader>
+			<CardContent>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <!-- Config Side -->
+                    <div class="space-y-6">
+                        <div class="space-y-2">
+                            <Label for="qrHeader" class="text-sm sm:text-base font-medium">Header Title</Label>
+                            <Input id="qrHeader" bind:value={settings.qrHeaderTitle} placeholder="e.g., Your Organization Name" />
+                            <p class="text-xs text-muted-foreground">Main title displayed at the top of the QR card.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="qrSubheader" class="text-sm sm:text-base font-medium">Subheader Text</Label>
+                            <Input id="qrSubheader" bind:value={settings.qrSubheaderTitle} placeholder="e.g., Your tagline or mission" />
+                            <p class="text-xs text-muted-foreground">Subtitle or tagline displayed below the main header.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="qrCardColor" class="text-sm sm:text-base font-medium">Branding Color</Label>
+                            <div class="flex gap-3 items-center">
+                                <ColorPicker
+                                    bind:hex={settings.qrCardColor}
+                                    label="Pick a color"
+                                />
+                                {#if recentColors.length > 0}
+                                    <div class="flex gap-2 ml-4">
+                                        {#each recentColors as color}
+                                            <button 
+                                                class="w-6 h-6 rounded-full border border-border/50 shadow-sm hover:scale-110 transition-transform cursor-pointer"
+                                                style="background-color: {color}"
+                                                aria-label="Select color {color}"
+                                                onclick={() => settings.qrCardColor = color}
+                                            ></button>
+                                        {/each}
+                                    </div>
+                                {/if}
+                            </div>
+                            <p class="text-xs text-muted-foreground">The color used for text and branding on the generated QR cards.</p>
+                        </div>
+
+                        <div class="space-y-2">
+                            <Label for="qrBackground" class="text-sm sm:text-base font-medium">Background Image</Label>
+                            <div class="space-y-3">
+                                {#if settings.qrBackgroundImage}
+                                    <div class="relative w-full h-32 rounded-lg border border-border/50 overflow-hidden bg-muted">
+                                        <img src={settings.qrBackgroundImage} alt="Background" class="w-full h-full object-cover" />
+                                        <button
+                                            onclick={handleRemoveImage}
+                                            class="absolute top-2 right-2 p-1.5 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
+                                            aria-label="Remove image"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                        </button>
+                                    </div>
+                                {:else}
+                                    <label for="qrBackground" class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/50 rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
+                                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                            <p class="text-xs text-muted-foreground">Click to upload image</p>
+                                            <p class="text-xs text-muted-foreground/60 mt-1">PNG, JPG (max 5MB)</p>
+                                        </div>
+                                    </label>
+                                {/if}
+                                <input 
+                                    id="qrBackground" 
+                                    type="file" 
+                                    accept="image/*" 
+                                    class="hidden"
+                                    onchange={handleImageUpload}
+                                />
+                            </div>
+                            <p class="text-xs text-muted-foreground">Optional background image for the QR card.</p>
+                        </div>
+                    </div>
+
+                    <!-- Preview Side -->
+                    <div class="flex flex-col items-center justify-center p-6 bg-muted/40 rounded-2xl border border-dashed border-border/50 min-h-100">
+                        <div class="text-xs font-bold text-muted-foreground uppercase tracking-wider mb-6">Live Preview</div>
+                        
+                        <!-- Mini QR Card Mock -->
+                        <div class="w-75 h-75 bg-white rounded-xl shadow-xl border border-border/20 overflow-hidden flex flex-col items-center p-4 relative">
+                            <!-- Background Image Overlay -->
+                            {#if settings.qrBackgroundImage}
+                                <div class="absolute inset-0 -z-10">
+                                    <img src={settings.qrBackgroundImage} alt="Background" class="w-full h-full object-cover opacity-20" />
+                                </div>
+                            {/if}
+                            <!-- Header Text -->
+                            <div class="text-center mt-2 px-2">
+                                <h4 class="text-[14px] leading-tight font-bold" style="color: {settings.qrCardColor}">
+                                    {settings.qrHeaderTitle || 'HEADER TITLE'}
+                                </h4>
+                                <p class="text-[10px] italic mt-1 font-medium opacity-80" style="color: {settings.qrCardColor}">
+                                    {settings.qrSubheaderTitle || 'Subheader goes here'}
+                                </p>
+                            </div>
+
+                            <!-- Mock QR Code Box -->
+                            <div class="mt-4 w-36 h-36 border-4 rounded-lg flex items-center justify-center" style="border-color: {settings.qrCardColor}20">
+                                <QrCode class="w-24 h-24 opacity-20" style="color: {settings.qrCardColor}" />
+                            </div>
+
+                            <!-- Footer Mock -->
+                            <div class="mt-auto mb-4 text-center">
+                                <div class="text-[12px] font-black tracking-widest" style="color: {settings.qrCardColor}">ENG-1234</div>
+                                <div class="text-[10px] font-bold uppercase mt-1 opacity-60">Sample Member</div>
+                            </div>
+
+                            <!-- BG Pattern Mock (Subtle) -->
+                            <div class="absolute inset-0 -z-10 opacity-5 pointer-events-none overflow-hidden">
+                                <div class="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl" style="background-color: {settings.qrCardColor}"></div>
+                                <div class="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl" style="background-color: {settings.qrCardColor}"></div>
+                            </div>
+                        </div>
+                        <p class="text-[11px] text-muted-foreground mt-4 text-center">Generating a real image uses 1080x1080 resolution.</p>
+                    </div>
+                </div>
+			</CardContent>
+		</Card>
 	</div>
 
 	<!-- Action Buttons -->
 	<div class="flex flex-col sm:flex-row gap-3">
-		<Button 
-			class="w-full sm:flex-1 text-xs sm:text-sm" 
-			onclick={handleSaveSettings}
-			disabled={isSaving}
-		>
-			{isSaving ? 'Saving...' : 'Save Settings'}
-		</Button>
 		<Button 
 			variant="outline" 
 			class="w-full sm:flex-1 text-xs sm:text-sm"
@@ -258,3 +590,44 @@
 		</Button>
 	</div>
 </div>
+
+<!-- Floating Save Button (Desktop) -->
+{#if isDirty}
+    <div 
+        transition:fly={{ y: 20, duration: 300 }}
+        class="hidden md:flex fixed bottom-6 right-6 z-50 items-center gap-3 bg-card border border-border/50 p-2 pl-4 rounded-full shadow-lg shadow-black/5"
+    >
+        <span class="text-sm font-medium text-muted-foreground">Unsaved changes</span>
+        <Button 
+            size="sm"
+            onclick={handleSaveSettings}
+            disabled={isSaving}
+            class="rounded-full px-6 shadow-md"
+        >
+            {#if isSaving}
+                Saving...
+            {:else}
+                <Save class="w-4 h-4 mr-2" />
+                Save Changes
+            {/if}
+        </Button>
+    </div>
+
+    <!-- Fixed Save Button (Mobile) -->
+    <div 
+        transition:fly={{ y: 100, duration: 300 }}
+        class="fixed left-4 right-4 bottom-4 md:hidden z-50"
+    >
+        <Button 
+            class="w-full h-14 rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20"
+            onclick={handleSaveSettings}
+            disabled={isSaving}
+        >
+            {#if isSaving}
+                Saving...
+            {:else}
+                Save Changes
+            {/if}
+        </Button>
+    </div>
+{/if}

@@ -17,7 +17,7 @@ body {
   --card-foreground: oklch(0.129 0.042 264.695);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.5 0.207 142.647);
+  --primary: oklch(51.096% 0.17385 142.511);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.968 0.007 247.896);
   --secondary-foreground: oklch(0.208 0.042 265.755);
@@ -31,6 +31,9 @@ body {
   --border: oklch(84.651% 0.01125 256.831);
   --input: oklch(0.929 0.013 255.508);
   --ring: oklch(58.199% 0.0318 256.576);
+
+  /* QR Card Colors */
+  --qr-card-font-color: #275032;
 
   /* Input tokens - dedicated colors for inputs */
   --input-bg: oklch(0.98 0.01 250  / 6%); /* subtle light background */

@@ -5,8 +5,9 @@
     import * as Table from "$lib/components/ui/table";
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Badge } from "$lib/components/ui/badge";
+    import { Card, CardContent } from "$lib/components/ui/card";
     import { Label } from "$lib/components/ui/label";
-    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X, ArrowUpDown, ArrowUp, ArrowDown } from "@lucide/svelte";
+    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X, ArrowUpDown, ArrowUp, ArrowDown, Grid3x3, Rows, Users, TrendingUp, Clock } from "@lucide/svelte";
     import * as Collapsible from "$lib/components/ui/collapsible";
     import {
         DropdownMenu,
@@ -31,11 +32,15 @@
         SheetHeader,
         SheetTitle,
     } from "$lib/components/ui/sheet";
+    import QRCode from 'qrcode';
+    import { systemSettings } from "$lib/stores/settings";
 
     // Modal state
     let showAddMemberModal = $state(false);
     // Drawer (mobile) state - drawer uses portal so we keep a separate mobile state
     let showAddMemberDrawer = $state(false);
+    let showQrModal = $state(false);
+    let selectedMemberForQr = $state<typeof members[0] | null>(null);
     let formData = $state({
         lastName: "",
         firstName: "",
@@ -45,6 +50,9 @@
 
     // Mobile collapsible state for group groupings
     let collapsedGroups = $state(new Set<string>());
+
+    // Web view toggle (table or card)
+    let webViewMode = $state<"table" | "card">("table");
 
     // Mock Data
     let members = $state([
@@ -113,6 +121,16 @@
             if (aValue > bValue) return sortDirection === "asc" ? 1 : -1;
             return 0;
         });
+    });
+
+    // Statistics for web
+    let statistics = $derived({
+        total: members.length,
+        active: members.filter(m => m.status === "Active").length,
+        byGroup: groupOptions.map(g => ({
+            name: g,
+            count: members.filter(m => m.group === g).length
+        }))
     });
 
     // Group members by their group
@@ -184,6 +202,173 @@
         } else {
             sortColumn = column;
             sortDirection = "asc";
+        }
+    }
+
+    function openQrModal(member: typeof members[0]) {
+        selectedMemberForQr = member;
+        showQrModal = true;
+    }
+
+    async function downloadQr(type: "qr-only" | "qr-details") {
+        if (!selectedMemberForQr) return;
+
+        try {
+            // Get current settings
+            const settings = {
+                qrHeaderTitle: $systemSettings.qrHeaderTitle || 'Organization Name',
+                qrSubheaderTitle: $systemSettings.qrSubheaderTitle || 'Tagline or Subtitle',
+                qrCardColor: $systemSettings.qrCardColor || '#275032'
+            };
+
+            // Generate QR Code Data URL
+            const qrDataUrl = await QRCode.toDataURL(selectedMemberForQr.qrId, {
+                errorCorrectionLevel: 'H',
+                margin: 0,
+                width: 500,
+                color: {
+                    dark: '#000000',
+                    light: '#ffffff'
+                }
+            });
+
+            const filename = `${selectedMemberForQr.qrId}${type === "qr-details" ? "-details" : ""}.png`;
+
+            if (type === "qr-only") {
+                const a = document.createElement('a');
+                a.href = qrDataUrl;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                return;
+            }
+            
+            // Create a canvas to draw the QR code with details
+            const canvas = document.createElement('canvas');
+             // Card Dimensions (1080x1080)
+            canvas.width = 1080;
+            canvas.height = 1080;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return;
+
+            // 1. Draw Background Information
+            // Try to load the provided "church" image or fallback to a color
+            const padding = 40;
+            
+            // Fill white first
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Try loading background image
+            // Assuming the user has placed the image at /church-bg.png
+            try {
+                const bgImg = new Image();
+                bgImg.crossOrigin = "anonymous";
+                bgImg.src = "/church-bg.png"; 
+                await new Promise((resolve, reject) => {
+                    bgImg.onload = resolve;
+                    bgImg.onerror = reject;
+                });
+                
+                // Draw Image (Cover)
+                const scale = Math.max(canvas.width / bgImg.width, canvas.height / bgImg.height);
+                const x = (canvas.width / 2) - (bgImg.width / 2) * scale;
+                const y = (canvas.height / 2) - (bgImg.height / 2) * scale;
+                ctx.drawImage(bgImg, x, y, bgImg.width * scale, bgImg.height * scale);
+
+            } catch (e) {
+                // Fallback background if image missing
+                ctx.fillStyle = '#f8fafc'; // slate-50
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                // Draw a simple pattern or gradient
+                const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                grad.addColorStop(0, '#e2e8f0');
+                grad.addColorStop(1, '#94a3b8');
+                ctx.fillStyle = grad;
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 1.5 Draw Header Text
+            const fontColor = settings.qrCardColor;
+            ctx.textAlign = 'center';
+            
+            // Main Header
+            ctx.font = 'bold 60px Inter, sans-serif';
+            ctx.fillStyle = fontColor;
+            ctx.fillText(settings.qrHeaderTitle, canvas.width / 2, 100);
+
+            // Subheader
+            ctx.font = 'italic 500 36px "Times New Roman", Times, serif';
+            ctx.fillStyle = fontColor;
+            ctx.fillText(settings.qrSubheaderTitle, canvas.width / 2, 150);
+
+            // 2. Draw QR Code Container
+            // Container size
+            const containerSize = 650;
+            const containerX = (canvas.width - containerSize) / 2;
+            const containerY = 220;
+            const containerRadius = 30;
+
+            // Save context for rounded border
+            ctx.save();
+            ctx.beginPath();
+            ctx.roundRect(containerX, containerY, containerSize, containerSize, containerRadius);
+            
+            // Draw white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            
+            // Draw green border
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = fontColor;
+            ctx.stroke();
+
+            // Load QR Image
+            const qrImg = new Image();
+            qrImg.src = qrDataUrl;
+            await new Promise(resolve => qrImg.onload = resolve);
+
+            // Draw QR Code centered in the container
+            // QR should be slightly smaller than container
+            const qrSize = 520; // 650 - (2 * 65 padding)
+            const qrPadding = (containerSize - qrSize) / 2;
+            
+            ctx.drawImage(qrImg, containerX + qrPadding, containerY + qrPadding, qrSize, qrSize);
+            
+            ctx.restore();
+
+
+            // 3. Draw Footer Text (Bottom)
+            ctx.textAlign = 'center';
+            
+            // Name (Bigger, Uppercase)
+            ctx.font = 'bold 72px Inter, sans-serif'; 
+            ctx.fillStyle = settings.qrCardColor;
+            ctx.fillText(selectedMemberForQr.name.toUpperCase(), canvas.width / 2, 970);
+
+            // ID (Smaller)
+            ctx.font = 'bold 40px Inter, sans-serif';
+            ctx.fillStyle = settings.qrCardColor;
+            ctx.fillText(selectedMemberForQr.qrId, canvas.width / 2, 1030);
+
+
+            // Download
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+            });
+        } catch (err) {
+            console.error("Failed to generate QR", err);
+            alert("Could not generate QR code. Please try again.");
         }
     }
 </script>
@@ -270,7 +455,7 @@
                                 </div>
                             </div>
                             
-                            <button class="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-transform">
+                            <button onclick={() => openQrModal(member)} class="p-2 text-muted-foreground hover:text-foreground active:scale-90 transition-transform">
                                 <QrCode size={18} />
                             </button>
                         </div>
@@ -289,12 +474,12 @@
 </div>
 
 <!-- Desktop View -->
-<div class="hidden md:flex flex-col gap-4 p-4 lg:p-6">
+<div class="hidden md:flex flex-col gap-6 p-6 lg:p-8 max-w-7xl mx-auto">
     <!-- Page Header -->
     <div class="flex items-center justify-between">
         <div>
-            <h2 class="text-3xl font-bold tracking-tight">Member</h2>
-            <p class="text-muted-foreground">Manage your congregation and attendees.</p>
+            <h1 class="text-3xl font-bold tracking-tight">Members</h1>
+            <p class="text-muted-foreground mt-1">Manage your congregation and attendees.</p>
         </div>
         <div class="flex gap-2">
             <Button variant="outline" size="sm" class="hidden sm:flex">
@@ -306,135 +491,272 @@
         </div>
     </div>
 
-    <div class="flex items-center py-4 gap-4">
-        <div class="relative w-full max-w-sm">
+    <!-- Statistics Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+            <CardContent class="p-6">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-muted-foreground font-medium">Total Members</p>
+                        <p class="text-3xl font-bold mt-2">{statistics.total}</p>
+                        <p class="text-xs text-green-600 mt-2">+12% from last month</p>
+                    </div>
+                    <div class="p-3 bg-primary/10 rounded-lg">
+                        <Users class="h-6 w-6 text-primary" />
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent class="p-6">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-muted-foreground font-medium">Active Members</p>
+                        <p class="text-3xl font-bold mt-2">{statistics.active}</p>
+                        <p class="text-xs text-green-600 mt-2">{Math.round((statistics.active / statistics.total) * 100)}% active</p>
+                    </div>
+                    <div class="p-3 bg-green-500/10 rounded-lg">
+                        <TrendingUp class="h-6 w-6 text-green-600" />
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+
+        <Card>
+            <CardContent class="p-6">
+                <div class="flex items-start justify-between">
+                    <div>
+                        <p class="text-sm text-muted-foreground font-medium">Groups</p>
+                        <p class="text-3xl font-bold mt-2">{groupOptions.length}</p>
+                        <p class="text-xs text-muted-foreground mt-2">Teams organized</p>
+                    </div>
+                    <div class="p-3 bg-blue-500/10 rounded-lg">
+                        <Clock class="h-6 w-6 text-blue-600" />
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+    </div>
+
+    <!-- Search, Filters & View Toggle -->
+    <div class="flex items-center gap-4">
+        <div class="relative flex-1 max-w-sm">
             <Search class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
                 type="search"
                 placeholder="Search members..."
-                class="pl-8 border-2 border-border/20 rounded-xl focus:ring-2 focus:border-primary ring-primary/20"
+                class="pl-8 border-2 border-border/20 rounded-lg focus:ring-2 focus:border-primary ring-primary/20"
                 bind:value={searchQuery}
             />
         </div>
-        <DropdownMenu>
-            <DropdownMenuTrigger>
-                <Button variant="outline" size="sm" class="h-10">
-                    <Filter class="mr-2 h-4 w-4" />
-                    Groups
-                    <ChevronRight class="ml-2 h-4 w-4" />
-                </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-48">
-                <DropdownMenuLabel>Filter by Group</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                {#each groupOptions as group}
-                    <DropdownMenuCheckboxItem
-                        checked={selectedGroups.has(group)}
-                        onchange={(checked) => {
-                            if (checked) {
-                                selectedGroups.add(group);
-                            } else {
-                                selectedGroups.delete(group);
-                            }
-                            selectedGroups = new Set(selectedGroups);
-                        }}
-                    >
-                        {group}
-                    </DropdownMenuCheckboxItem>
-                {/each}
-            </DropdownMenuContent>
-        </DropdownMenu>
+
+        <!-- Filter Chips -->
+        <div class="flex items-center gap-2">
+            {#each groupOptions as group}
+                <button
+                    onclick={() => {
+                        if (selectedGroups.has(group)) {
+                            selectedGroups.delete(group);
+                        } else {
+                            selectedGroups.add(group);
+                        }
+                        selectedGroups = new Set(selectedGroups);
+                    }}
+                    class="px-3 py-1.5 rounded-full text-sm font-medium transition-all {selectedGroups.has(group) 
+                        ? 'bg-primary text-primary-foreground' 
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'}"
+                >
+                    {group}
+                </button>
+            {/each}
+        </div>
+
+        <!-- View Toggle -->
+        <div class="flex items-center gap-2 border border-border/20 rounded-lg p-1 ml-auto">
+            <button
+                onclick={() => (webViewMode = "table")}
+                class="p-2 rounded transition-all {webViewMode === 'table' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}"
+                title="Table view"
+            >
+                <Rows class="h-4 w-4" />
+            </button>
+            <button
+                onclick={() => (webViewMode = "card")}
+                class="p-2 rounded transition-all {webViewMode === 'card' ? 'bg-primary/10 text-primary' : 'text-muted-foreground hover:text-foreground'}"
+                title="Card view"
+            >
+                <Grid3x3 class="h-4 w-4" />
+            </button>
+        </div>
     </div>
 
-    <div class="rounded-md border bg-card text-card-foreground shadow-sm">
-        <Table.Root>
-            <Table.Header>
-                <Table.Row>
-                    <Table.Head class="w-12.5"></Table.Head>
-                    <Table.Head>
-                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("name")}>
-                            Name
-                            {#if sortColumn === "name"}
-                                {#if sortDirection === "asc"}
-                                    <ArrowUp class="ml-2 h-4 w-4" />
+    <!-- Table View -->
+    {#if webViewMode === "table"}
+        <div class="rounded-lg border bg-card text-card-foreground shadow-sm overflow-hidden">
+            <Table.Root class="table-fixed w-full">
+                <Table.Header>
+                    <Table.Row class="border-b">
+                        <Table.Head class="w-12"></Table.Head>
+                        <Table.Head class="w-40">
+                            <Button variant="ghost" class="h-auto p-0 font-semibold hover:bg-transparent" onclick={() => handleSort("name")}>
+                                Name
+                                {#if sortColumn === "name"}
+                                    {#if sortDirection === "asc"}
+                                        <ArrowUp class="ml-2 h-4 w-4" />
+                                    {:else}
+                                        <ArrowDown class="ml-2 h-4 w-4" />
+                                    {/if}
                                 {:else}
-                                    <ArrowDown class="ml-2 h-4 w-4" />
+                                    <ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
                                 {/if}
-                            {:else}
-                                <ArrowUpDown class="ml-2 h-4 w-4" />
-                            {/if}
-                        </Button>
-                    </Table.Head>
-                    <Table.Head>
-                        <Button variant="ghost" class="h-auto p-0 font-medium hover:bg-transparent" onclick={() => handleSort("group")}>
-                            Group
-                            {#if sortColumn === "group"}
-                                {#if sortDirection === "asc"}
-                                    <ArrowUp class="ml-2 h-4 w-4" />
+                            </Button>
+                        </Table.Head>
+                        <Table.Head class="w-32">
+                            <Button variant="ghost" class="h-auto p-0 font-semibold hover:bg-transparent" onclick={() => handleSort("group")}>
+                                Group
+                                {#if sortColumn === "group"}
+                                    {#if sortDirection === "asc"}
+                                        <ArrowUp class="ml-2 h-4 w-4" />
+                                    {:else}
+                                        <ArrowDown class="ml-2 h-4 w-4" />
+                                    {/if}
                                 {:else}
-                                    <ArrowDown class="ml-2 h-4 w-4" />
+                                    <ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
                                 {/if}
-                            {:else}
-                                <ArrowUpDown class="ml-2 h-4 w-4" />
-                            {/if}
-                        </Button>
-                    </Table.Head>
-                    <Table.Head>ID</Table.Head>
-                    <Table.Head class="text-right">Actions</Table.Head>
-                </Table.Row>
-            </Table.Header>
-            <Table.Body>
-                {#if filteredMembers().length === 0}
-                    <Table.Row>
-                        <Table.Cell colspan={5} class="h-24 text-center">
-                            No members found.
-                        </Table.Cell>
+                            </Button>
+                        </Table.Head>
+                        <Table.Head class="w-28">Role</Table.Head>
+                        <Table.Head class="w-32">Email</Table.Head>
+                        <Table.Head class="w-24">ID</Table.Head>
+                        <Table.Head class="w-20">Status</Table.Head>
+                        <Table.Head class="w-16 text-right">Actions</Table.Head>
                     </Table.Row>
-                {:else}
-                    {#each filteredMembers() as member (member.id)}
+                </Table.Header>
+                <Table.Body>
+                    {#if filteredMembers().length === 0}
                         <Table.Row>
-                            <Table.Cell>
-                                <Avatar class="h-8 w-8">
+                            <Table.Cell colspan={8} class="h-24 text-center text-muted-foreground">
+                                <div class="flex flex-col items-center justify-center">
+                                    <Search class="h-8 w-8 mb-2 opacity-20" />
+                                    No members found. Try adjusting your filters.
+                                </div>
+                            </Table.Cell>
+                        </Table.Row>
+                    {:else}
+                        {#each filteredMembers() as member (member.id)}
+                            <Table.Row class="hover:bg-muted/50 transition-colors">
+                                <Table.Cell>
+                                    <Avatar class="h-8 w-8">
+                                        <AvatarImage src={member.avatar} alt={member.name} />
+                                        <AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback>
+                                    </Avatar>
+                                </Table.Cell>
+                                <Table.Cell class="font-medium">{member.name}</Table.Cell>
+                                <Table.Cell>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-2 h-2 rounded-full {groupColors[member.group] || 'bg-muted'}"></div>
+                                        <span class="text-sm font-medium">{member.group}</span>
+                                    </div>
+                                </Table.Cell>
+                                <Table.Cell class="text-sm text-muted-foreground">{member.role}</Table.Cell>
+                                <Table.Cell class="text-sm text-muted-foreground">{member.email}</Table.Cell>
+                                <Table.Cell>
+                                    <Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
+                                </Table.Cell>
+                                <Table.Cell>
+                                    <Badge class={member.status === "Active" ? "bg-green-500/10 text-green-700 border-green-200" : "bg-muted"}>
+                                        {member.status}
+                                    </Badge>
+                                </Table.Cell>
+                                <Table.Cell class="text-right">
+                                    <div class="flex items-center justify-end gap-2">
+                                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0" onclick={() => openQrModal(member)}>
+                                            <QrCode class="h-4 w-4" />
+                                        </Button>
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger>
+                                                {#snippet child({ props })}
+                                                    <Button {...props} variant="ghost" size="sm" class="h-8 w-8 p-0">
+                                                        <MoreHorizontal class="h-4 w-4" />
+                                                    </Button>
+                                                {/snippet}
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                                <DropdownMenuItem>Edit</DropdownMenuItem>
+                                                <DropdownMenuSeparator />
+                                                <DropdownMenuItem class="text-red-500">Delete</DropdownMenuItem>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </div>
+                                </Table.Cell>
+                            </Table.Row>
+                        {/each}
+                    {/if}
+                </Table.Body>
+            </Table.Root>
+        </div>
+    {/if}
+
+    <!-- Card View -->
+    {#if webViewMode === "card"}
+        {#if filteredMembers().length === 0}
+            <div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
+                <Search class="h-12 w-12 mb-4 opacity-20" />
+                <p class="font-medium">No members found</p>
+                <p class="text-sm">Try adjusting your search or filters</p>
+            </div>
+        {:else}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {#each filteredMembers() as member (member.id)}
+                    <Card class="hover:shadow-md hover:border-primary/50 transition-all">
+                        <CardContent class="p-6">
+                            <div class="flex items-start justify-between mb-4">
+                                <Avatar class="h-12 w-12">
                                     <AvatarImage src={member.avatar} alt={member.name} />
                                     <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                                 </Avatar>
-                            </Table.Cell>
-                            <Table.Cell class="font-medium">{member.name}</Table.Cell>
-                            <Table.Cell>
-                                <div class="flex items-center gap-1.5">
-                                    <div class="w-1.5 h-3 rounded-full {groupColors[member.group] || 'bg-muted'} border-l-2"></div>
-                                    <span class="text-xs font-semibold">{member.group}</span>
+                                <div class="flex gap-1">
+                                    <Button variant="ghost" size="sm" class="h-8 w-8 p-0" onclick={() => openQrModal(member)}>
+                                        <QrCode class="h-4 w-4" />
+                                    </Button>
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger>
+                                            {#snippet child({ props })}
+                                                <Button {...props} variant="ghost" size="sm" class="h-8 w-8 p-0">
+                                                    <MoreHorizontal class="h-4 w-4" />
+                                                </Button>
+                                            {/snippet}
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                                            <DropdownMenuItem>Edit</DropdownMenuItem>
+                                            <DropdownMenuSeparator />
+                                            <DropdownMenuItem class="text-red-500">Delete</DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 </div>
-                            </Table.Cell>
-                            <Table.Cell>
-                                <code class="text-[10px] bg-muted px-1 py-0.5 rounded font-mono">{member.qrId}</code>
-                            </Table.Cell>
-
-                            <Table.Cell class="text-right">
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger>
-                                        {#snippet child({ props })}
-                                            <Button {...props} variant="ghost" size="icon" class="h-8 w-8 p-0">
-                                                <span class="sr-only">Open menu</span>
-                                                <MoreHorizontal class="h-4 w-4" />
-                                            </Button>
-                                        {/snippet}
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                                        <DropdownMenuItem>View details</DropdownMenuItem>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem>Edit member</DropdownMenuItem>
-                                        <DropdownMenuItem class="text-red-500">Delete member</DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-                            </Table.Cell>
-                        </Table.Row>
-                    {/each}
-                {/if}
-            </Table.Body>
-        </Table.Root>
-    </div>
+                            </div>
+                            <h3 class="font-semibold text-lg">{member.name}</h3>
+                            <p class="text-sm text-muted-foreground">{member.role}</p>
+                            <div class="flex items-center gap-2 mt-3">
+                                <div class="w-2 h-2 rounded-full {groupColors[member.group] || 'bg-muted'}"></div>
+                                <span class="text-xs font-medium">{member.group}</span>
+                            </div>
+                            <p class="text-xs text-muted-foreground mt-2">{member.email}</p>
+                            <div class="flex items-center justify-between mt-4 pt-4 border-t">
+                                <Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
+                                <Badge class={member.status === "Active" ? "bg-green-500/10 text-green-700 border-green-200" : "bg-muted"}>
+                                    {member.status}
+                                </Badge>
+                            </div>
+                        </CardContent>
+                    </Card>
+                {/each}
+            </div>
+        {/if}
+    {/if}
 </div>
 
 <!-- Add Member Modal - Desktop -->
@@ -635,3 +957,90 @@
         </DrawerContent>
     </Drawer>
 </div>
+
+<!-- QR Modal -->
+{#if showQrModal && selectedMemberForQr}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div class="bg-card rounded-lg shadow-lg p-6 w-full max-w-sm mx-4">
+            <!-- Header -->
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold">QR Code</h2>
+                <button 
+                    onclick={() => {
+                        showQrModal = false;
+                        selectedMemberForQr = null;
+                    }}
+                    class="p-1 text-muted-foreground hover:text-foreground"
+                >
+                    <X class="h-5 w-5" />
+                </button>
+            </div>
+
+            <!-- QR Code Placeholder -->
+            <div class="flex justify-center mb-6">
+                <div class="w-40 h-40 bg-muted border-4 border-primary/20 rounded-lg flex items-center justify-center">
+                    <div class="text-center text-muted-foreground">
+                        <QrCode class="h-16 w-16 mx-auto mb-2" />
+                        <p class="text-xs">QR Code</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Member Details -->
+            <div class="space-y-3 mb-6 p-4 bg-muted/50 rounded-lg">
+                <div>
+                    <p class="text-xs text-muted-foreground uppercase tracking-wide">Name</p>
+                    <p class="font-semibold text-foreground">{selectedMemberForQr.name}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-muted-foreground uppercase tracking-wide">Group</p>
+                    <p class="font-semibold text-foreground">{selectedMemberForQr.group}</p>
+                </div>
+                <div>
+                    <p class="text-xs text-muted-foreground uppercase tracking-wide">ID</p>
+                    <p class="font-mono font-semibold text-primary">{selectedMemberForQr.qrId}</p>
+                </div>
+            </div>
+
+            <!-- Download Section -->
+            <div class="space-y-3">
+                <p class="text-sm font-semibold text-muted-foreground">Download</p>
+                <DropdownMenu>
+                    <DropdownMenuTrigger>
+                        {#snippet child({ props })}
+                            <Button 
+                                {...props} 
+                                class="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                            >
+                                <FileDown class="mr-2 h-4 w-4" />
+                                Download QR
+                            </Button>
+                        {/snippet}
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="center" class="w-48">
+                        <DropdownMenuLabel>Download Format</DropdownMenuLabel>
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onclick={() => downloadQr("qr-only")}>
+                            QR Code Only
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onclick={() => downloadQr("qr-details")}>
+                            QR Code + Details
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </div>
+
+            <!-- Close Button -->
+            <Button 
+                variant="outline" 
+                class="w-full mt-4"
+                onclick={() => {
+                    showQrModal = false;
+                    selectedMemberForQr = null;
+                }}
+            >
+                Close
+            </Button>
+        </div>
+    </div>
+{/if}

@@ -34,6 +34,7 @@
   import { Avatar, AvatarFallback, AvatarImage } from "$lib/components/ui/avatar";
   import { siteConfig } from '$lib/config/site';
   import { goto } from '$app/navigation';
+  import { systemSettings } from '$lib/stores/settings';
 
   // Menu items
   const items = [
@@ -74,7 +75,7 @@
                     <QrCode class="size-4" />
                 </div>
                 <div class="grid flex-1 text-left text-sm leading-tight">
-                    <span class="truncate font-semibold text-sidebar-foreground">{siteConfig.name}</span>
+                    <span class="truncate font-semibold text-sidebar-foreground">{$systemSettings.siteName}</span>
                     <span class="truncate text-xs text-sidebar-foreground/70">Admin Panel</span>
                 </div>
             </div>

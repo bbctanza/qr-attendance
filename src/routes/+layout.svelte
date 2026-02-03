@@ -21,6 +21,8 @@
     import MobileNav from '$lib/components/mobile-nav.svelte';
     import MobileHeader from '$lib/components/mobile-header.svelte';
     import { Toaster } from "$lib/components/ui/sonner";
+    import { onMount } from 'svelte';
+    import { loadSettings, systemSettings } from "$lib/stores/settings";
 
     // Initialize theme synchronously from localStorage before render
     if (browser) {
@@ -31,6 +33,10 @@
             document.documentElement.classList.remove('dark');
         }
     }
+
+    onMount(async () => {
+        await loadSettings();
+    });
 
     let { children } = $props();
 
@@ -43,25 +49,65 @@
         const path = $page.url.pathname;
         if (path === '/') return [{ name: 'Overview' }];
         
+        // Settings/Options routes
         if (path === '/settings') return [{ name: 'Options' }];
-        if (path.startsWith('/attendance/history')) return [
+        if (path === '/settings/profile') return [
+            { name: 'Options', href: '/settings' },
+            { name: 'Profile' }
+        ];
+        if (path === '/settings/app') return [
+            { name: 'Options', href: '/settings' },
+            { name: 'App Settings' }
+        ];
+        
+        // Attendance routes (under Options)
+        if (path === '/attendance') return [{ name: 'Attendance' }];
+        if (path === '/attendance/history') return [
             { name: 'Options', href: '/settings' },
             { name: 'Attendance History' }
         ];
+        
+        // Events (under Options)
         if (path === '/events') return [
             { name: 'Options', href: '/settings' },
             { name: 'Events' }
         ];
         
+        // Analytics (under Options)
+        if (path === '/analytics') return [
+            { name: 'Options', href: '/settings' },
+            { name: 'Analytics' }
+        ];
+        
+        // Groups (under Options)
+        if (path === '/groups') return [
+            { name: 'Options', href: '/settings' },
+            { name: 'Groups' }
+        ];
+        
+        // Scan
+        if (path === '/scan') return [{ name: 'Scan' }];
+        
+        // Members
+        if (path === '/members') return [{ name: 'Members' }];
+        
+        // Dashboard
+        if (path === '/dashboard') return [{ name: 'Dashboard' }];
+        
+        // History
+        if (path === '/history') return [{ name: 'History' }];
+        
+        // Default: capitalize the first segment
         const segment = path.split('/')[1];
         if (!segment) return [{ name: 'Overview' }];
-        if (segment === 'members') return [{ name: 'Members' }];
-        if (segment === 'dashboard') return [{ name: 'Dashboard' }];
         return [{ name: segment.charAt(0).toUpperCase() + segment.slice(1) }];
     });
 </script>
 
-<svelte:head><link rel="icon" href="/favicon.svg" /></svelte:head>
+<svelte:head>
+    <link rel="icon" href="/favicon.svg" />
+    <title>{$systemSettings.siteName}</title>
+</svelte:head>
 <Toaster position="top-center" />
 
 {#if showSidebar}
@@ -76,7 +122,7 @@
                     <Breadcrumb>
                         <BreadcrumbList>
                             <BreadcrumbItem class="hidden md:block">
-                                <BreadcrumbLink href="/">Scan-in System</BreadcrumbLink>
+                                <BreadcrumbLink href="/">{$systemSettings.siteName}</BreadcrumbLink>
                             </BreadcrumbItem>
                             {#each breadcrumbs as crumb, i}
                                 <BreadcrumbSeparator class="hidden md:block" />
