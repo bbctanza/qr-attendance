@@ -76,6 +76,7 @@ CREATE TABLE event_types (
     start_time TIME NOT NULL,
     end_time TIME NOT NULL,
     is_active BOOLEAN DEFAULT TRUE,
+    metadata JSONB DEFAULT '{}',          -- Flexible storage (e.g., location)
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -237,17 +238,11 @@ ON members FOR SELECT TO authenticated USING (get_user_role() = 'staff');
 
 -- 5.4 Event Types Policies
 CREATE POLICY "Developer/Admin full access to event_types"
-ON event_types FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-
-CREATE POLICY "Staff can view event_types"
-ON event_types FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+ON event_types FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
 -- 5.5 Events Policies
 CREATE POLICY "Developer/Admin full access to events"
-ON events FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-
-CREATE POLICY "Staff can view events"
-ON events FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+ON events FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
 -- 5.6 Attendance Scans Policies (The scanning logic)
 CREATE POLICY "Developer/Admin full access to scans"

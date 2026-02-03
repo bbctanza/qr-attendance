@@ -23,6 +23,8 @@
     import { Toaster } from "$lib/components/ui/sonner";
     import { onMount } from 'svelte';
     import { loadSettings, systemSettings } from "$lib/stores/settings";
+    import { supabase } from '$lib/supabase';
+    import { goto } from '$app/navigation';
 
     // Initialize theme synchronously from localStorage before render
     if (browser) {
@@ -34,11 +36,32 @@
         }
     }
 
+    let { children } = $props();
+
     onMount(async () => {
         await loadSettings();
-    });
+        
+        // Global Auth Guard
+        const { data: { session } } = await supabase.auth.getSession();
+        const path = $page.url.pathname;
+        const publicRoutes = ['/login', '/forgot-password'];
 
-    let { children } = $props();
+        if (!session && !publicRoutes.includes(path)) {
+            goto('/login');
+        } else if (session && publicRoutes.includes(path)) {
+            goto('/');
+        }
+
+        // Listen for auth state changes
+        supabase.auth.onAuthStateChange((event, session) => {
+             const currentPath = window.location.pathname; // $page might be stale in callback
+             if (event === 'SIGNED_OUT') {
+                 if (!publicRoutes.includes(currentPath)) goto('/login');
+             } else if (event === 'SIGNED_IN' || session) {
+                 if (publicRoutes.includes(currentPath)) goto('/');
+             }
+        });
+    });
 
     // Determine if we should show the sidebar
     // Hide on login and forgot-password pages

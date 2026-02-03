@@ -272,62 +272,66 @@
 			monthlyWeekday: newEvent.monthlyWeekday
 		};
 
-		if (newEvent.type === 'recurring' && newEvent.schedule === 'weekly') {
-			// Recurring Weekly - We might hit event_types
-			// For simplicity in this UI, if it's recurring weekly, we create an event_type for each day
-			const dayMap: Record<string, number> = {
-				'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
-			};
+        try {
+            if (newEvent.type === 'recurring' && newEvent.schedule === 'weekly') {
+                // Recurring Weekly - We might hit event_types
+                const dayMap: Record<string, number> = {
+                    'Sunday': 0, 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6
+                };
 
-			const daysToCreate = newEvent.days.length > 0 ? newEvent.days : [weekdays[new Date().getDay()]];
-			
-			try {
-				for (const day of daysToCreate) {
-					const typePayload = {
-						name: newEvent.name,
-						day_of_week: dayMap[day],
-						start_time: newEvent.startTime,
-						end_time: newEvent.endTime,
-						is_active: true,
-						metadata
-					};
+                const daysToCreate = newEvent.days.length > 0 ? newEvent.days : [weekdays[new Date().getDay()]];
+                
+                for (const day of daysToCreate) {
+                    const typePayload = {
+                        name: newEvent.name,
+                        day_of_week: dayMap[day],
+                        start_time: newEvent.startTime,
+                        end_time: newEvent.endTime,
+                        is_active: true,
+                        metadata
+                    };
 
-					if (isEditing && editingId?.startsWith('template-')) {
-						await supabase.from('event_types').update(typePayload).eq('event_type_id', editingId.split('-')[1]);
-					} else {
-						await supabase.from('event_types').insert([typePayload]);
-					}
-				}
-				toast.success(isEditing ? "Templates updated" : "Recurring templates added");
-			} catch (err) {
-				console.error(err);
-				toast.error("Failed to save recurring event");
-			}
-		} else {
-			// One-time or Monthly (Monthly not fully supported by event_types schema yet, so treat as custom instance for now)
-			const payload = {
-				event_name: newEvent.name,
-				event_date: baseDate,
-				start_datetime: new Date(`${baseDate}T${newEvent.startTime}`).toISOString(),
-				end_datetime: new Date(`${baseDate}T${newEvent.endTime}`).toISOString(),
-				status: 'upcoming' as const,
-				is_custom: true,
-				metadata
-			};
+                    let error;
+                    if (isEditing && editingId?.startsWith('template-')) {
+                        ({ error } = await supabase.from('event_types').update(typePayload).eq('event_type_id', editingId.split('-')[1]));
+                    } else {
+                        ({ error } = await supabase.from('event_types').insert([typePayload]));
+                    }
+                    
+                    if (error) throw error;
+                }
+                toast.success(isEditing ? "Templates updated" : "Recurring templates added");
 
-			if (isEditing && editingId?.startsWith('instance-')) {
-				const { error } = await supabase.from('events').update(payload).eq('event_id', editingId.split('-')[1]);
-				if (error) throw error;
-				toast.success("Event updated");
-			} else {
-				const { error } = await supabase.from('events').insert([payload]);
-				if (error) throw error;
-				toast.success("Event added");
-			}
-		}
+            } else {
+                // One-time or Monthly (Monthly not fully supported by event_types schema yet, so treat as custom instance for now)
+                const payload = {
+                    event_name: newEvent.name,
+                    event_date: baseDate,
+                    start_datetime: new Date(`${baseDate}T${newEvent.startTime}`).toISOString(),
+                    end_datetime: new Date(`${baseDate}T${newEvent.endTime}`).toISOString(),
+                    status: 'upcoming' as const,
+                    is_custom: true,
+                    metadata
+                };
 
-		showAddEventDialog = false;
-		fetchEvents();
+                let error;
+                if (isEditing && editingId?.startsWith('instance-')) {
+                    ({ error } = await supabase.from('events').update(payload).eq('event_id', editingId.split('-')[1]));
+                } else {
+                    ({ error } = await supabase.from('events').insert([payload]));
+                }
+                
+                if (error) throw error;
+                toast.success(isEditing ? "Event updated" : "Event added");
+            }
+
+            showAddEventDialog = false;
+            fetchEvents();
+
+        } catch (err: any) {
+            console.error("Save Event Error:", err);
+            toast.error(`Error saving event: ${err.message || 'Unknown error'}`);
+        }
 	}
 </script>
 
@@ -451,7 +455,10 @@
 					<!-- One-time Date (custom) -->
 					{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
 						<div>
-							<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+							<div class="flex items-center justify-between">
+								<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+								<button type="button" class="text-xs text-primary font-medium hover:underline cursor-pointer" onclick={() => newEvent.date = new Date().toLocaleDateString('en-CA')}>Today</button>
+							</div>
 							<Input id="eventDate" type="date" bind:value={newEvent.date} class="mt-2 rounded-xl py-3 w-full border-input" />
 						</div>
 					{/if}
@@ -459,11 +466,17 @@
 					<!-- Time & Location -->
 					<div class="grid grid-cols-2 gap-3">
 						<div>
-							<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+							<div class="flex items-center justify-between">
+								<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+								<button type="button" class="text-xs text-primary font-medium hover:underline cursor-pointer" onclick={() => { const d = new Date(); newEvent.startTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`; }}>Now</button>
+							</div>
 							<Input id="startTime" type="time" bind:value={newEvent.startTime} class="mt-2 rounded-xl py-3 w-full border-input" />
 						</div>
 						<div>
-							<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+							<div class="flex items-center justify-between">
+								<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+								<button type="button" class="text-xs text-primary font-medium hover:underline cursor-pointer" onclick={() => { const d = new Date(); d.setHours(d.getHours() + 1); newEvent.endTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`; }}>+1h</button>
+							</div>
 							<Input id="endTime" type="time" bind:value={newEvent.endTime} class="mt-2 rounded-xl py-3 w-full border-input" />
 						</div>
 					</div>
@@ -586,7 +599,10 @@
 					<!-- One-time Date (custom) -->
 					{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
 						<div>
-							<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+							<div class="flex items-center justify-between">
+								<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+								<button type="button" class="text-xs text-primary font-medium hover:underline cursor-pointer" onclick={() => newEvent.date = new Date().toLocaleDateString('en-CA')}>Today</button>
+							</div>
 							<Input id="eventDate" type="date" bind:value={newEvent.date} class="mt-2 rounded-xl py-3 w-full border-input" />
 						</div>
 					{/if}
@@ -594,11 +610,17 @@
 					<!-- Time & Location -->
 					<div class="grid grid-cols-2 gap-3">
 						<div>
-							<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+							<div class="flex items-center justify-between">
+								<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+								<button type="button" class="text-xs text-primary font-medium hover:underline cursor-pointer" onclick={() => { const d = new Date(); newEvent.startTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`; }}>Now</button>
+							</div>
 							<Input id="startTime" type="time" bind:value={newEvent.startTime} class="mt-2 rounded-xl py-3 w-full border-input" />
 						</div>
 						<div>
-							<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+							<div class="flex items-center justify-between">
+								<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+								<button type="button" class="text-xs text-primary font-medium hover:underline cursor-pointer" onclick={() => { const d = new Date(); d.setHours(d.getHours() + 1); newEvent.endTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`; }}>+1h</button>
+							</div>
 							<Input id="endTime" type="time" bind:value={newEvent.endTime} class="mt-2 rounded-xl py-3 w-full border-input" />
 						</div>
 					</div>
