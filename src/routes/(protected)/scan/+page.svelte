@@ -36,12 +36,28 @@
 	import type { AttendanceEvent } from '$lib/types';
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { devTools } from '$lib/stores/dev';
+	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
+	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
 
 	let manualId = $state('');
 	let lastScanned = $state<{ id: string; name: string; timestamp: string } | null>(null);
 	let isScanning = $state(false); // Controls camera UI visibility
 	let activeEvent = $state<AttendanceEvent | null>(null);
 	let isLoading = $state(true);
+
+	// Modal State
+	let showSuccessModal = $state(false);
+	let showAlreadyCheckedInModal = $state(false);
+	let successModalData = $state({
+		memberName: '',
+		memberId: '',
+		careGroup: '',
+		time: ''
+	});
+	let errorModalData = $state({
+		memberName: '',
+		memberId: ''
+	});
 
 	// Camera State
 	let scanner: Html5Qrcode | null = null;
@@ -208,19 +224,50 @@
 	}
 
 	async function switchCamera() {
-		if (!scanner || cameras.length < 2) return;
+		if (!scanner || cameras.length < 2) {
+			toast.error('No other cameras available');
+			return;
+		}
 
 		try {
-			await scanner.stop();
+			// Stop current camera
+			if (scanner.isScanning) {
+				await scanner.stop();
+			}
+			
+			// Switch to next camera
 			currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
+			const nextCamera = cameras[currentCameraIndex];
+			
+			console.log(`Switching to camera: ${nextCamera.label}`);
+			
+			// Restart with new camera
 			await scanner.start(
-				cameras[currentCameraIndex].id,
+				nextCamera.id,
 				{ fps: 10, qrbox: getQrBoxConfig() },
 				(decodedText) => handleScan(decodedText),
 				() => {}
 			);
+			
+			toast.success(`Switched to ${nextCamera.label}`);
 		} catch (err) {
-			toast.error('Failed to switch camera');
+			console.error('Camera switch failed:', err);
+			toast.error('Failed to switch camera. Try again.');
+			
+			// Try to restart the original camera
+			try {
+				if (scanner) {
+					await scanner.start(
+						cameras[currentCameraIndex].id,
+						{ fps: 10, qrbox: getQrBoxConfig() },
+						(decodedText) => handleScan(decodedText),
+						() => {}
+					);
+				}
+			} catch (retryErr) {
+				console.error('Failed to recover camera:', retryErr);
+				toast.error('Camera is unavailable. Restart the page.');
+			}
 		}
 	}
 
@@ -228,19 +275,55 @@
 		if (!scannerContainer) return;
 
 		if (!isFullscreen) {
-			if (scannerContainer.requestFullscreen) {
-				scannerContainer.requestFullscreen();
-			} else if ((scannerContainer as any).webkitRequestFullscreen) {
-				(scannerContainer as any).webkitRequestFullscreen();
+			try {
+				if (scannerContainer.requestFullscreen) {
+					scannerContainer.requestFullscreen();
+				} else if ((scannerContainer as any).webkitRequestFullscreen) {
+					(scannerContainer as any).webkitRequestFullscreen();
+				}
+				isFullscreen = true;
+				
+				// Restart camera after fullscreen transition with delay
+				setTimeout(async () => {
+					try {
+						if (scanner && isScanning) {
+							// Stop and reinitialize scanner
+							await scanner.stop();
+							await scanner.clear();
+							
+							// Restart with a small delay to allow fullscreen to settle
+							await new Promise(resolve => setTimeout(resolve, 300));
+							
+							await scanner.start(
+								cameras[currentCameraIndex].id,
+								{ fps: 10, qrbox: getQrBoxConfig() },
+								(decodedText) => handleScan(decodedText),
+								() => {}
+							);
+							
+							toast.success('Camera restarted in fullscreen mode');
+						}
+					} catch (err) {
+						console.error('Failed to restart camera in fullscreen:', err);
+						toast.error('Failed to restart camera. Try changing scan size or camera.');
+					}
+				}, 100);
+			} catch (err) {
+				console.error('Fullscreen error:', err);
+				toast.error('Failed to enter fullscreen mode');
 			}
-			isFullscreen = true;
 		} else {
-			if (document.exitFullscreen) {
-				document.exitFullscreen();
-			} else if ((document as any).webkitExitFullscreen) {
-				(document as any).webkitExitFullscreen();
+			try {
+				if (document.exitFullscreen) {
+					document.exitFullscreen();
+				} else if ((document as any).webkitExitFullscreen) {
+					(document as any).webkitExitFullscreen();
+				}
+				isFullscreen = false;
+			} catch (err) {
+				console.error('Exit fullscreen error:', err);
+				toast.error('Failed to exit fullscreen mode');
 			}
-			isFullscreen = false;
 		}
 	}
 
@@ -258,7 +341,7 @@
 			// 1. Verify Member exists & Get Name
 			const { data: member, error: memberError } = await supabase
 				.from('members')
-				.select('first_name, last_name')
+				.select('first_name, last_name, group_id')
 				.eq('member_id', id)
 				.single();
 
@@ -269,15 +352,59 @@
 
 			const fullName = `${member.first_name} ${member.last_name}`;
 
+			// 1.5 Check if already checked in
+			const { data: existingScan } = await supabase
+				.from('attendance_scans')
+				.select('scan_id')
+				.eq('member_id', id)
+				.eq('event_id', activeEvent.event_id)
+				.maybeSingle();
+
+			const { data: existingPresent } = await supabase
+				.from('attendance_present')
+				.select('present_id')
+				.eq('member_id', id)
+				.eq('event_id', activeEvent.event_id)
+				.maybeSingle();
+
+			if (existingScan || existingPresent) {
+				errorModalData = {
+					memberName: fullName,
+					memberId: id
+				};
+				showAlreadyCheckedInModal = true;
+				toast.dismiss(toastId);
+				return;
+			}
+
+			// Get group name
+			let groupName = 'N/A';
+			if (member.group_id) {
+				const { data: group } = await supabase
+					.from('groups')
+					.select('name')
+					.eq('group_id', member.group_id)
+					.single();
+				groupName = group?.name || 'N/A';
+			}
+
 			// 2. Perform Scan
 			const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
 			await attendanceApi.scanMember(id, activeEvent.event_id, mockTime);
 
-			// 3. Success UI
+			// 3. Success UI - Show modal instead of toast
 			const time = (mockTime || new Date()).toLocaleTimeString([], {
 				hour: '2-digit',
 				minute: '2-digit'
 			});
+
+			successModalData = {
+				memberName: fullName,
+				memberId: id,
+				careGroup: groupName,
+				time: time
+			};
+			showSuccessModal = true;
 
 			lastScanned = {
 				id: id,
@@ -290,7 +417,7 @@
 				recentScans = [{ id, name: fullName, time }, ...recentScans];
 			}
 
-			toast.success(`checked in ${fullName}`, { id: toastId });
+			toast.dismiss(toastId);
 			manualId = ''; // Clear input
 		} catch (e: any) {
 			console.error(e);
@@ -564,7 +691,7 @@
 	<div
 		bind:this={scannerContainer}
 		class={isFullscreen
-			? 'fixed inset-0 z-100 flex flex-col items-center justify-center bg-black'
+			? 'fixed inset-0 z-100 flex flex-col items-center justify-center bg-black overflow-visible'
 			: 'relative flex min-h-75 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
 	>
 		{#if !isScanning}
@@ -639,8 +766,58 @@
 					Scan QR Code
 				</div>
 			</div>
+
+			<!-- Modals rendered inside fullscreen container to ensure visibility -->
+			{#if isFullscreen && (showSuccessModal || showAlreadyCheckedInModal)}
+				<!-- Check-in Success Modal -->
+				<CheckInSuccessModal
+					bind:isOpen={showSuccessModal}
+					memberName={successModalData.memberName}
+					memberId={successModalData.memberId}
+					careGroup={successModalData.careGroup}
+					time={successModalData.time}
+					onClose={() => {
+						showSuccessModal = false;
+					}}
+				/>
+
+				<!-- Already Checked In Error Modal -->
+				<AlreadyCheckedInModal
+					bind:isOpen={showAlreadyCheckedInModal}
+					memberName={errorModalData.memberName}
+					memberId={errorModalData.memberId}
+					onClose={() => {
+						showAlreadyCheckedInModal = false;
+					}}
+				/>
+			{/if}
 		{/if}
 	</div>
+
+	<!-- Modals for non-fullscreen mode -->
+	{#if !isFullscreen}
+		<!-- Check-in Success Modal -->
+		<CheckInSuccessModal
+			bind:isOpen={showSuccessModal}
+			memberName={successModalData.memberName}
+			memberId={successModalData.memberId}
+			careGroup={successModalData.careGroup}
+			time={successModalData.time}
+			onClose={() => {
+				showSuccessModal = false;
+			}}
+		/>
+
+		<!-- Already Checked In Error Modal -->
+		<AlreadyCheckedInModal
+			bind:isOpen={showAlreadyCheckedInModal}
+			memberName={errorModalData.memberName}
+			memberId={errorModalData.memberId}
+			onClose={() => {
+				showAlreadyCheckedInModal = false;
+			}}
+		/>
+	{/if}
 
 	<!-- OR divider -->
 	<div class="flex items-center gap-3">
@@ -921,5 +1098,14 @@
 		width: 100% !important;
 		height: 100% !important;
 		border-radius: inherit;
+	}
+
+	/* Ensure Sonner toasts appear above fullscreen camera */
+	:global([data-sonner-toaster]) {
+		z-index: 9999 !important;
+	}
+
+	:global([data-sonner-toast]) {
+		z-index: 9999 !important;
 	}
 </style>
