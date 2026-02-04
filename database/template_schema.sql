@@ -367,6 +367,9 @@ CREATE POLICY "Developers have full access to profiles" ON profiles FOR DELETE T
 -- Groups Policies
 CREATE POLICY "Developer/Admin full access to groups" ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
 CREATE POLICY "Staff can view groups" ON groups FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+CREATE POLICY "Staff can create and edit groups" ON groups FOR INSERT TO authenticated WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Staff can update groups" ON groups FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Staff can delete groups" ON groups FOR DELETE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
 -- Members Policies
 CREATE POLICY "Developer/Admin full access to members" ON members FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
