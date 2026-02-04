@@ -1,10 +1,16 @@
 -- ============================================
--- QR ATTENDANCE SYSTEM - GENERIC TEMPLATE SCHEMA
+-- QR ATTENDANCE SYSTEM - COMPLETE TEMPLATE SCHEMA
 -- ============================================
 -- Description: A modular, generic schema for any QR-based attendance system.
--- No system-specific seed data included.
+-- Includes full functionality for:
+-- - Automated status updates (Recurring Events)
+-- - Developer Tools (Mock Time, Force Process)
+-- - System Settings (Timezones, Branding)
 
 -- 1. CLEAN SLATE
+-- Drop Objects (Tables, Types, Functions, Views) to allow full reset
+
+-- Tables
 DROP TABLE IF EXISTS attendance_absent CASCADE;
 DROP TABLE IF EXISTS attendance_present CASCADE;
 DROP TABLE IF EXISTS attendance_scans CASCADE;
@@ -13,13 +19,26 @@ DROP TABLE IF EXISTS event_types CASCADE;
 DROP TABLE IF EXISTS members CASCADE;
 DROP TABLE IF EXISTS groups CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
+DROP TABLE IF EXISTS system_settings CASCADE;
 
+-- Views
 DROP VIEW IF EXISTS members_with_groups CASCADE;
+
+-- Functions
 DROP FUNCTION IF EXISTS process_event_attendance(BIGINT);
 DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
+DROP FUNCTION IF EXISTS update_event_statuses(TIMESTAMP);
+DROP FUNCTION IF EXISTS update_event_statuses(); -- Drop older signature if exists
+DROP FUNCTION IF EXISTS generate_recurring_events(DATE, DATE);
+DROP FUNCTION IF EXISTS clear_attendance_history();
+DROP FUNCTION IF EXISTS force_process_all_events();
+
+-- Types
+-- (Note: Types often depend on usage, CASCADE usually handles them if dropping tables)
 
 -- 2. AUTH & PROFILES
 -- Role type for access control
+DROP TYPE IF EXISTS user_role;
 CREATE TYPE user_role AS ENUM ('developer', 'admin', 'staff');
 
 CREATE TABLE profiles (
@@ -42,6 +61,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
+-- Check if trigger exists before creating to avoid errors in some restoration scenarios (though DROP above handles cascade)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION handle_new_user();
@@ -91,7 +112,7 @@ CREATE TABLE events (
     status VARCHAR(20) DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'ongoing', 'completed')),
     is_custom BOOLEAN DEFAULT FALSE,
     description TEXT,
-    metadata JSONB DEFAULT '{}',          -- e.g., location, guest speaker, teacher
+    metadata JSONB DEFAULT '{}',          -- e.g., location, guest speaker, teacher, auto_complete_error
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -127,7 +148,20 @@ CREATE TABLE attendance_absent (
     CONSTRAINT absent_unique UNIQUE (member_id, event_id)
 );
 
--- 3. VIEWS
+-- Table: system_settings (One row only)
+CREATE TABLE system_settings (
+    id INT PRIMARY KEY DEFAULT 1,
+    site_name TEXT DEFAULT 'Scan-in System',
+    primary_color TEXT DEFAULT '#275032',
+    timezone TEXT DEFAULT 'Asia/Manila',
+    qr_header_title TEXT DEFAULT 'Organization Name',
+    qr_subheader_title TEXT DEFAULT 'Tagline or Subtitle',
+    qr_card_color TEXT DEFAULT '#275032',
+    qr_background_image TEXT DEFAULT '',
+    CONSTRAINT one_row_only CHECK (id = 1)
+);
+
+-- 4. VIEWS
 
 -- View: members_with_groups
 CREATE OR REPLACE VIEW members_with_groups AS
@@ -144,62 +178,171 @@ SELECT
 FROM members m
 LEFT JOIN groups g ON m.group_id = g.group_id;
 
--- 4. FUNCTIONS
+-- 5. BUSINESS LOGIC FUNCTIONS
 
--- Function: process_event_attendance
--- Migrates temporary scans to permanent records and identifies absentees
+-- Function A: Process Attendance (Move from scans -> history)
 CREATE OR REPLACE FUNCTION process_event_attendance(p_event_id BIGINT)
 RETURNS void AS $$
 BEGIN
     -- 1. Move scans to attendance_present
-    INSERT INTO attendance_present (
-        scan_id,
-        member_id,
-        event_id,
-        scan_datetime,
-        created_at
-    )
-    SELECT 
-        scan_id,
-        member_id,
-        event_id,
-        scan_datetime,
-        NOW()
+    INSERT INTO attendance_present (scan_id, member_id, event_id, scan_datetime, created_at)
+    SELECT scan_id, member_id, event_id, scan_datetime, NOW()
     FROM attendance_scans
     WHERE event_id = p_event_id
     ON CONFLICT (member_id, event_id) DO NOTHING;
 
-    -- 2. Identify absentees (Members in the system not present at this event)
-    INSERT INTO attendance_absent (
-        member_id,
-        event_id,
-        created_at
-    )
-    SELECT 
-        m.member_id,
-        p_event_id,
-        NOW()
+    -- 2. Identify absentees
+    INSERT INTO attendance_absent (member_id, event_id, created_at)
+    SELECT m.member_id, p_event_id, NOW()
     FROM members m
     WHERE NOT EXISTS (
-        SELECT 1 
-        FROM attendance_present ap
-        WHERE ap.member_id = m.member_id
-        AND ap.event_id = p_event_id
+        SELECT 1 FROM attendance_present ap
+        WHERE ap.member_id = m.member_id AND ap.event_id = p_event_id
     )
     ON CONFLICT (member_id, event_id) DO NOTHING;
 
-    -- 3. Cleanup temporary scans
-    DELETE FROM attendance_scans
-    WHERE event_id = p_event_id;
-
+    -- 3. Cleanup scans
+    DELETE FROM attendance_scans WHERE event_id = p_event_id;
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function B: Auto Update Statuses (Supports Mock Time)
+CREATE OR REPLACE FUNCTION update_event_statuses(p_now TIMESTAMP DEFAULT NOW())
+RETURNS void AS $$
+DECLARE
+    r RECORD;
+    current_ts TIMESTAMP;
+BEGIN
+    current_ts := p_now;
+
+    -- 1. Handle events moving to 'completed' (Cleanup & Archive)
+    FOR r IN 
+        SELECT event_id, event_name 
+        FROM events 
+        WHERE status != 'completed' 
+        AND current_ts > end_datetime 
+    LOOP
+        BEGIN
+            PERFORM process_event_attendance(r.event_id);
+            UPDATE events SET status = 'completed' WHERE event_id = r.event_id;
+        EXCEPTION WHEN OTHERS THEN
+            RAISE NOTICE 'Failed to process event %: %', r.event_id, SQLERRM;
+            UPDATE events 
+            SET status = 'completed',
+                metadata = jsonb_set(COALESCE(metadata, '{}'), '{auto_complete_error}', to_jsonb(SQLERRM))
+            WHERE event_id = r.event_id;
+        END;
+    END LOOP;
+
+    -- 2. Handle events moving to 'ongoing'
+    UPDATE events
+    SET status = 'ongoing'
+    WHERE status != 'ongoing'
+    AND current_ts >= start_datetime 
+    AND current_ts <= end_datetime;
+
+    -- 3. Handle correction (ongoing -> upcoming if time rewound)
+    UPDATE events
+    SET status = 'upcoming'
+    WHERE status = 'ongoing'
+    AND current_ts < start_datetime;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function C: Generate Recursive Events
+CREATE OR REPLACE FUNCTION generate_recurring_events(
+    start_date DATE,
+    end_date DATE
+)
+RETURNS INTEGER AS $$
+DECLARE
+    current_d DATE;
+    dow INTEGER;
+    et RECORD;
+    events_created INTEGER := 0;
+    event_start TIMESTAMP;
+    event_end TIMESTAMP;
+BEGIN
+    current_d := start_date;
+
+    WHILE current_d <= end_date LOOP
+        dow := EXTRACT(DOW FROM current_d);
+
+        FOR et IN SELECT * FROM event_types WHERE is_active = TRUE AND day_of_week = dow LOOP
+            event_start := current_d + et.start_time;
+            event_end := current_d + et.end_time;
+            
+            -- Handle overnight events
+            IF et.end_time < et.start_time THEN
+                event_end := event_end + INTERVAL '1 day';
+            END IF;
+
+            -- Prevent duplicates
+            IF NOT EXISTS (
+                SELECT 1 FROM events 
+                WHERE event_type_id = et.event_type_id 
+                AND event_date = current_d
+            ) THEN
+                INSERT INTO events (
+                    event_type_id, event_name, event_date, 
+                    start_datetime, end_datetime, 
+                    status, is_custom, description, metadata
+                ) VALUES (
+                    et.event_type_id, et.name, current_d,
+                    event_start, event_end,
+                    'upcoming', FALSE, 'Automatically generated from recurring schedule', et.metadata
+                );
+                events_created := events_created + 1;
+            END IF;
+        END LOOP;
+        current_d := current_d + 1;
+    END LOOP;
+
+    RETURN events_created;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Function D: Developer Tools - Clear History
+CREATE OR REPLACE FUNCTION clear_attendance_history()
+RETURNS void AS $$
+DECLARE
+    curr_role user_role;
+BEGIN
+    SELECT role INTO curr_role FROM profiles WHERE id = auth.uid();
+    IF curr_role != 'developer' THEN RAISE EXCEPTION 'Access denied'; END IF;
+
+    DELETE FROM attendance_present;
+    DELETE FROM attendance_absent;
+    DELETE FROM attendance_scans;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function E: Developer Tools - Force Process All
+CREATE OR REPLACE FUNCTION force_process_all_events()
+RETURNS void AS $$
+DECLARE
+    curr_role user_role;
+    r RECORD;
+BEGIN
+    SELECT role INTO curr_role FROM profiles WHERE id = auth.uid();
+    IF curr_role != 'developer' THEN RAISE EXCEPTION 'Access denied'; END IF;
+
+    FOR r IN SELECT event_id FROM events WHERE status = 'completed' LOOP
+        INSERT INTO attendance_absent (member_id, event_id, created_at)
+        SELECT m.member_id, r.event_id, NOW()
+        FROM members m
+        WHERE NOT EXISTS (SELECT 1 FROM attendance_present ap WHERE ap.member_id = m.member_id AND ap.event_id = r.event_id)
+        AND NOT EXISTS (SELECT 1 FROM attendance_absent aa WHERE aa.member_id = m.member_id AND aa.event_id = r.event_id);
+    END LOOP;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+
 -- ============================================
--- 5. ROW LEVEL SECURITY (RLS)
+-- 6. ROW LEVEL SECURITY (RLS)
 -- ============================================
 
--- Enable RLS on all tables
+-- Enable RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
@@ -208,115 +351,50 @@ ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_scans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_present ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_absent ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
--- Helper Function: Check User Role
+-- Helper Function
 CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS user_role AS $$
     SELECT role FROM profiles WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER;
 
--- 5.1 Profiles Policies
-CREATE POLICY "Developers have full access to profiles" 
-ON profiles FOR ALL TO authenticated USING (get_user_role() = 'developer');
+-- Profiles Policies
+CREATE POLICY "Developers have full access to profiles" ON profiles FOR ALL TO authenticated USING (get_user_role() = 'developer');
+CREATE POLICY "Users can view their own profile" ON profiles FOR SELECT TO authenticated USING (auth.uid() = id);
 
-CREATE POLICY "Users can view their own profile" 
-ON profiles FOR SELECT TO authenticated USING (auth.uid() = id);
+-- Groups Policies
+CREATE POLICY "Developer/Admin full access to groups" ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+CREATE POLICY "Staff can view groups" ON groups FOR SELECT TO authenticated USING (get_user_role() = 'staff');
 
--- 5.2 Groups Policies
-CREATE POLICY "Developer/Admin full access to groups"
-ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+-- Members Policies
+CREATE POLICY "Developer/Admin full access to members" ON members FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+CREATE POLICY "Staff can view members" ON members FOR SELECT TO authenticated USING (get_user_role() = 'staff');
 
-CREATE POLICY "Staff can view groups"
-ON groups FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+-- Event Types Policies
+CREATE POLICY "Developer/Admin full access to event_types" ON event_types FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
--- 5.3 Members Policies
-CREATE POLICY "Developer/Admin full access to members"
-ON members FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+-- Events Policies
+CREATE POLICY "Developer/Admin full access to events" ON events FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
-CREATE POLICY "Staff can view members"
-ON members FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+-- Attendance Scans Policies
+CREATE POLICY "Developer/Admin full access to scans" ON attendance_scans FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+CREATE POLICY "Staff can insert scans" ON attendance_scans FOR INSERT TO authenticated WITH CHECK (get_user_role() = 'staff');
+CREATE POLICY "Staff can view scans" ON attendance_scans FOR SELECT TO authenticated USING (get_user_role() = 'staff');
 
--- 5.4 Event Types Policies
-CREATE POLICY "Developer/Admin full access to event_types"
-ON event_types FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
+-- Attendance History Policies
+CREATE POLICY "Developer/Admin full access to history" ON attendance_present FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+CREATE POLICY "Developer/Admin full access to absent history" ON attendance_absent FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
+CREATE POLICY "Staff can view history" ON attendance_present FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+CREATE POLICY "Staff can view absent history" ON attendance_absent FOR SELECT TO authenticated USING (get_user_role() = 'staff');
 
--- 5.5 Events Policies
-CREATE POLICY "Developer/Admin full access to events"
-ON events FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
+-- System Settings Policies
+CREATE POLICY "Everyone can view settings" ON system_settings FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Admins can insert settings" ON system_settings FOR INSERT TO authenticated WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Admins can update settings" ON system_settings FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Developers can delete settings" ON system_settings FOR DELETE TO authenticated USING (get_user_role() = 'developer');
 
--- 5.6 Attendance Scans Policies (The scanning logic)
-CREATE POLICY "Developer/Admin full access to scans"
-ON attendance_scans FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-
-CREATE POLICY "Staff can insert scans"
-ON attendance_scans FOR INSERT TO authenticated WITH CHECK (get_user_role() = 'staff');
-
-CREATE POLICY "Staff can view scans"
-ON attendance_scans FOR SELECT TO authenticated USING (get_user_role() = 'staff');
-
--- 5.7 Attendance History (Present/Absent)
-CREATE POLICY "Developer/Admin full access to history"
-ON attendance_present FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-
-CREATE POLICY "Developer/Admin full access to absent history"
-ON attendance_absent FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-
-CREATE POLICY "Staff can view history"
-ON attendance_present FOR SELECT TO authenticated USING (get_user_role() = 'staff');
-
-CREATE POLICY "Staff can view absent history"
-ON attendance_absent FOR SELECT TO authenticated USING (get_user_role() = 'staff');
-
--- ============================================
--- 6. SYSTEM SETTINGS
--- ============================================
--- A single row table to store global configuration
-CREATE TABLE IF NOT EXISTS system_settings (
-    id INT PRIMARY KEY DEFAULT 1, -- Only one row allowed
-    site_name TEXT DEFAULT 'Scan-in System',
-    primary_color TEXT DEFAULT '#275032',
-    qr_header_title TEXT DEFAULT 'Organization Name',
-    qr_subheader_title TEXT DEFAULT 'Tagline or Subtitle',
-    qr_card_color TEXT DEFAULT '#275032',
-    qr_background_image TEXT DEFAULT '',
-    CONSTRAINT one_row_only CHECK (id = 1)
-);
-
--- Enable RLS for settings
-ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
-
--- Everyone can view settings
-CREATE POLICY "Everyone can view settings"
-ON system_settings FOR SELECT TO authenticated, anon USING (true);
-
--- Only admins/devs/staff can insert
-CREATE POLICY "Admins can insert settings"
-ON system_settings FOR INSERT TO authenticated 
-WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
-
--- Only admins/devs/staff can update
-CREATE POLICY "Admins can update settings"
-ON system_settings FOR UPDATE TO authenticated 
-USING (get_user_role() IN ('developer', 'admin', 'staff'))
-WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
-
--- Only developers can delete (generally shouldn't delete the only row)
-CREATE POLICY "Developers can delete settings"
-ON system_settings FOR DELETE TO authenticated 
-USING (get_user_role() = 'developer');
-
--- Insert default row if not exists
-INSERT INTO system_settings (id, site_name, primary_color, qr_header_title, qr_subheader_title, qr_card_color, qr_background_image)
-VALUES (1, 'Scan-in System', '#275032', 'Organization Name', 'Tagline or Subtitle', '#275032', '')
+-- 7. DEFAULT DATA
+INSERT INTO system_settings (id, site_name, primary_color, timezone)
+VALUES (1, 'Scan-in System', '#275032', 'Asia/Manila')
 ON CONFLICT (id) DO NOTHING;
-
--- ============================================
--- 7. INITIAL SETUP INSTRUCTIONS
--- ============================================
-/*
-  HOW TO SET UP YOUR FIRST DEVELOPER:
-  1. Sign up via the SvelteKit UI or Supabase Dashboard.
-  2. Run the following SQL in the Supabase SQL Editor:
-     
-     UPDATE profiles SET role = 'developer' WHERE email = 'your-email@example.com';
-*/

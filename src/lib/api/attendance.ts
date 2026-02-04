@@ -7,11 +7,30 @@ import type {
 } from '$lib/types';
 
 export const attendanceApi = {
+    /**
+     * Trigger a check to update statuses of all events.
+     * Can be called periodically by the client or lazily before fetching.
+     */
+    async refreshEventStatuses(mockDate?: Date | null) {
+        let payload = {};
+        if (mockDate) {
+            // Adjust to local time string to match naive TIMESTAMP in DB
+            const offset = mockDate.getTimezoneOffset() * 60000;
+            const localIso = new Date(mockDate.getTime() - offset).toISOString().slice(0, -1);
+            payload = { p_now: localIso };
+        }
+        const { error } = await supabase.rpc('update_event_statuses', payload);
+        if (error) console.error("Failed to refresh event statuses:", error);
+    },
+
 	/**
 	 * Get all currently 'ongoing' events.
 	 * Used by the scanner to determine if scanning is allowed.
 	 */
 	async getOngoingEvents() {
+        // Optional: Lazily update statuses before fetching
+        // await attendanceApi.refreshEventStatuses(); 
+        
 		const { data, error } = await supabase
 			.from('events')
 			.select('*')
@@ -41,7 +60,7 @@ export const attendanceApi = {
 	 * 2. Checks if already present in `attendance_present` (history)
 	 * 3. Inserts into `attendance_scans`
 	 */
-	async scanMember(memberId: string, eventId: number) {
+	async scanMember(memberId: string, eventId: number, scanTime?: Date | null) {
 		// 1. Check if already in temporary scans
 		const { data: existingScan, error: scanCheckError } = await supabase
 			.from('attendance_scans')
@@ -73,13 +92,15 @@ export const attendanceApi = {
 		// 3. Insert scan
 		// We use crypto.randomUUID() which is standard in most modern environments
 		const scanId = crypto.randomUUID();
+        const timestamp = scanTime ? scanTime.toISOString() : new Date().toISOString();
+        
 		const { error: insertError } = await supabase
 			.from('attendance_scans')
 			.insert({
 				scan_id: scanId,
 				member_id: memberId,
 				event_id: eventId,
-				scan_datetime: new Date().toISOString()
+				scan_datetime: timestamp
 			});
 
 		if (insertError) throw insertError;

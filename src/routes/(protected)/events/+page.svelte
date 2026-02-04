@@ -13,6 +13,9 @@
 	import { supabase } from "$lib/supabase";
 	import { onMount } from "svelte";
     import FullPageLoading from "$lib/components/full-page-loading.svelte";
+    import { eventTypesApi } from "$lib/api/event_types";
+    import { goto } from "$app/navigation";
+    import { CalendarRange, Settings2 } from "lucide-svelte";
 
 	// Data
 	const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -28,6 +31,27 @@
 
     let isMobile = $state(false);
     let isLoading = $state(true);
+    let isGenerating = $state(false);
+
+    async function handleGenerateEvents() {
+        try {
+            isGenerating = true;
+            const today = new Date();
+            const start = today.toISOString().split('T')[0];
+            const nextMonth = new Date(today);
+            nextMonth.setDate(today.getDate() + 30);
+            const end = nextMonth.toISOString().split('T')[0];
+            
+            const count = await eventTypesApi.generateEvents(start, end);
+            toast.success(`Generated ${count} events for the next 30 days.`);
+            await fetchEvents();
+        } catch (error) {
+            console.error(error);
+            toast.error("Failed to generate events.");
+        } finally {
+            isGenerating = false;
+        }
+    }
 
 	onMount(() => {
         const load = async () => {
@@ -54,50 +78,35 @@
 	});
 
 	async function fetchEvents() {
-		// Fetch both templates and instances
-		const [typesResponse, eventsResponse] = await Promise.all([
-			supabase.from('event_types').select('*'),
-			supabase.from('events').select('*').order('created_at', { ascending: false })
-		]);
+		// Fetch instances only (Templates are managed in /events/types)
+		const { data, error } = await supabase
+            .from('events')
+            .select('*')
+            .order('event_date', { ascending: true }) // Order by date upcoming
+            .order('start_datetime', { ascending: true });
 		
-		if (typesResponse.error || eventsResponse.error) {
+		if (error) {
 			toast.error("Failed to fetch events");
-			console.error(typesResponse.error || eventsResponse.error);
+			console.error(error);
 			return;
 		}
 		
-		// 1. Process Event Types (Recurring Templates)
-		const templates = (typesResponse.data || []).map(row => ({
-			event_id: `template-${row.event_type_id}`, // UI uses event_id for iteration/key
-			db_id: row.event_type_id,
-			name: row.name,
-			type: 'Recurring',
-			schedule: weekdays[row.day_of_week] || 'Unknown',
-			start_time: row.start_time.slice(0, 5),
-			end_time: row.end_time.slice(0, 5),
-			location: row.metadata?.location || '',
-			status: row.is_active ? 'Active' : 'Inactive',
-			is_template: true,
-			_raw: row
-		}));
-
-		// 2. Process Events (Custom/One-time instances)
-		const instances = (eventsResponse.data || []).map(row => ({
+		// Process Events (Custom/One-time instances)
+		events = (data || []).map(row => ({
 			event_id: `instance-${row.event_id}`,
 			db_id: row.event_id,
 			name: row.event_name,
-			type: 'Custom',
+			type: row.event_type_id ? 'Recurring Instance' : 'Custom',
 			schedule: row.metadata?.schedule || 'One-time',
 			event_date: row.event_date,
 			start_time: row.metadata?.start_time || new Date(row.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
 			end_time: row.metadata?.end_time || new Date(row.end_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-			location: row.metadata?.location || '',
+			location: row.metadata?.location || '', // Fixed location mapping
 			status: row.status === 'completed' ? 'Inactive' : 'Active',
 			is_template: false,
+            row_status: row.status, // Keep original status
 			_raw: row
 		}));
-
-		events = [...templates, ...instances];
 	}
 
 	async function toggleActive(id: string) {
@@ -346,10 +355,24 @@
 			<h1 class="hidden sm:block text-2xl md:text-3xl font-bold">Events Management</h1>
 			<p class="hidden sm:block text-muted-foreground mt-1">Manage recurring and custom events for your organization</p>
 		</div>
-		<Button onclick={addEvent} class="w-full sm:w-auto">
-			<Plus class="mr-2 h-4 w-4" />
-			Add New Event
-		</Button>
+		<div class="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+            <Button variant="outline" class="w-full sm:w-auto" onclick={() => goto('/events/types')} disabled={isLoading}>
+                <Settings2 class="w-4 h-4 mr-2" />
+                Templates
+            </Button>
+            <Button variant="outline" class="w-full sm:w-auto" onclick={handleGenerateEvents} disabled={isGenerating || isLoading}>
+                {#if isGenerating}
+                    <Clock class="w-4 h-4 mr-2 animate-spin" />
+                {:else}
+                    <CalendarRange class="w-4 h-4 mr-2" />
+                {/if}
+                Gen 30 Days
+            </Button>
+            <Button onclick={addEvent} class="w-full sm:w-auto">
+                <Plus class="mr-2 h-4 w-4" />
+                Add New Event
+            </Button>
+        </div>
 	</div>
 
 	<!-- Add Event Drawer (Mobile) -->

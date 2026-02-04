@@ -11,6 +11,8 @@
 	import type { AttendanceEvent } from '$lib/types';
     import FullPageLoading from '$lib/components/full-page-loading.svelte';
 
+    import { devTools } from "$lib/stores/dev";
+
     // State
     let liveEvent = $state<any>(null);
     let stats = $state({
@@ -25,7 +27,17 @@
 	onMount(() => {
 		automation.start();
         fetchDashboardData();
-		return () => automation.stop(); // Cleanup
+        
+        // Subscribe to devTools changes to auto-refresh dashboard
+        const unsubscribe = devTools.subscribe(() => {
+             // Debounce slightly to allow backend trigger to finish if it happened simultaneously
+             setTimeout(fetchDashboardData, 500);
+        });
+
+		return () => {
+            automation.stop(); // Cleanup
+            unsubscribe();
+        }
 	});
 
     async function fetchDashboardData() {
@@ -41,6 +53,17 @@
             // 2. Latest Event (Prioritize Ongoing/Upcoming, then fallback to last Completed)
             let currentEventData = null;
 
+            // Trigger status refresh with mock time if needed
+            const mockTime = $devTools.isMockTimeActive && $devTools.mockTime ? $devTools.mockTime : null;
+            if (mockTime) {
+                // Adjust to local time string for naive TIMESTAMP
+                const offset = mockTime.getTimezoneOffset() * 60000;
+                const localIso = new Date(mockTime.getTime() - offset).toISOString().slice(0, -1);
+                await supabase.rpc('update_event_statuses', { p_now: localIso });
+            } else {
+                 await supabase.rpc('update_event_statuses');
+            }
+
             // Try active first
             const { data: activeEvents } = await supabase
                 .from('events')
@@ -51,17 +74,6 @@
             
             if (activeEvents && activeEvents.length > 0) {
                 currentEventData = activeEvents[0];
-            } else {
-                // Fallback to most recent completed
-                const { data: pastEvents } = await supabase
-                    .from('events')
-                    .select('*')
-                    .eq('status', 'completed')
-                    .order('end_datetime', { ascending: false })
-                    .limit(1);
-                if (pastEvents && pastEvents.length > 0) {
-                    currentEventData = pastEvents[0];
-                }
             }
 
             // 3. Process Live/Current Event
@@ -89,6 +101,8 @@
                     isActive: currentEventData.status === 'ongoing' || currentEventData.status === 'upcoming', // Show as 'Active' context
                     status: currentEventData.status
                 };
+            } else {
+                liveEvent = null;
             }
 
             stats = {

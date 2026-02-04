@@ -5,14 +5,44 @@
 	import { Label } from "$lib/components/ui/label";
 	import { Input } from "$lib/components/ui/input";
 	import { Switch } from "$lib/components/ui/switch";
-	import { ChevronLeft, Bell, Moon, Eye, Lock, Database, Palette, Type, Save, QrCode } from "@lucide/svelte";
+    import * as Select from "$lib/components/ui/select";
+    import { Calendar } from "$lib/components/ui/calendar";
+    import * as Popover from "$lib/components/ui/popover";
+    import { type DateValue, DateFormatter, getLocalTimeZone, parseDate, CalendarDate, today } from "@internationalized/date";
+    import { cn } from "$lib/utils";
+	import { ChevronLeft, Bell, Moon, Eye, Lock, Database, Palette, Type, Save, QrCode, Globe, Wrench, CalendarClock, Trash2, RefreshCw, Construction, Calendar as CalendarIcon, Clock } from "@lucide/svelte";
 	import { toast } from "svelte-sonner";
 	import { goto } from "$app/navigation";
 	import { mode } from "mode-watcher";
 	import { systemSettings, loadSettings } from "$lib/stores/settings";
+    import { devTools } from "$lib/stores/dev";
 	import { supabase } from "$lib/supabase";
 	import ColorPicker from 'svelte-awesome-color-picker';
     import { fly } from 'svelte/transition';
+
+    let userRole = $state<string | null>(null);
+    let mockDateStr = $state("");
+    let mockTimeStr = $state("");
+    
+    // Date Picker State
+    let mockDateValue = $state<DateValue | undefined>();
+    const df = new DateFormatter("en-US", {
+        dateStyle: "medium"
+    });
+
+    // Sync from store
+    $effect(() => {
+        if ($devTools.isMockTimeActive && $devTools.mockTime) {
+            const d = $devTools.mockTime;
+            // Format YYYY-MM-DD and HH:MM
+            const isoDate = d.toISOString().split('T')[0];
+            mockDateStr = isoDate;
+            mockTimeStr = d.toTimeString().slice(0, 5);
+             try {
+                mockDateValue = parseDate(isoDate);
+            } catch (e) { }
+        }
+    });
 
 	// Settings state
 	let settings = $state({
@@ -29,6 +59,7 @@
 		// System global settings
 		siteName: $systemSettings.siteName || 'Scan-in System',
 		primaryColor: $systemSettings.primaryColor || '#275032',
+        timezone: $systemSettings.timezone || 'Asia/Manila',
 		qrHeaderTitle: $systemSettings.qrHeaderTitle || 'Organization Name',
 		qrSubheaderTitle: $systemSettings.qrSubheaderTitle || 'Tagline or Subtitle',
 		qrCardColor: $systemSettings.qrCardColor || '#275032',
@@ -75,8 +106,17 @@
 
 		// Load system settings
 		await loadSettings();
+        
+        // Load User Role
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+            const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+            if (data) userRole = data.role;
+        }
+
 		settings.siteName = $systemSettings.siteName;
 		settings.primaryColor = $systemSettings.primaryColor;
+        settings.timezone = $systemSettings.timezone;
 		settings.qrHeaderTitle = $systemSettings.qrHeaderTitle;
 		settings.qrSubheaderTitle = $systemSettings.qrSubheaderTitle;
 		settings.qrCardColor = $systemSettings.qrCardColor;
@@ -109,6 +149,7 @@
 					id: 1, 
 					site_name: settings.siteName, 
 					primary_color: settings.primaryColor,
+                    timezone: settings.timezone,
 					qr_header_title: settings.qrHeaderTitle,
 					qr_subheader_title: settings.qrSubheaderTitle,
 					qr_card_color: settings.qrCardColor,
@@ -156,6 +197,7 @@
 				cacheData: true,
 				siteName: $systemSettings.siteName,
 				primaryColor: $systemSettings.primaryColor,
+                timezone: $systemSettings.timezone,
 				qrHeaderTitle: $systemSettings.qrHeaderTitle,
 				qrSubheaderTitle: $systemSettings.qrSubheaderTitle,
 				qrCardColor: $systemSettings.qrCardColor,
@@ -253,6 +295,61 @@
 			toast.error('Failed to remove image');
 		}
 	}
+
+    // Dev Tools Handlers
+    function applyMockTime() {
+        // use bound values if direct inputs, or sync from Date Picker
+        if (mockDateValue) {
+            mockDateStr = mockDateValue.toString();
+        }
+
+        if (!mockDateStr && !mockTimeStr) {
+            devTools.clearMockTime();
+            toast.success("Mock time cleared. Using real time.");
+            return;
+        }
+        
+        // combine
+        const datePart = mockDateStr || new Date().toISOString().split('T')[0];
+        const timePart = mockTimeStr || "00:00";
+        const combined = new Date(`${datePart}T${timePart}`);
+        
+        if (isNaN(combined.getTime())) {
+            toast.error("Invalid date/time format");
+            return;
+        }
+        
+        devTools.setMockTime(combined);
+        toast.success(`Mock time set to ${combined.toLocaleString()}`);
+    }
+
+    async function runDevTool(tool: 'fix_past' | 'process_all' | 'clear_history') {
+        if (!confirm("Are you sure? This is a developer action.")) return;
+        
+        const toastId = toast.loading("Running tool...");
+        try {
+            if (tool === 'fix_past') {
+                // Calls auto-update status which completes past events
+                const { error } = await supabase.rpc('update_event_statuses');
+                if (error) throw error;
+                toast.success("Past events fixed & completed", { id: toastId });
+            } 
+            else if (tool === 'process_all') {
+                // Force process all completed events (ensure attendance is generated)
+                const { error } = await supabase.rpc('force_process_all_events');
+                if (error) throw error;
+                toast.success("All events processed", { id: toastId });
+            }
+            else if (tool === 'clear_history') {
+                const { error } = await supabase.rpc('clear_attendance_history');
+                if (error) throw error;
+                toast.success("Attendance history wiped", { id: toastId });
+            }
+        } catch(e: any) {
+            console.error(e);
+            toast.error("Tool failed: " + e.message, { id: toastId });
+        }
+    }
 </script>
 
 <div class="flex flex-col gap-6 md:gap-8 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8 max-w-6xl mx-auto">
@@ -310,6 +407,139 @@
 				</div>
 			</CardContent>
 		</Card>
+
+		<!-- Localization Section -->
+		<Card class="lg:col-span-1">
+			<CardHeader class="pb-3">
+				<div class="flex items-center gap-2">
+					<Globe class="h-5 w-5 text-primary shrink-0" />
+					<CardTitle class="text-base sm:text-lg">Localization</CardTitle>
+				</div>
+			</CardHeader>
+			<CardContent class="space-y-4">
+				<div class="space-y-2">
+					<Label class="text-sm sm:text-base font-medium">System Timezone</Label>
+                    <Select.Root type="single" bind:value={settings.timezone}>
+                        <Select.Trigger class="w-full">
+                            {settings.timezone || "Select Timezone"}
+                        </Select.Trigger>
+                        <Select.Content class="max-h-75 overflow-y-auto">
+                            <Select.Group>
+                                <Select.Label>Common</Select.Label>
+                                <Select.Item value="UTC">UTC (Universal Time)</Select.Item>
+                                <Select.Item value="Asia/Manila">Asia/Manila (GMT+8)</Select.Item>
+                                <Select.Item value="America/New_York">America/New_York (EST)</Select.Item>
+                                <Select.Item value="America/Los_Angeles">America/Los_Angeles (PST)</Select.Item>
+                                <Select.Item value="Europe/London">Europe/London (GMT)</Select.Item>
+                                <Select.Item value="Asia/Tokyo">Asia/Tokyo (JST)</Select.Item>
+                                <Select.Item value="Australia/Sydney">Australia/Sydney (AEST)</Select.Item>
+                            </Select.Group>
+                        </Select.Content>
+                    </Select.Root>
+					<p class="text-xs sm:text-sm text-muted-foreground">This timezone will be applied to all event schedules and attendance records.</p>
+				</div>
+                
+                <div class="rounded-lg bg-yellow-500/10 p-3 border border-yellow-500/20 text-xs text-yellow-600 dark:text-yellow-400">
+                    <span class="font-bold">Note:</span> Changing timezone affects how event times are displayed globally.
+                </div>
+			</CardContent>
+		</Card>
+
+        <!-- Developer Section (Hidden for normal users) -->
+        {#if userRole === 'developer'}
+        <Card class="lg:col-span-2 border-orange-500/30 bg-orange-500/5">
+            <CardHeader class="pb-3 border-b border-orange-500/10 mb-4">
+                <div class="flex items-center gap-2">
+                    <Construction class="h-5 w-5 text-orange-600 dark:text-orange-400 shrink-0" />
+                    <CardTitle class="text-base sm:text-lg text-orange-700 dark:text-orange-300">Developer Tools</CardTitle>
+                </div>
+            </CardHeader>
+            <CardContent class="space-y-6">
+                
+                <!-- Mock Time -->
+                <div class="space-y-3">
+                    <div class="flex items-center gap-2 text-sm font-bold text-foreground/80">
+                        <CalendarClock class="w-4 h-4" /> Mock Date & Time
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        <div class="space-y-1 flex flex-col">
+                            <Label class="text-xs text-muted-foreground mb-1">Mock Date</Label>
+                            <Popover.Root>
+                                <Popover.Trigger>
+                                    {#snippet child({ props })}
+                                        <Button
+                                            variant="outline"
+                                            class={cn(
+                                                "w-full justify-start text-left font-normal",
+                                                !mockDateValue && "text-muted-foreground"
+                                            )}
+                                            {...props}
+                                        >
+                                            <CalendarIcon class="mr-2 h-4 w-4" />
+                                            {mockDateValue ? df.format(mockDateValue.toDate(getLocalTimeZone())) : "Pick a date"}
+                                        </Button>
+                                    {/snippet}
+                                </Popover.Trigger>
+                                <Popover.Content class="w-auto p-0" align="start">
+                                    <Calendar type="single" bind:value={mockDateValue} initialFocus />
+                                </Popover.Content>
+                            </Popover.Root>
+                        </div>
+                        <div class="space-y-1">
+                            <Label class="text-xs text-muted-foreground">Mock Time</Label>
+                            <div class="relative">
+                                <Input type="time" bind:value={mockTimeStr} class="bg-card pl-10" />
+                                <Clock class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                            </div>
+                        </div>
+                        <div class="flex items-end gap-2">
+                            <Button size="sm" class="flex-1 bg-green-600 hover:bg-green-700 text-white" onclick={applyMockTime}>Apply</Button>
+                            <Button size="sm" variant="outline" onclick={() => { mockDateStr=""; mockDateValue=undefined; mockTimeStr=""; applyMockTime(); }}>Reset</Button>
+                        </div>
+                    </div>
+                    <p class="text-[11px] text-muted-foreground">If set, the app will simulate this time for client-side logic (e.g. scanner validation). Does not affect server time.</p>
+                </div>
+
+                <div class="h-px bg-orange-500/10 w-full"></div>
+
+                <!-- DB Tools -->
+                 <div class="space-y-3">
+                    <div class="flex items-center gap-2 text-sm font-bold text-foreground/80">
+                        <Wrench class="w-4 h-4" /> Database Testing Tools
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <Button 
+                            variant="default" 
+                            class="bg-orange-600 hover:bg-orange-700 text-white border-none h-auto py-3 flex flex-col gap-1 items-start"
+                            onclick={() => runDevTool('fix_past')}
+                        >
+                            <div class="flex items-center gap-2 font-bold"><Wrench class="w-4 h-4" /> Fix Past Events</div>
+                            <span class="text-[10px] opacity-80 font-normal text-left">Update past events to "completed" and process attendance.</span>
+                        </Button>
+
+                        <Button 
+                            variant="default" 
+                            class="bg-blue-600 hover:bg-blue-700 text-white border-none h-auto py-3 flex flex-col gap-1 items-start"
+                            onclick={() => runDevTool('process_all')}
+                        >
+                            <div class="flex items-center gap-2 font-bold"><RefreshCw class="w-4 h-4" /> Process All Events</div>
+                             <span class="text-[10px] opacity-80 font-normal text-left">Force re-process attendance for all completed events.</span>
+                        </Button>
+
+                        <Button 
+                            variant="default" 
+                            class="bg-red-600 hover:bg-red-700 text-white border-none h-auto py-3 flex flex-col gap-1 items-start"
+                            onclick={() => runDevTool('clear_history')}
+                        >
+                            <div class="flex items-center gap-2 font-bold"><Trash2 class="w-4 h-4" /> Clear History</div>
+                             <span class="text-[10px] opacity-80 font-normal text-left">Permanently delete all attendance history.</span>
+                        </Button>
+                    </div>
+                 </div>
+
+            </CardContent>
+        </Card>
+        {/if}
 
 		<!-- Notifications Section -->
 		<Card class="lg:col-span-1">

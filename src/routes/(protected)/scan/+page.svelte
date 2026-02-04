@@ -12,6 +12,7 @@
     import { supabase } from '$lib/supabase';
 	import type { AttendanceEvent } from '$lib/types';
     import { Html5Qrcode } from "html5-qrcode";
+    import { devTools } from "$lib/stores/dev";
 
     let manualId = $state("");
     let lastScanned = $state<{ id: string, name: string, timestamp: string } | null>(null);
@@ -37,10 +38,18 @@
     /* Search State */
     let searchResults = $state<{ member_id: string, first_name: string, last_name: string }[]>([]);
 
-    onMount(async () => {
-        await loadActiveEvent();
+    onMount(() => {
+        loadActiveEvent();
         document.addEventListener('fullscreenchange', handleFullscreenChange);
         document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        
+        // Poll for event updates every 30 seconds
+        const interval = setInterval(() => loadActiveEvent(true), 30000);
+        return () => {
+             clearInterval(interval);
+             document.removeEventListener('fullscreenchange', handleFullscreenChange);
+             document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+        };
     });
 
     function handleFullscreenChange() {
@@ -49,25 +58,68 @@
         }
     }
 
-    async function loadActiveEvent() {
-        isLoading = true;
+    async function loadActiveEvent(silent = false) {
+        if (!silent) isLoading = true;
         try {
+            // Trigger backend status update (Lazy Load approach)
+            // This ensures if an event just ended 1 second ago, the DB is updated before we fetch
+            // Pass Mock Time if active
+            const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
+            await attendanceApi.refreshEventStatuses(mockTime);
+
             // 1. Try Ongoing
             const ongoing = await attendanceApi.getOngoingEvents();
+            
+            // Check for event transitions
             if (ongoing && ongoing.length > 0) {
-                activeEvent = ongoing[0]; // Pick first active
+                const newEvent = ongoing[0];
+                
+                // If we switched events (A -> B), clear local state
+                if (activeEvent && activeEvent.event_id !== newEvent.event_id) {
+                     toast.info(`Event changed to: ${newEvent.event_name}`);
+                     recentScans = []; // Clear scans
+                     batchList = [];   // Clear manual batch
+                     manualId = "";
+                }
+                
+                activeEvent = newEvent; 
             } else {
+                // No ongoing found.
+                // If we previously had an active event, it implies it ended.
+                if (activeEvent) {
+                     toast.warning("Event has ended.");
+                     recentScans = [];
+                     batchList = [];
+                     activeEvent = null;
+                }
+                
                 // 2. Try Upcoming (next 2 hours?)
                 const upcoming = await attendanceApi.getUpcomingEvents();
                 if (upcoming && upcoming.length > 0) {
                     activeEvent = upcoming[0];
                 }
             }
+            
+            // Check for Time Expiry (Client-side enforcement)
+            if (activeEvent && activeEvent.status === 'ongoing') {
+                 const endDate = new Date(activeEvent.end_datetime);
+                 const now = $devTools.isMockTimeActive && $devTools.mockTime ? $devTools.mockTime : new Date();
+                 if (now > endDate) {
+                     // Time is up!
+                     toast.warning("Event time has ended.");
+                     recentScans = []; // Clear old scans
+                     // We don't nullify activeEvent immediately to allow for grace period / manual stop, 
+                     // OR we can nullify it if strict. 
+                     // User said: "terminate recent scans... no more recent scan since event has ended"
+                     // So let's force strict clearing.
+                 }
+            }
+            
         } catch (e) {
             console.error(e);
-            toast.error("Failed to load active event");
+            if (!silent) toast.error("Failed to load active event");
         } finally {
-            isLoading = false;
+            if (!silent) isLoading = false;
         }
     }
 
@@ -217,10 +269,11 @@
             const fullName = `${member.first_name} ${member.last_name}`;
 
             // 2. Perform Scan
-            await attendanceApi.scanMember(id, activeEvent.event_id);
+            const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
+            await attendanceApi.scanMember(id, activeEvent.event_id, mockTime);
 
             // 3. Success UI
-            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const time = (mockTime || new Date()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             
             lastScanned = {
                 id: id,
@@ -338,14 +391,15 @@
         
         const toastId = toast.loading(`Checking in ${batchList.length} members...`);
         let successCount = 0;
+        const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
         
         for (const m of batchList) {
             try {
-                 await attendanceApi.scanMember(m.id, activeEvent.event_id);
+                 await attendanceApi.scanMember(m.id, activeEvent.event_id, mockTime);
                  successCount++;
                  
                  // Add to recent scans for record
-                 const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                 const time = (mockTime || new Date()).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
                   // Add to local list if not already there
                 if (!recentScans.find(s => s.id === m.id)) {
                     recentScans = [{ id: m.id, name: m.name, time }, ...recentScans];
@@ -463,7 +517,7 @@
     <!-- Camera Scan card -->
     <div 
         bind:this={scannerContainer}
-        class={isFullscreen ? "fixed inset-0 z-[100] bg-black flex flex-col justify-center items-center" : "rounded-2xl border-2 border-dashed border-border/40 overflow-hidden relative min-h-[300px] flex flex-col justify-center"}
+        class={isFullscreen ? "fixed inset-0 z-100 bg-black flex flex-col justify-center items-center" : "rounded-2xl border-2 border-dashed border-border/40 overflow-hidden relative min-h-75 flex flex-col justify-center"}
     >
         
         {#if !isScanning}

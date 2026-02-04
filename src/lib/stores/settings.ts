@@ -5,6 +5,7 @@ import { browser } from '$app/environment';
 export const systemSettings = writable({
     siteName: 'Scan-in System',
     primaryColor: '#275032', // Default green
+    timezone: 'Asia/Manila',
     qrHeaderTitle: 'Organization Name',
     qrSubheaderTitle: 'Tagline or Subtitle',
     qrCardColor: '#275032',
@@ -30,6 +31,7 @@ export const loadSettings = async () => {
             systemSettings.set({
                 siteName: data.site_name,
                 primaryColor: data.primary_color,
+                timezone: data.timezone || 'Asia/Manila',
                 qrHeaderTitle: data.qr_header_title,
                 qrSubheaderTitle: data.qr_subheader_title,
                 qrCardColor: data.qr_card_color,
@@ -47,6 +49,7 @@ export const loadSettings = async () => {
 export const applySettings = (settings: { 
     site_name: string, 
     primary_color: string,
+    timezone?: string,
     qr_header_title: string,
     qr_subheader_title: string,
     qr_card_color: string,

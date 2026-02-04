@@ -14,17 +14,8 @@ export class AutomationEngine {
 	start() {
 		console.log('🔄 Automation Engine Started');
 
-		// 1. Event Creation (Every 5 mins)
-		this.runEventCreationJob(); // Run immediately
-		this.creationIntervalId = setInterval(() => this.runEventCreationJob(), 5 * 60 * 1000);
-
-		// 2. Status Updates (Every 1 min)
-		this.runStatusUpdateJob(); // Run immediately
-		this.statusIntervalId = setInterval(() => this.runStatusUpdateJob(), 1 * 60 * 1000);
-
-		// 3. Archival Process (Every 2 mins)
-		this.runArchivalJob(); // Run immediately
-		this.archivalIntervalId = setInterval(() => this.runArchivalJob(), 2 * 60 * 1000);
+		// 1. Event Creation (Client-side generation removed in favor of manual/server batches)
+        // Kept empty to prevent unintended local generation conflicts with the new recurring logic
 	}
 
 	stop() {
