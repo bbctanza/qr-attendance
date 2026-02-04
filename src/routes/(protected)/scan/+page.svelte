@@ -74,8 +74,54 @@
 	/* Manual Batch Check-in */
 	let batchList = $state<{ id: string; name: string }[]>([]);
 
+	/* Batch Selection Mode */
+	let isSelectionMode = $state(false);
+	let selectedBatchIndices = $state<Set<number>>(new Set());
+
 	/* Search State */
 	let searchResults = $state<{ member_id: string; first_name: string; last_name: string }[]>([]);
+
+	// Batch Selection Mode Handlers
+	function enterSelectionMode(index: number) {
+		isSelectionMode = true;
+		selectedBatchIndices = new Set([index]);
+	}
+
+	function toggleBatchSelection(index: number) {
+		const newSet = new Set(selectedBatchIndices);
+		if (newSet.has(index)) {
+			newSet.delete(index);
+			if (newSet.size === 0) {
+				isSelectionMode = false;
+			}
+		} else {
+			newSet.add(index);
+		}
+		selectedBatchIndices = newSet;
+	}
+
+	function exitSelectionMode() {
+		isSelectionMode = false;
+		selectedBatchIndices = new Set();
+	}
+
+	function deleteSelectedMembers() {
+		const indices = Array.from(selectedBatchIndices).sort((a, b) => b - a);
+		for (const i of indices) {
+			batchList.splice(i, 1);
+		}
+		batchList = batchList;
+		exitSelectionMode();
+		toast.success(`Removed ${indices.length} member(s)`);
+	}
+
+	async function moveSelectedToGroup(newGroupId: string) {
+		// This would require a backend call to update member grouping
+		// For now, just show a placeholder implementation
+		const count = selectedBatchIndices.size;
+		toast.success(`Moved ${count} member(s) to selected group`);
+		exitSelectionMode();
+	}
 
 	onMount(() => {
 		loadActiveEvent();
@@ -632,11 +678,11 @@
 	);
 
 	// Toggle a class on <body> to hide the mobile nav when items are selected (use $effect in runes mode)
-	// Updated: Hide nav if Pending Batch List > 0 OR Fullscreen
+	// Updated: Hide nav if Pending Batch List > 0 OR Fullscreen OR in Selection Mode
 	$effect(() => {
 		if (typeof document === 'undefined') return;
 
-		if (batchList.length > 0 || isFullscreen) {
+		if (batchList.length > 0 || isFullscreen || isSelectionMode) {
 			document.body.classList.add('hide-mobile-nav');
 		} else {
 			document.body.classList.remove('hide-mobile-nav');
@@ -875,40 +921,125 @@
 		<div class="mt-4 mb-28 space-y-3">
 			<div class="flex items-center justify-between px-1">
 				<div class="text-xs font-black tracking-widest text-muted-foreground uppercase">
-					SELECTED ({batchList.length})
+					{#if isSelectionMode}
+						SELECTED ({selectedBatchIndices.size})
+					{:else}
+						SELECTED ({batchList.length})
+					{/if}
 				</div>
-				<button
-					class="text-xs font-bold text-primary transition-colors hover:text-primary/80"
-					onclick={() => (batchList = [])}>Clear all</button
-				>
+				<div class="flex gap-2 items-center">
+					{#if isSelectionMode}
+						<button
+							class="p-1 hover:bg-muted rounded transition-colors"
+							onclick={exitSelectionMode}
+							aria-label="Exit selection mode"
+						>
+							<X class="h-4 w-4 text-muted-foreground" />
+						</button>
+					{:else}
+						<button
+							class="text-xs font-bold text-primary transition-colors hover:text-primary/80"
+							onclick={() => (batchList = [])}>Clear all</button
+						>
+					{/if}
+				</div>
 			</div>
 
 			<div class="flex flex-col gap-2">
 				{#each batchList as item, i}
 					<div
-						class="group relative flex items-center gap-3 rounded-xl border border-border/40 bg-card/50 p-3"
+						class="group relative flex items-center gap-3 rounded-xl border-2 p-3 transition-all cursor-pointer select-none {isSelectionMode && selectedBatchIndices.has(i)
+							? 'border-primary bg-primary/5'
+							: 'border-border/40 bg-card/50 hover:border-border/60'}"
+						role="button"
+						tabindex="0"
+						oncontextmenu={(e) => {
+							e.preventDefault();
+							console.log('Context menu / long-press on item', i, 'isSelectionMode:', isSelectionMode);
+							if (isSelectionMode) {
+								// In selection mode, toggle the selection
+								toggleBatchSelection(i);
+								console.log('Selection toggled for item', i);
+							} else {
+								// Not in selection mode, activate it
+								console.log('Activating selection mode for item', i);
+								enterSelectionMode(i);
+								toast.success('Selection mode activated. Long-press to select/deselect.');
+								// Haptic feedback
+								if (navigator.vibrate) {
+									navigator.vibrate([50, 100, 50]);
+								}
+							}
+						}}
+						onclick={(e) => {
+							console.log('Click on item', i, 'isSelectionMode:', isSelectionMode);
+							if (isSelectionMode) {
+								e.stopPropagation();
+								toggleBatchSelection(i);
+								console.log('Selection toggled for item', i);
+							}
+						}}
 					>
-						<Avatar class="h-10 w-10 border border-border/20">
+						{#if isSelectionMode}
+							<div
+								class="flex h-5 w-5 items-center justify-center rounded border-2 pointer-events-none {selectedBatchIndices.has(i)
+									? 'border-primary bg-primary'
+									: 'border-muted-foreground/30 bg-transparent'}"
+							>
+								{#if selectedBatchIndices.has(i)}
+									<CheckCircle2 class="h-4 w-4 text-white" />
+								{/if}
+							</div>
+						{/if}
+
+						<Avatar class="h-10 w-10 border border-border/20 pointer-events-none {isSelectionMode ? 'opacity-75' : ''}">
 							<AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${item.name}`} />
 							<AvatarFallback class="bg-primary/20 text-xs font-bold text-primary"
 								>{item.name.substring(0, 2).toUpperCase()}</AvatarFallback
 							>
 						</Avatar>
 
-						<div class="min-w-0 flex-1">
+						<div class="min-w-0 flex-1 pointer-events-none">
 							<div class="truncate text-sm font-bold text-foreground">{item.name}</div>
 							<div class="font-mono text-xs text-muted-foreground">ID: {item.id}</div>
 						</div>
 
-						<button
-							class="hover:text-destructive-foreground flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-muted-foreground transition-colors hover:bg-destructive"
-							onclick={() => removeFromBatch(i)}
-						>
-							<X class="h-4 w-4" />
-						</button>
+						{#if !isSelectionMode}
+							<button
+								class="hover:text-destructive-foreground flex h-8 w-8 items-center justify-center rounded-full bg-muted/50 text-muted-foreground transition-colors hover:bg-destructive"
+								onclick={() => removeFromBatch(i)}
+							>
+								<X class="h-4 w-4" />
+							</button>
+						{/if}
 					</div>
 				{/each}
 			</div>
+
+			<!-- Selection Mode Action Buttons -->
+			{#if isSelectionMode && selectedBatchIndices.size > 0}
+				<div class="flex gap-2 pt-2">
+					<Button
+						variant="destructive"
+						size="sm"
+						class="flex-1"
+						onclick={deleteSelectedMembers}
+					>
+						<X class="mr-1 h-4 w-4" /> Delete ({selectedBatchIndices.size})
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						class="flex-1"
+						onclick={() => {
+							// TODO: Show group selection modal
+							toast.info('Group assignment feature coming soon');
+						}}
+					>
+						<MapPinIcon class="mr-1 h-4 w-4" /> Move Group
+					</Button>
+				</div>
+			{/if}
 		</div>
 
 		<!-- Floating Save Button -->
