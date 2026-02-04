@@ -2,6 +2,7 @@
 	import { Button } from "$lib/components/ui/button";
 	import { Card, CardContent, CardHeader, CardTitle } from "$lib/components/ui/card";
 	import { Switch } from "$lib/components/ui/switch";
+	import { Badge } from "$lib/components/ui/badge";
 	import { Calendar, Clock, MapPin, Edit, Trash2, Plus, Check } from "@lucide/svelte";
 	import { toast } from "svelte-sonner";
 	import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerFooter } from "$lib/components/ui/drawer";
@@ -19,45 +20,44 @@
 
 	// Data
 	const weekdays = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-	let events = $state<any[]>([]);
-	let totalEvents = $derived(events.length);
-	let activeEvents = $derived(events.filter(e => e.status === 'Active').length);
-	let inactiveEvents = $derived(events.filter(e => e.status !== 'Active').length);
-
-	// Computed lists for the UI
-	let recurringEvents = $derived(events.filter(e => e.type === 'Recurring'));
-	let customEvents = $derived(events.filter(e => e.type === 'Custom' || (e.type === 'One-time' && new Date(e.event_date) >= new Date())));
-	let pastEvents = $derived(events.filter(e => e.type === 'One-time' && new Date(e.event_date) < new Date()));
+	let recurringEventTypes = $state<any[]>([]);
+	let upcomingCustomEvents = $state<any[]>([]);
+	let allCustomEvents = $state<any[]>([]);
+	let pastCustomEvents = $derived(allCustomEvents.filter(e => e.row_status === 'completed'));
+	let totalEvents = $derived(recurringEventTypes.length + upcomingCustomEvents.length);
+	let activeRecurring = $derived(recurringEventTypes.filter(e => e.is_active).length);
+	let inactiveRecurring = $derived(recurringEventTypes.filter(e => !e.is_active).length);
 
     let isMobile = $state(false);
     let isLoading = $state(true);
-    let isGenerating = $state(false);
 
-    async function handleGenerateEvents() {
-        try {
-            isGenerating = true;
-            const today = new Date();
-            const start = today.toISOString().split('T')[0];
-            const nextMonth = new Date(today);
-            nextMonth.setDate(today.getDate() + 30);
-            const end = nextMonth.toISOString().split('T')[0];
-            
-            const count = await eventTypesApi.generateEvents(start, end);
-            toast.success(`Generated ${count} events for the next 30 days.`);
-            await fetchEvents();
-        } catch (error) {
-            console.error(error);
-            toast.error("Failed to generate events.");
-        } finally {
-            isGenerating = false;
-        }
-    }
+	function formatTime(dateString: string): string {
+		const date = new Date(dateString);
+		const use12HourFormat = localStorage.getItem('time_format') === '12h';
+		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: use12HourFormat });
+	}
 
 	onMount(() => {
         const load = async () => {
             isLoading = true;
             try {
-                await fetchEvents();
+                // Auto-generate recurring events for only the next 7 days (1 week)
+                const today = new Date();
+                const nextWeek = new Date(today);
+                nextWeek.setDate(today.getDate() + 7);
+                
+                const startDate = today.toISOString().split('T')[0];
+                const endDate = nextWeek.toISOString().split('T')[0];
+                
+                try {
+                    const count = await eventTypesApi.generateEvents(startDate, endDate);
+                    if (count > 0) console.log(`Generated ${count} recurring events for next week`);
+                } catch (genError) {
+                    console.error('Failed to generate recurring events:', genError);
+                    // Continue anyway - don't block the page
+                }
+                
+                await fetchData();
             } finally {
                 isLoading = false;
             }
@@ -77,75 +77,128 @@
         }
 	});
 
-	async function fetchEvents() {
-		// Fetch instances only (Templates are managed in /events/types)
-		const { data, error } = await supabase
-            .from('events')
+	async function fetchData() {
+		// 1. Fetch recurring event types
+		const { data: types, error: typesError } = await supabase
+            .from('event_types')
             .select('*')
-            .order('event_date', { ascending: true }) // Order by date upcoming
-            .order('start_datetime', { ascending: true });
+            .order('day_of_week', { ascending: true })
+            .order('start_time', { ascending: true });
 		
-		if (error) {
-			toast.error("Failed to fetch events");
-			console.error(error);
+		if (typesError) {
+			toast.error("Failed to fetch event types");
+			console.error(typesError);
 			return;
 		}
-		
-		// Process Events (Custom/One-time instances)
-		events = (data || []).map(row => ({
-			event_id: `instance-${row.event_id}`,
-			db_id: row.event_id,
-			name: row.event_name,
-			type: row.event_type_id ? 'Recurring Instance' : 'Custom',
-			schedule: row.metadata?.schedule || 'One-time',
-			event_date: row.event_date,
-			start_time: row.metadata?.start_time || new Date(row.start_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-			end_time: row.metadata?.end_time || new Date(row.end_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-			location: row.metadata?.location || '', // Fixed location mapping
-			status: row.status === 'completed' ? 'Inactive' : 'Active',
-			is_template: false,
-            row_status: row.status, // Keep original status
+
+		// Process event types into UI format
+		recurringEventTypes = (types || []).map(row => ({
+			event_id: `type-${row.event_type_id}`,
+			db_id: row.event_type_id,
+			name: row.name,
+			type: 'Recurring',
+			day_of_week: row.day_of_week,
+			day_name: weekdays[row.day_of_week],
+			start_time: row.start_time,
+			end_time: row.end_time,
+			start_time_formatted: formatTime(`2000-01-01T${row.start_time}`),
+			end_time_formatted: formatTime(`2000-01-01T${row.end_time}`),
+			is_active: row.is_active,
+			status: row.is_active ? 'Active' : 'Inactive',
+			is_template: true,
 			_raw: row
 		}));
+
+		// 2. Fetch custom events (event_type_id IS NULL) - both upcoming and completed
+		const { data: customEvents, error: customError } = await supabase
+            .from('events')
+            .select('*')
+            .is('event_type_id', null)
+            .order('event_date', { ascending: true })
+            .order('start_datetime', { ascending: true });
+		
+		if (customError) {
+			toast.error("Failed to fetch custom events");
+			console.error(customError);
+			return;
+		}
+
+		// Process all custom events
+		allCustomEvents = (customEvents || []).map(row => ({
+			event_id: `custom-${row.event_id}`,
+			db_id: row.event_id,
+			name: row.event_name,
+			type: 'Custom',
+			event_date: row.event_date,
+			start_time: formatTime(row.start_datetime),
+			end_time: formatTime(row.end_datetime),
+			location: row.metadata?.location || '',
+			status: row.status === 'completed' ? 'Inactive' : 'Active',
+			is_template: false,
+            row_status: row.status,
+			_raw: row
+		}));
+
+		// Separate upcoming from all custom events
+		upcomingCustomEvents = allCustomEvents.filter(e => e.row_status !== 'completed');
 	}
 
 	async function toggleActive(id: string) {
-		const event = events.find(e => e.event_id === id);
-		if (!event) return;
+		const isRecurring = id.startsWith('type-');
+		
+		if (isRecurring) {
+			const eventType = recurringEventTypes.find(e => e.event_id === id);
+			if (!eventType) return;
 
-		if (event.is_template) {
-			const newStatus = event.status === 'Active' ? false : true;
+			const newStatus = !eventType.is_active;
 			const { error } = await supabase
 				.from('event_types')
 				.update({ is_active: newStatus })
-				.eq('event_type_id', event.db_id);
+				.eq('event_type_id', eventType.db_id);
 
 			if (error) { toast.error("Failed to update status"); return; }
-			toast.success(`"${event.name}" template has been ${newStatus ? 'activated' : 'deactivated'}`);
+			toast.success(`"${eventType.name}" has been ${newStatus ? 'activated' : 'deactivated'}`);
 		} else {
-			const newStatus = event.status === 'Active' ? 'completed' : 'upcoming';
+			const customEvent = upcomingCustomEvents.find(e => e.event_id === id);
+			if (!customEvent) return;
+
+			// Check if trying to deactivate an ongoing event
+			if (customEvent.row_status === 'ongoing' && customEvent.status === 'Active') {
+				toast.error("Cannot deactivate an ongoing event. Delete it instead.");
+				return;
+			}
+
+			const newStatus = customEvent.status === 'Active' ? 'completed' : 'upcoming';
 			const { error } = await supabase
 				.from('events')
 				.update({ status: newStatus })
-				.eq('event_id', event.db_id);
+				.eq('event_id', customEvent.db_id);
 
 			if (error) { toast.error("Failed to update status"); return; }
-			toast.success(`"${event.name}" instance has been ${newStatus === 'completed' ? 'deactivated' : 'activated'}`);
+			toast.success(`"${customEvent.name}" has been ${newStatus === 'completed' ? 'deactivated' : 'activated'}`);
 		}
 		
-		fetchEvents();
+		fetchData();
 	}
 
 	let isEditing = $state(false);
 	let editingId: string | null = $state(null);
 
 	function editEvent(id: string) {
-		const e = events.find(event => event.event_id === id);
+		// Find in recurring event types or custom events
+		let e = recurringEventTypes.find(event => event.event_id === id);
+		
+		if (!e) {
+			e = upcomingCustomEvents.find(event => event.event_id === id);
+		}
+
 		if (!e) return;
 
 		const raw = e._raw;
+		isEditing = true;
+		editingId = id;
 
-		if (e.is_template) {
+		if (e.type === 'Recurring') {
 			newEvent = {
 				name: raw.name,
 				type: 'recurring',
@@ -161,11 +214,11 @@
 		} else {
 			newEvent = {
 				name: e.name,
-				type: raw.is_custom ? 'custom' : 'recurring',
-				schedule: raw.metadata?.ui_schedule_type || (raw.is_custom ? 'one-time' : 'weekly'),
-				days: raw.metadata?.days || [],
-				monthlyOrdinal: raw.metadata?.monthlyOrdinal || 'First',
-				monthlyWeekday: raw.metadata?.monthlyWeekday || 'Monday',
+				type: 'custom',
+				schedule: 'one-time',
+				days: [],
+				monthlyOrdinal: 'First',
+				monthlyWeekday: 'Monday',
 				date: e.event_date || '',
 				startTime: e.start_time || '',
 				endTime: e.end_time || '',
@@ -173,30 +226,76 @@
 			};
 		}
 
-		isEditing = true;
-		editingId = id;
 		showAddEventDialog = true;
 	}
 
 	async function deleteEvent(id: string) {
-		const event = events.find(e => e.event_id === id);
-		if (!event || !confirm(`Are you sure you want to delete this ${event.is_template ? 'template' : 'event'}?`)) return;
+		const customEvent = upcomingCustomEvents.find(e => e.event_id === id);
+		if (!customEvent) return;
 
-		const table = event.is_template ? 'event_types' : 'events';
-		const column = event.is_template ? 'event_type_id' : 'event_id';
+		// Check if event has attendance scans
+		const { count: scanCount } = await supabase
+			.from('attendance_scans')
+			.select('*', { count: 'exact', head: true })
+			.eq('event_id', customEvent.db_id);
 
-		const { error } = await supabase
-			.from(table)
-			.delete()
-			.eq(column, event.db_id);
-
-		if (error) {
-			toast.error("Failed to delete");
+		if (scanCount && scanCount > 0) {
+			toast.error("Cannot delete events with attendance records. Archive them instead.");
 			return;
 		}
 
-		toast.success(event.is_template ? "Template deleted" : "Event instance deleted");
-		fetchEvents();
+		// Only allow deletion of upcoming custom events
+		if (customEvent.row_status !== 'upcoming') {
+			toast.error("Can only delete upcoming events.");
+			return;
+		}
+
+		if (!confirm(`Delete this custom event: "${customEvent.name}"?`)) return;
+
+		// Delete associated attendance scans first
+		const { error: scansError } = await supabase
+			.from('attendance_scans')
+			.delete()
+			.eq('event_id', customEvent.db_id);
+
+		if (scansError) {
+			console.error('Error deleting attendance scans:', scansError);
+			// Continue with event deletion anyway
+		}
+
+		// Delete the event
+		const { error } = await supabase
+			.from('events')
+			.delete()
+			.eq('event_id', customEvent.db_id);
+
+		if (error) {
+			toast.error("Failed to delete event");
+			console.error(error);
+			return;
+		}
+
+		toast.success("Event deleted successfully");
+		fetchData();
+	}
+
+	async function toggleRecurringActive(id: string) {
+		const eventType = recurringEventTypes.find(e => e.event_id === id);
+		if (!eventType) return;
+
+		const newStatus = !eventType.is_active;
+		const { error } = await supabase
+			.from('event_types')
+			.update({ is_active: newStatus })
+			.eq('event_type_id', eventType.db_id);
+
+		if (error) {
+			toast.error("Failed to toggle event type");
+			return;
+		}
+
+		toast.success(`Event type ${newStatus ? 'activated' : 'deactivated'}`);
+		fetchData();
 	}
 
 	// Add Event Dialog State
@@ -258,7 +357,7 @@
 			return;
 		}
 
-		if (!newEvent.startTime || !newEvent.endTime) {
+		if (!newEvent.startTime?.trim() || !newEvent.endTime?.trim()) {
 			toast.error('Please enter start and end times');
 			return;
 		}
@@ -272,9 +371,9 @@
 		
 		const metadata = {
 			schedule: scheduleLabel,
-			location: newEvent.location,
-			start_time: newEvent.startTime,
-			end_time: newEvent.endTime,
+			location: newEvent.location.trim(),
+			start_time: newEvent.startTime.trim(),
+			end_time: newEvent.endTime.trim(),
 			ui_schedule_type: newEvent.schedule,
 			days: newEvent.days,
 			monthlyOrdinal: newEvent.monthlyOrdinal,
@@ -292,10 +391,10 @@
                 
                 for (const day of daysToCreate) {
                     const typePayload = {
-                        name: newEvent.name,
+                        name: newEvent.name.trim(),
                         day_of_week: dayMap[day],
-                        start_time: newEvent.startTime,
-                        end_time: newEvent.endTime,
+                        start_time: newEvent.startTime.trim(),
+                        end_time: newEvent.endTime.trim(),
                         is_active: true,
                         metadata
                     };
@@ -314,10 +413,10 @@
             } else {
                 // One-time or Monthly (Monthly not fully supported by event_types schema yet, so treat as custom instance for now)
                 const payload = {
-                    event_name: newEvent.name,
+                    event_name: newEvent.name.trim(),
                     event_date: baseDate,
-                    start_datetime: new Date(`${baseDate}T${newEvent.startTime}`).toISOString(),
-                    end_datetime: new Date(`${baseDate}T${newEvent.endTime}`).toISOString(),
+                    start_datetime: new Date(`${baseDate}T${newEvent.startTime.trim()}`).toISOString(),
+                    end_datetime: new Date(`${baseDate}T${newEvent.endTime.trim()}`).toISOString(),
                     status: 'upcoming' as const,
                     is_custom: true,
                     metadata
@@ -335,11 +434,12 @@
             }
 
             showAddEventDialog = false;
-            fetchEvents();
+            await fetchData();
+            location.reload();
 
         } catch (err: any) {
             console.error("Save Event Error:", err);
-            toast.error(`Error saving event: ${err.message || 'Unknown error'}`);
+            toast.error(`Error saving event: ${err.message || err.details || 'Unknown error'}`);
         }
 	}
 </script>
@@ -356,18 +456,6 @@
 			<p class="hidden sm:block text-muted-foreground mt-1">Manage recurring and custom events for your organization</p>
 		</div>
 		<div class="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
-            <Button variant="outline" class="w-full sm:w-auto" onclick={() => goto('/events/types')} disabled={isLoading}>
-                <Settings2 class="w-4 h-4 mr-2" />
-                Templates
-            </Button>
-            <Button variant="outline" class="w-full sm:w-auto" onclick={handleGenerateEvents} disabled={isGenerating || isLoading}>
-                {#if isGenerating}
-                    <Clock class="w-4 h-4 mr-2 animate-spin" />
-                {:else}
-                    <CalendarRange class="w-4 h-4 mr-2" />
-                {/if}
-                Gen 30 Days
-            </Button>
             <Button onclick={addEvent} class="w-full sm:w-auto">
                 <Plus class="mr-2 h-4 w-4" />
                 Add New Event
@@ -675,15 +763,15 @@
 		<Card>
 			<CardContent class="flex flex-col items-center justify-center p-4">
 				<Calendar class="h-6 w-6 text-green-500 mb-2" />
-				<div class="text-2xl font-bold text-green-500 mb-1">{activeEvents}</div>
-				<div class="text-sm font-medium text-center">Active Events</div>
+				<div class="text-2xl font-bold text-green-500 mb-1">{activeRecurring}</div>
+				<div class="text-sm font-medium text-center">Active</div>
 			</CardContent>
 		</Card>
 		<Card>
 			<CardContent class="flex flex-col items-center justify-center p-4">
 				<Calendar class="h-6 w-6 text-red-500 mb-2" />
-				<div class="text-2xl font-bold text-red-500 mb-1">{inactiveEvents}</div>
-				<div class="text-sm font-medium text-center">Inactive Events</div>
+				<div class="text-2xl font-bold text-red-500 mb-1">{inactiveRecurring}</div>
+				<div class="text-sm font-medium text-center">Inactive</div>
 			</CardContent>
 		</Card>
 	</div>
@@ -694,7 +782,7 @@
 		<div>
 			<h2 class="text-xl font-semibold mb-4">Recurring Events</h2>
 			<div class="space-y-3 sm:space-y-4">
-				{#each recurringEvents as event (event.event_id)}
+				{#each recurringEventTypes as event (event.event_id)}
 					<Card>
 						<CardContent class="p-3 sm:p-4">
 							<div class="flex items-center justify-between">
@@ -703,20 +791,16 @@
 								<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1 text-xs text-muted-foreground">
 										<div class="flex items-center gap-1">
 											<Calendar class="h-3 w-3" />
-											<span class="truncate">{event.schedule}</span>
+											<span class="truncate">{event.day_name}</span>
 										</div>
 										<div class="flex items-center gap-1">
 											<Clock class="h-3 w-3" />
-											{event.start_time} - {event.end_time}
-										</div>
-										<div class="flex items-center gap-1">
-											<MapPin class="h-3 w-3" />
-											<span class="truncate">{event.location}</span>
+											{event.start_time_formatted} - {event.end_time_formatted}
 										</div>
 									</div>
 								</div>
 								<div class="flex items-center gap-1 ml-2 shrink-0">
-									<Switch checked={event.status === 'Active'} onCheckedChange={() => toggleActive(event.event_id)} />
+									<Switch checked={event.is_active} onCheckedChange={() => toggleActive(event.event_id)} />
 									<Button variant="ghost" size="sm" onclick={() => editEvent(event.event_id)}>
 										<Edit class="h-4 w-4" />
 									</Button>
@@ -733,15 +817,20 @@
 
 		<!-- Custom Events -->
 		<div>
-			<h2 class="text-xl font-semibold mb-4">Upcoming Events</h2>
+			<h2 class="text-xl font-semibold mb-4">Custom Events</h2>
 			<div class="space-y-3 sm:space-y-4">
-				{#each customEvents as event (event.event_id)}
+				{#each upcomingCustomEvents as event (event.event_id)}
 					<Card>
 						<CardContent class="p-3 sm:p-4">
-							<div class="flex items-center justify-between">
+							<div class="flex items-center justify-between gap-2">
 								<div class="min-w-0 flex-1">
-								<h3 class="font-medium truncate text-sm sm:text-base">{event.name}</h3>
-								<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1 text-xs text-muted-foreground">
+									<div class="flex items-center gap-2 mb-2">
+										<h3 class="font-medium truncate text-sm sm:text-base">{event.name}</h3>
+										<Badge class="shrink-0" variant={new Date(event.event_date) > new Date() ? 'default' : 'secondary'}>
+											{new Date(event.event_date) > new Date() ? 'Upcoming' : 'Occurring'}
+										</Badge>
+									</div>
+									<div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 text-xs text-muted-foreground">
 										<div class="flex items-center gap-1">
 											<Calendar class="h-3 w-3" />
 											<span class="truncate">{event.event_date ? new Date(event.event_date).toLocaleDateString() : 'N/A'}</span>
@@ -750,14 +839,16 @@
 											<Clock class="h-3 w-3" />
 											{event.start_time} - {event.end_time}
 										</div>
-										<div class="flex items-center gap-1">
-											<MapPin class="h-3 w-3" />
-											<span class="truncate">{event.location}</span>
-										</div>
+										{#if event.location}
+											<div class="flex items-center gap-1">
+												<MapPin class="h-3 w-3" />
+												<span class="truncate">{event.location}</span>
+											</div>
+										{/if}
 									</div>
 								</div>
 								<div class="flex items-center gap-1 ml-2 shrink-0">
-									<Switch checked={event.status === 'Active'} onCheckedChange={() => toggleActive(event.event_id)} />
+								<Switch checked={event.status === 'Active'} disabled={event.row_status === 'ongoing'} onCheckedChange={() => toggleActive(event.event_id)} />
 									<Button variant="ghost" size="sm" onclick={() => editEvent(event.event_id)}>
 										<Edit class="h-4 w-4" />
 									</Button>
@@ -769,16 +860,19 @@
 						</CardContent>
 					</Card>
 				{/each}
+				{#if upcomingCustomEvents.length === 0}
+					<div class="text-center text-muted-foreground py-8">No upcoming custom events</div>
+				{/if}
 			</div>
 		</div>
 	</div>
 
 	<!-- Past Events -->
-	{#if pastEvents.length > 0}
+	{#if pastCustomEvents.length > 0}
 		<div>
 			<h2 class="text-xl font-semibold mb-4 text-muted-foreground">Past Events</h2>
 			<div class="space-y-3 sm:space-y-4">
-				{#each pastEvents as event (event.event_id)}
+				{#each pastCustomEvents as event (event.event_id)}
 					<Card class="opacity-70">
 						<CardContent class="p-3 sm:p-4">
 							<div class="flex items-center justify-between">
@@ -793,10 +887,12 @@
 											<Clock class="h-4 w-4" />
 											{event.start_time} - {event.end_time}
 										</div>
-										<div class="flex items-center gap-1">
-											<MapPin class="h-4 w-4" />
-											{event.location}
-										</div>
+										{#if event.location}
+											<div class="flex items-center gap-1">
+												<MapPin class="h-4 w-4" />
+												{event.location}
+											</div>
+										{/if}
 									</div>
 								</div>
 							</div>

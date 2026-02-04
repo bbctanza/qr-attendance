@@ -60,6 +60,7 @@
 		siteName: $systemSettings.siteName || 'Scan-in System',
 		primaryColor: $systemSettings.primaryColor || '#275032',
         timezone: $systemSettings.timezone || 'Asia/Manila',
+		timeFormat: localStorage.getItem('time_format') === '12h' ? '12h' : '24h',
 		qrHeaderTitle: $systemSettings.qrHeaderTitle || 'Organization Name',
 		qrSubheaderTitle: $systemSettings.qrSubheaderTitle || 'Tagline or Subtitle',
 		qrCardColor: $systemSettings.qrCardColor || '#275032',
@@ -124,6 +125,12 @@
         
         // Update original settings after loading
         originalSettings = JSON.parse(JSON.stringify(settings));
+	});
+
+	// Watch for time format changes and update localStorage
+	$effect(() => {
+		const format = settings.timeFormat;
+		localStorage.setItem('time_format', format);
 	});
 
 	// Watch for dark mode changes and update theme + localStorage
@@ -198,6 +205,7 @@
 				siteName: $systemSettings.siteName,
 				primaryColor: $systemSettings.primaryColor,
                 timezone: $systemSettings.timezone,
+				timeFormat: '24h',
 				qrHeaderTitle: $systemSettings.qrHeaderTitle,
 				qrSubheaderTitle: $systemSettings.qrSubheaderTitle,
 				qrCardColor: $systemSettings.qrCardColor,
@@ -437,6 +445,20 @@
                         </Select.Content>
                     </Select.Root>
 					<p class="text-xs sm:text-sm text-muted-foreground">This timezone will be applied to all event schedules and attendance records.</p>
+				</div>
+
+				<div class="space-y-2">
+					<Label class="text-sm sm:text-base font-medium">Time Format</Label>
+					<Select.Root type="single" bind:value={settings.timeFormat}>
+						<Select.Trigger class="w-full">
+							{settings.timeFormat === '12h' ? '12-Hour Format (2:30 PM)' : '24-Hour Format (14:30)'}
+						</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="12h">12-Hour Format (2:30 PM)</Select.Item>
+							<Select.Item value="24h">24-Hour Format (14:30)</Select.Item>
+						</Select.Content>
+					</Select.Root>
+					<p class="text-xs sm:text-sm text-muted-foreground">Choose how times are displayed throughout the application.</p>
 				</div>
                 
                 <div class="rounded-lg bg-yellow-500/10 p-3 border border-yellow-500/20 text-xs text-yellow-600 dark:text-yellow-400">

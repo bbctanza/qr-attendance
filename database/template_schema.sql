@@ -357,11 +357,12 @@ ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION get_user_role()
 RETURNS user_role AS $$
     SELECT role FROM profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER;
+$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 
 -- Profiles Policies
-CREATE POLICY "Developers have full access to profiles" ON profiles FOR ALL TO authenticated USING (get_user_role() = 'developer');
-CREATE POLICY "Users can view their own profile" ON profiles FOR SELECT TO authenticated USING (auth.uid() = id);
+CREATE POLICY "Everyone can view profiles" ON profiles FOR SELECT TO authenticated, anon USING (true);
+CREATE POLICY "Users can update their own profile" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
+CREATE POLICY "Developers have full access to profiles" ON profiles FOR DELETE TO authenticated USING (get_user_role() = 'developer');
 
 -- Groups Policies
 CREATE POLICY "Developer/Admin full access to groups" ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
@@ -390,8 +391,8 @@ CREATE POLICY "Staff can view absent history" ON attendance_absent FOR SELECT TO
 
 -- System Settings Policies
 CREATE POLICY "Everyone can view settings" ON system_settings FOR SELECT TO authenticated, anon USING (true);
-CREATE POLICY "Admins can insert settings" ON system_settings FOR INSERT TO authenticated WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
-CREATE POLICY "Admins can update settings" ON system_settings FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Staff and above can modify settings" ON system_settings FOR INSERT TO authenticated WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Staff and above can update settings" ON system_settings FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
 CREATE POLICY "Developers can delete settings" ON system_settings FOR DELETE TO authenticated USING (get_user_role() = 'developer');
 
 -- 7. DEFAULT DATA

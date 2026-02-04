@@ -3,6 +3,7 @@
     import { goto } from '$app/navigation';
     import { onMount } from 'svelte';
     import { page } from '$app/state';
+    import { devTools } from '$lib/stores/dev';
 
     let { children } = $props();
     let isLoading = $state(true);
@@ -13,6 +14,7 @@
         // Set up a listener for auth changes synchronously to ensure we catch everything
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
+                devTools.clearMockTime();
                 goto('/login');
             }
         });
