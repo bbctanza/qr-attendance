@@ -419,20 +419,6 @@
 							bind:hex={settings.primaryColor}
 							label="Pick a color"
 						/>
-						
-						<!-- Color History -->
-						{#if recentColors.length > 0}
-							<div class="flex gap-2 ml-4">
-								{#each recentColors as color}
-									<button 
-										class="w-6 h-6 rounded-full border border-border/50 shadow-sm hover:scale-110 transition-transform cursor-pointer ring-offset-background focus:ring-2 focus:ring-ring focus:outline-none"
-										style="background-color: {color}"
-										aria-label="Select color {color}"
-										onclick={() => settings.primaryColor = color}
-									></button>
-								{/each}
-							</div>
-						{/if}
 					</div>
 					<p class="text-xs sm:text-sm text-muted-foreground">The main color used for buttons, links, and branding.</p>
 				</div>
@@ -757,18 +743,6 @@
                                     bind:hex={settings.qrCardColor}
                                     label="Pick a color"
                                 />
-                                {#if recentColors.length > 0}
-                                    <div class="flex gap-2 ml-4">
-                                        {#each recentColors as color}
-                                            <button 
-                                                class="w-6 h-6 rounded-full border border-border/50 shadow-sm hover:scale-110 transition-transform cursor-pointer"
-                                                style="background-color: {color}"
-                                                aria-label="Select color {color}"
-                                                onclick={() => settings.qrCardColor = color}
-                                            ></button>
-                                        {/each}
-                                    </div>
-                                {/if}
                             </div>
                             <p class="text-xs text-muted-foreground">The color used for text and branding on the generated QR cards.</p>
                         </div>
@@ -835,10 +809,14 @@
                                 <QrCode class="w-24 h-24 opacity-20" style="color: {settings.qrCardColor}" />
                             </div>
 
-                            <!-- Footer Mock -->
-                            <div class="mt-auto mb-4 text-center">
+                            <!-- Member Name (Below QR) -->
+                            <div class="mt-4 text-center">
+                                <div class="text-[12px] font-bold uppercase" style="color: {settings.qrCardColor}">Sample Member</div>
+                            </div>
+
+                            <!-- Member ID (Bottom) -->
+                            <div class="mt-2 mb-4 text-center">
                                 <div class="text-[12px] font-black tracking-widest" style="color: {settings.qrCardColor}">ENG-1234</div>
-                                <div class="text-[10px] font-bold uppercase mt-1 opacity-60">Sample Member</div>
                             </div>
 
                             <!-- BG Pattern Mock (Subtle) -->
