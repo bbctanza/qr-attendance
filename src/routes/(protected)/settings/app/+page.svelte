@@ -92,8 +92,9 @@
 
 	// Load settings from localStorage on mount
 	onMount(async () => {
-		const savedTheme = localStorage.getItem('theme') || 'light';
-		settings.darkMode = savedTheme === 'dark';
+		const savedTheme = localStorage.getItem('theme');
+		const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+		settings.darkMode = savedTheme === 'dark' || (!savedTheme && systemDark);
 		
 		// Load recent colors
 		const savedColors = localStorage.getItem('recentColors');

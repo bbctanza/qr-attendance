@@ -46,30 +46,20 @@
             
             const total = totalCount || 0;
 
-            // 2. Latest Event (Active or Past)
+            // 2. Get ONLY Ongoing Events (currently happening)
+            const now = new Date();
             let currentEventData = null;
             
-            const { data: activeEvents, error: activeError } = await supabase
+            const { data: ongoingEvents } = await supabase
                 .from('events')
                 .select('*')
-                .in('status', ['ongoing', 'upcoming'])
-                .order('start_datetime', { ascending: true })
+                .eq('status', 'ongoing')
+                .lte('start_datetime', now.toISOString())
+                .gte('end_datetime', now.toISOString())
                 .limit(1);
             
-            console.log('Active events query:', { activeEvents, activeError });
-            
-            if (activeEvents && activeEvents.length > 0) {
-                currentEventData = activeEvents[0];
-            } else {
-                const { data: pastEvents } = await supabase
-                    .from('events')
-                    .select('*')
-                    .eq('status', 'completed')
-                    .order('end_datetime', { ascending: false })
-                    .limit(1);
-                if (pastEvents && pastEvents.length > 0) {
-                    currentEventData = pastEvents[0];
-                }
+            if (ongoingEvents && ongoingEvents.length > 0) {
+                currentEventData = ongoingEvents[0];
             }
 
             console.log('Current event data:', currentEventData);
@@ -91,7 +81,7 @@
                     title: currentEventData.event_name,
                     location: (currentEventData.metadata as any)?.location || 'Main Sanctuary',
                     time: timeStr,
-                    isActive: currentEventData.status === 'ongoing' || currentEventData.status === 'upcoming',
+                    isActive: true,
                     status: currentEventData.status
                 };
             }
@@ -102,7 +92,7 @@
                 absent: total - present
             };
 
-            // 4. Recent Events
+            // 4. Recent Events (completed events)
             const { data: historyEvents } = await supabase
                 .from('events')
                 .select('*')

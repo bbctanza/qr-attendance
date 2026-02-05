@@ -29,8 +29,10 @@
 
     // Initialize theme synchronously from localStorage before render
     if (browser) {
-        const savedTheme = localStorage.getItem('theme') || 'light';
-        if (savedTheme === 'dark') {
+        const savedTheme = localStorage.getItem('theme');
+        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        
+        if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
@@ -182,7 +184,7 @@
 {/if}
 
 {#if $devTools.isMockTimeActive}
-    <div class="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-[100] bg-orange-500 text-white text-[10px] md:text-xs px-3 py-1.5 rounded-full font-mono font-bold shadow-lg flex items-center gap-2 pointer-events-none border-2 border-orange-400 animate-in fade-in slide-in-from-bottom-4">
+    <div class="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-100 bg-orange-500 text-white text-[10px] md:text-xs px-3 py-1.5 rounded-full font-mono font-bold shadow-lg flex items-center gap-2 pointer-events-none border-2 border-orange-400 animate-in fade-in slide-in-from-bottom-4">
         <span class="relative flex h-2 w-2">
           <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
           <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>

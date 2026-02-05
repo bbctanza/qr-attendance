@@ -4,13 +4,15 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
-	import { ChevronRight, ChevronDown, ChevronLeft, QrCode } from '@lucide/svelte';
+	import { ChevronRight, ChevronDown, ChevronLeft, QrCode, Download, MoreVertical } from '@lucide/svelte';
 	import { attendanceApi } from '$lib/api/attendance';
 	import { eventsApi } from '$lib/api/events';
 	import { supabase } from '$lib/supabase';
 	import Progress from '$lib/components/ui/progress';
 	import FullPageLoading from "$lib/components/full-page-loading.svelte";
 	import { formatLocalTime } from '$lib/utils/time';
+	import { exportToCSV, exportToPDF, type ExportRecord } from '$lib/utils/attendanceExport';
+	import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '$lib/components/ui/dropdown-menu';
 
 	type Event = {
 		event_id: number;
@@ -18,19 +20,20 @@
 		event_date: string;
 		start_datetime: string;
 		end_datetime: string;
-		attendees?: { member_id: string; first_name: string; last_name: string; time?: string }[];
-		absent?: { member_id: string; first_name: string; last_name: string }[];
+		attendees?: { member_id: string; first_name: string; last_name: string; time?: string; care_group?: string }[];
+		absent?: { member_id: string; first_name: string; last_name: string; care_group?: string }[];
 	};
 
 	let events = $state<Event[]>([]);
 	let openEventId = $state<number | null>(null);
-	let selectedMonth = $state('ALL'); 
+	let selectedMonth = $state('');
 	let filterPresent = $state(true);
-	let months = ['ALL', 'OCT', 'NOV', 'DEC', 'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP'];
+	let months = $state<string[]>([]);
 	let monthMap: Record<string, number> = {
 		'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
 		'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
 	};
+	const monthOrder = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 	let monthPage = $state(0);
 	let monthsPerPage = 4;
 	let isLoading = $state(true);
@@ -41,9 +44,7 @@
 
 	// Filtering
 	let filteredEvents = $derived(
-		selectedMonth === 'ALL' 
-			? events 
-			: events.filter(e => new Date(e.event_date).getMonth() === monthMap[selectedMonth])
+		events.filter(e => new Date(e.event_date).getMonth() === monthMap[selectedMonth])
 	);
 
 	// Attendance calculations
@@ -87,25 +88,27 @@
 			// Get Present
 			const { data: presentData } = await supabase
 				.from('attendance_present')
-				.select('member_id, scan_datetime, members(first_name, last_name)')
+				.select('member_id, scan_datetime, members(first_name, last_name, groups(name))')
 				.eq('event_id', ev.event_id);
 
 			const attendees = await Promise.all((presentData || []).map(async (p: any) => ({
 				member_id: p.member_id,
 				first_name: p.members?.first_name || 'Unknown',
 				last_name: p.members?.last_name || 'Member',
+				care_group: p.members?.groups?.name || '-',
 				time: await formatLocalTime(p.scan_datetime)
 			})));
 
 			const { data: absentData } = await supabase
 				.from('attendance_absent')
-				.select('member_id, members(first_name, last_name)')
+				.select('member_id, members(first_name, last_name, groups(name))')
 				.eq('event_id', ev.event_id);
 			
 			const absent = (absentData || []).map((a: any) => ({
 				member_id: a.member_id,
 				first_name: a.members?.first_name || 'Unknown',
-				last_name: a.members?.last_name || 'Member'
+				last_name: a.members?.last_name || 'Member',
+				care_group: a.members?.groups?.name || '-'
 			}));
 
 			return {
@@ -120,6 +123,24 @@
 		}));
 
 		events = eventsWithDetails;
+		
+		// Extract unique months from events and sort them
+		const uniqueMonths = new Set<string>();
+		eventsWithDetails.forEach(event => {
+			const date = new Date(event.event_date);
+			const monthIndex = date.getMonth();
+			const monthStr = monthOrder[monthIndex];
+			uniqueMonths.add(monthStr);
+		});
+		
+		// Sort months chronologically
+		const sortedMonths = Array.from(uniqueMonths).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
+		months = sortedMonths;
+		// Set selected month to the latest month (last in sorted array)
+		if (sortedMonths.length > 0) {
+			selectedMonth = sortedMonths[sortedMonths.length - 1];
+		}
+		monthPage = 0; // Reset pagination
 	}
 
   function toggleEvent(id: number) {
@@ -129,6 +150,269 @@
   function scanMember() {
     // redirect to scanner page
     window.location.href = '/scan';
+  }
+
+
+  function handleExportPresentCSV() {
+    const records: ExportRecord[] = [];
+    
+    filteredEvents.forEach(event => {
+      (event.attendees || []).forEach(attendee => {
+        records.push({
+          member_id: attendee.member_id,
+          care_group: attendee.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: attendee.first_name,
+          last_name: attendee.last_name,
+          time: attendee.time || '-'
+        });
+      });
+    });
+
+    if (records.length === 0) {
+      alert('No present members to export');
+      return;
+    }
+
+    const periodLabel = records.length > 0 && records[0].event_date
+      ? new Date(records[0].event_date).toLocaleString('default', { month: 'long', year: 'numeric' })
+      : selectedMonth;
+
+    exportToCSV(records, {
+      viewMode: 'present',
+      selectedMonth: periodLabel,
+      stats: {
+        totalPresent: totalAttendees,
+        totalAbsent: totalExpected - totalAttendees,
+        attendanceRate: attendanceRate
+      }
+    });
+  }
+
+  async function handleExportPresentPDF() {
+    const records: ExportRecord[] = [];
+    
+    filteredEvents.forEach(event => {
+      (event.attendees || []).forEach(attendee => {
+        records.push({
+          member_id: attendee.member_id,
+          care_group: attendee.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: attendee.first_name,
+          last_name: attendee.last_name,
+          time: attendee.time || '-'
+        });
+      });
+    });
+
+    if (records.length === 0) {
+      alert('No present members to export');
+      return;
+    }
+
+    const periodLabel = records.length > 0 && records[0].event_date
+      ? new Date(records[0].event_date).toLocaleString('default', { month: 'long', year: 'numeric' })
+      : selectedMonth;
+
+    try {
+      await exportToPDF(records, {
+        viewMode: 'present',
+        selectedMonth: periodLabel,
+        stats: {
+          totalPresent: totalAttendees,
+          totalAbsent: totalExpected - totalAttendees,
+          attendanceRate: attendanceRate
+        }
+      });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      alert('PDF export requires jsPDF and jspdf-autotable packages. Please install them: npm install jspdf jspdf-autotable');
+    }
+  }
+
+  function handleExportAbsentCSV() {
+    const records: ExportRecord[] = [];
+    
+    filteredEvents.forEach(event => {
+      (event.absent || []).forEach(member => {
+        records.push({
+          member_id: member.member_id,
+          care_group: member.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: member.first_name,
+          last_name: member.last_name
+        });
+      });
+    });
+
+    if (records.length === 0) {
+      alert('No absent members to export');
+      return;
+    }
+
+    const periodLabel = records.length > 0 && records[0].event_date
+      ? new Date(records[0].event_date).toLocaleString('default', { month: 'long', year: 'numeric' })
+      : selectedMonth;
+
+    exportToCSV(records, {
+      viewMode: 'absent',
+      selectedMonth: periodLabel,
+      stats: {
+        totalPresent: totalAttendees,
+        totalAbsent: totalExpected - totalAttendees,
+        attendanceRate: attendanceRate
+      }
+    });
+  }
+
+  async function handleExportAbsentPDF() {
+    const records: ExportRecord[] = [];
+    
+    filteredEvents.forEach(event => {
+      (event.absent || []).forEach(member => {
+        records.push({
+          member_id: member.member_id,
+          care_group: member.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: member.first_name,
+          last_name: member.last_name
+        });
+      });
+    });
+
+    if (records.length === 0) {
+      alert('No absent members to export');
+      return;
+    }
+
+    const periodLabel = records.length > 0 && records[0].event_date
+      ? new Date(records[0].event_date).toLocaleString('default', { month: 'long', year: 'numeric' })
+      : selectedMonth;
+
+    try {
+      await exportToPDF(records, {
+        viewMode: 'absent',
+        selectedMonth: periodLabel,
+        stats: {
+          totalPresent: totalAttendees,
+          totalAbsent: totalExpected - totalAttendees,
+          attendanceRate: attendanceRate
+        }
+      });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      alert('PDF export requires jsPDF and jspdf-autotable packages. Please install them: npm install jspdf jspdf-autotable');
+    }
+  }
+
+  // Individual event export functions
+  function handleExportEventCSV(event: Event) {
+    const records: ExportRecord[] = [];
+    
+    if (filterPresent) {
+      (event.attendees || []).forEach(attendee => {
+        records.push({
+          member_id: attendee.member_id,
+          care_group: attendee.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: attendee.first_name,
+          last_name: attendee.last_name,
+          time: attendee.time || '-'
+        });
+      });
+    } else {
+      (event.absent || []).forEach(member => {
+        records.push({
+          member_id: member.member_id,
+          care_group: member.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: member.first_name,
+          last_name: member.last_name
+        });
+      });
+    }
+
+    if (records.length === 0) {
+      alert('No data to export for this event');
+      return;
+    }
+
+    const evPresent = event.attendees?.length || 0;
+    const evAbsent = event.absent?.length || 0;
+    const evTotal = evPresent + evAbsent;
+    const evRate = evTotal > 0 ? Math.round((evPresent / evTotal) * 100) : 0;
+    const periodLabel = new Date(event.event_date).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    exportToCSV(records, {
+      viewMode: filterPresent ? 'present' : 'absent',
+      selectedMonth: periodLabel,
+      stats: {
+        totalPresent: evPresent,
+        totalAbsent: evAbsent,
+        attendanceRate: evRate
+      }
+    });
+  }
+
+  async function handleExportEventPDF(event: Event) {
+    const records: ExportRecord[] = [];
+    
+    if (filterPresent) {
+      (event.attendees || []).forEach(attendee => {
+        records.push({
+          member_id: attendee.member_id,
+          care_group: attendee.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: attendee.first_name,
+          last_name: attendee.last_name,
+          time: attendee.time || '-'
+        });
+      });
+    } else {
+      (event.absent || []).forEach(member => {
+        records.push({
+          member_id: member.member_id,
+          care_group: member.care_group,
+          event_name: event.event_name,
+          event_date: event.event_date,
+          first_name: member.first_name,
+          last_name: member.last_name
+        });
+      });
+    }
+
+    if (records.length === 0) {
+      alert('No data to export for this event');
+      return;
+    }
+
+    const evPresent = event.attendees?.length || 0;
+    const evAbsent = event.absent?.length || 0;
+    const evTotal = evPresent + evAbsent;
+    const evRate = evTotal > 0 ? Math.round((evPresent / evTotal) * 100) : 0;
+    const periodLabel = new Date(event.event_date).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+    try {
+      await exportToPDF(records, {
+        viewMode: filterPresent ? 'present' : 'absent',
+        selectedMonth: periodLabel,
+        stats: {
+          totalPresent: evPresent,
+          totalAbsent: evAbsent,
+          attendanceRate: evRate
+        }
+      });
+    } catch (err) {
+      console.error('PDF export error:', err);
+      alert('PDF export requires jsPDF and jspdf-autotable packages. Please install them: npm install jspdf jspdf-autotable');
+    }
   }
 </script>
 
@@ -177,39 +461,107 @@
         <ChevronRight class="h-4 w-4" />
       </button>
     </div>
-    <div role="tablist" aria-label="Present or Absent" class="inline-flex w-full max-w-md md:max-w-lg lg:max-w-xl rounded-2xl border border-border/20 bg-card/10 p-1">
-      <button
-        role="tab"
-        aria-selected={filterPresent}
-        class={"flex-1 text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (filterPresent ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}
-        onclick={() => filterPresent = true}
-      >
-        PRESENT
-      </button>
-      <button
-        role="tab"
-        aria-selected={!filterPresent}
-        class={"flex-1 text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (!filterPresent ? "bg-destructive text-primary-foreground shadow-sm" : "text-muted-foreground")}
-        onclick={() => filterPresent = false}
-      >
-        ABSENT
-      </button>
+    <div class="flex flex-col items-center md:flex-row md:justify-between md:items-center gap-4">
+      <div role="tablist" aria-label="Present or Absent" class="inline-flex rounded-2xl border border-border/20 bg-card/10 p-1">
+        <button
+          role="tab"
+          aria-selected={filterPresent}
+          class={"text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (filterPresent ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}
+          onclick={() => filterPresent = true}
+        >
+          PRESENT
+        </button>
+        <button
+          role="tab"
+          aria-selected={!filterPresent}
+          class={"text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (!filterPresent ? "bg-destructive text-primary-foreground shadow-sm" : "text-muted-foreground")}
+          onclick={() => filterPresent = false}
+        >
+          ABSENT
+        </button>
+      </div>
+      {#if filterPresent}
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            {#snippet child({ props })}
+              <Button variant="outline" size="sm" class="gap-2" {...props}>
+                <Download class="h-4 w-4" />
+                <span class="hidden sm:inline">Export</span>
+              </Button>
+            {/snippet}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onclick={handleExportPresentCSV}>
+              <Download class="mr-2 h-4 w-4" />
+              <span>Export as CSV</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onclick={handleExportPresentPDF}>
+              <Download class="mr-2 h-4 w-4" />
+              <span>Export as PDF</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      {:else}
+        <DropdownMenu>
+          <DropdownMenuTrigger>
+            {#snippet child({ props })}
+              <Button variant="outline" size="sm" class="gap-2" {...props}>
+                <Download class="h-4 w-4" />
+                <span class="hidden sm:inline">Export</span>
+              </Button>
+            {/snippet}
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onclick={handleExportAbsentCSV}>
+              <Download class="mr-2 h-4 w-4" />
+              <span>Export as CSV</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onclick={handleExportAbsentPDF}>
+              <Download class="mr-2 h-4 w-4" />
+              <span>Export as PDF</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      {/if}
     </div>
   </div>
 
   <div class="space-y-4">
-    {#each filteredEvents as ev}
-      <div class="rounded-2xl border border-border/20 bg-card overflow-hidden">
-        <div class="flex items-center justify-between p-4 md:p-6">
-          <div class="flex items-center gap-3">
+      {#each filteredEvents as ev}
+        <div class="rounded-2xl border border-border/20 bg-card overflow-hidden">
+          <div class="flex items-center justify-between p-4 md:p-6">
+          <div class="flex items-center gap-3 flex-1">
             <div class="w-1.5 h-10 rounded-l-full bg-primary/60"></div>
             <div>
               <div class="font-bold uppercase">{ev.event_name}</div>
               <div class="text-sm text-muted-foreground mt-1">{new Date(ev.event_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
             </div>
           </div>
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2 md:gap-3">
             <div class="text-sm font-medium bg-muted px-3 py-1 rounded-md">{filterPresent ? (ev.attendees?.length || 0) : (ev.absent?.length || 0)}</div>
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                {#snippet child({ props })}
+                  <button 
+                    class="h-8 w-8 rounded-full bg-card/10 hover:bg-card/20 flex items-center justify-center transition-colors"
+                    title="Export options"
+                    {...props}
+                  >
+                    <Download class="h-4 w-4" />
+                  </button>
+                {/snippet}
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onclick={() => handleExportEventCSV(ev)}>
+                  <Download class="mr-2 h-4 w-4" />
+                  <span>CSV</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem onclick={() => handleExportEventPDF(ev)}>
+                  <Download class="mr-2 h-4 w-4" />
+                  <span>PDF</span>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <button class="h-8 w-8 rounded-full bg-card/10 flex items-center justify-center" onclick={() => toggleEvent(ev.event_id)}>
               {#if openEventId === ev.event_id}
                 <ChevronDown />
@@ -230,7 +582,6 @@
                       <Avatar class="h-10 w-10"><AvatarFallback>{a.first_name[0]}{a.last_name[0]}</AvatarFallback></Avatar>
                       <div>
                         <div class="font-medium">{a.first_name} {a.last_name}</div>
-                        <div class="text-xs text-muted-foreground">UI Department</div>
                       </div>
                     </div>
                     <div class="flex items-center gap-3">
@@ -245,7 +596,6 @@
                       <Avatar class="h-10 w-10"><AvatarFallback>{a.first_name[0]}{a.last_name[0]}</AvatarFallback></Avatar>
                       <div>
                         <div class="font-medium">{a.first_name} {a.last_name}</div>
-                        <div class="text-xs text-muted-foreground">UI Department</div>
                       </div>
                     </div>
                     <div class="flex items-center gap-3">
@@ -259,6 +609,6 @@
         {/if}
       </div>
     {/each}
-  </div>
-</div>
+    </div>
+	</div>
 {/if}

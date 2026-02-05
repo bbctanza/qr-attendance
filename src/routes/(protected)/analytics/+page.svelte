@@ -7,6 +7,9 @@
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase';
 	import FullPageLoading from "$lib/components/full-page-loading.svelte";
+	import { ensureUTC } from '$lib/utils/time';
+	import { systemSettings } from '$lib/stores/settings';
+	import { get } from 'svelte/store';
 
 	// Analytics state
 	let stats = $state({
@@ -97,22 +100,76 @@
 			});
 		}
 
-		// 6. Average Check-in Time
+		// 6. Average Check-in Time & Hourly Distribution
 		const { data: recentScans } = await supabase
 			.from('attendance_present')
-			.select('scan_datetime')
-			.limit(100);
+			.select('scan_datetime');
 		
 		let avgTimeStr = "--:--";
+		const hourlyCount = new Array(24).fill(0);
+		
+		// Get user's timezone for proper time conversion
+		let userTimezone = 'Asia/Manila';
+		try {
+			const settings = get(systemSettings);
+			if (settings?.timezone) {
+				userTimezone = settings.timezone;
+			} else {
+				// Try to fetch from database if not in store
+				const { data } = await supabase
+					.from('system_settings')
+					.select('timezone')
+					.eq('id', 1)
+					.single();
+				if (data?.timezone) {
+					userTimezone = data.timezone;
+				}
+			}
+		} catch {
+			// Use default timezone
+		}
+		
 		if (recentScans && recentScans.length > 0) {
 			const totalMinutes = recentScans.reduce((acc, s) => {
-				const date = new Date(s.scan_datetime);
-				return acc + (date.getHours() * 60) + date.getMinutes();
+				// Convert database datetime to UTC ISO format, then to user's timezone
+				const utcDateStr = ensureUTC(s.scan_datetime);
+				const utcDate = new Date(utcDateStr);
+				
+				// Get the hour in user's timezone
+				const formatter = new Intl.DateTimeFormat('en-US', {
+					hour: 'numeric',
+					hour12: false,
+					timeZone: userTimezone
+				});
+				const parts = formatter.formatToParts(utcDate);
+				const hourInUserTz = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
+				
+				hourlyCount[hourInUserTz]++;
+				return acc + (hourInUserTz * 60) + utcDate.getUTCMinutes();
 			}, 0);
 			const avgMinutes = Math.round(totalMinutes / recentScans.length);
 			const hours = Math.floor(avgMinutes / 60);
 			const minutes = avgMinutes % 60;
-			avgTimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+			
+			// Format using global time format setting (12h or 24h)
+			const use12HourFormat = typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
+			if (use12HourFormat) {
+				const displayHours = hours % 12 || 12;
+				const period = hours >= 12 ? 'PM' : 'AM';
+				avgTimeStr = `${displayHours}:${minutes.toString().padStart(2, '0')} ${period}`;
+			} else {
+				avgTimeStr = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
+			}
+		}
+
+		// Convert hourly count to display format (6 AM - 6 PM)
+		const hourlyData = [];
+		const hourLabels = ['6 AM', '7 AM', '8 AM', '9 AM', '10 AM', '11 AM', '12 PM', '1 PM', '2 PM', '3 PM', '4 PM', '5 PM', '6 PM'];
+		for (let i = 6; i <= 18; i++) {
+			hourlyData.push({
+				hour: hourLabels[i - 6],
+				count: hourlyCount[i]
+			});
 		}
 
 		stats = {
@@ -122,15 +179,7 @@
 			activeMembers: memberCount || 0,
 			weekTrend: weeklyTrend,
 			groupAttendance: groupData.filter(g => g.target > 0),
-			hourlyData: [
-				{ hour: "9 AM", count: 0 },
-				{ hour: "10 AM", count: 0 },
-				{ hour: "11 AM", count: 0 },
-				{ hour: "12 PM", count: 0 },
-				{ hour: "1 PM", count: 0 },
-				{ hour: "2 PM", count: 0 },
-				{ hour: "3 PM", count: 0 }
-			]
+			hourlyData: hourlyData
 		};
 	}
 </script>
@@ -261,6 +310,34 @@
 					</div>
 				</CardContent>
 			</Card>
+
+			<!-- Check-in Time Distribution -->
+			<Card>
+				<CardHeader class="pb-3">
+					<CardTitle class="text-base">Check-In Time Distribution</CardTitle>
+				</CardHeader>
+				<CardContent>
+					<div class="space-y-3">
+						{#each stats.hourlyData as item}
+							<div>
+								<div class="flex items-center justify-between mb-1">
+									<span class="text-xs font-medium">{item.hour}</span>
+									<span class="text-xs text-muted-foreground">{item.count}</span>
+								</div>
+								<div class="w-full bg-muted rounded-full h-2 overflow-hidden">
+									{#if stats.hourlyData.length > 0}
+										{@const maxCount = Math.max(...stats.hourlyData.map(d => d.count), 1)}
+										<div 
+											class="bg-blue-500 h-full rounded-full transition-all"
+											style="width: {maxCount > 0 ? (item.count / maxCount) * 100 : 0}%"
+										></div>
+									{/if}
+								</div>
+							</div>
+						{/each}
+					</div>
+				</CardContent>
+			</Card>
 	</div>
 </div>
 
@@ -359,7 +436,7 @@
 			<!-- Group Performance -->
 			<Card>
 				<CardHeader>
-					<CardTitle>Departmental Performance</CardTitle>
+					<CardTitle>Group Performance</CardTitle>
 					<CardDescription>Cumulative attendance by group</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -385,6 +462,35 @@
 				</CardContent>
 			</Card>
 		</div>
+
+		<!-- Check-in Time Distribution -->
+		<Card>
+			<CardHeader>
+				<CardTitle>Check-In Time Distribution</CardTitle>
+				<CardDescription>When members typically check in throughout the day</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<div class="space-y-4">
+					{#each stats.hourlyData as item}
+						<div>
+							<div class="flex items-center justify-between mb-2">
+								<span class="text-sm font-medium">{item.hour}</span>
+								<span class="text-sm font-semibold text-muted-foreground">{item.count}</span>
+							</div>
+							<div class="w-full bg-muted rounded-full h-3 overflow-hidden">
+								{#if stats.hourlyData.length > 0}
+									{@const maxCount = Math.max(...stats.hourlyData.map(d => d.count), 1)}
+									<div 
+										class="bg-blue-500 h-full rounded-full transition-all"
+										style="width: {maxCount > 0 ? (item.count / maxCount) * 100 : 0}%"
+									></div>
+								{/if}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</CardContent>
+		</Card>
 </div>
 {/if}
 
