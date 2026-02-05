@@ -7,7 +7,7 @@
     import { Badge } from "$lib/components/ui/badge";
     import { Card, CardContent } from "$lib/components/ui/card";
     import { Label } from "$lib/components/ui/label";
-    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X, ArrowUpDown, ArrowUp, ArrowDown, Grid3x3, Rows, Users, TrendingUp, Clock } from "@lucide/svelte";
+    import { Search, Plus, MoreHorizontal, FileDown, ArrowLeft, MoreVertical, QrCode, Filter, ChevronLeft, ChevronRight, UserPlus, Lock, X, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Grid3x3, Rows, Users, TrendingUp, Clock } from "@lucide/svelte";
     import * as Collapsible from "$lib/components/ui/collapsible";
     import {
         DropdownMenu,
@@ -37,6 +37,17 @@
     import { onMount } from "svelte";
     import { supabase } from "$lib/supabase";
     import FullPageLoading from "$lib/components/full-page-loading.svelte";
+import { toast } from 'svelte-sonner';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogFooter
+} from '$lib/components/ui/alert-dialog';
 
     // Modal state
     let showAddMemberModal = $state(false);
@@ -67,6 +78,39 @@
     let members = $state<any[]>([]);
     let groupOptions = $state<string[]>([]);
     let groupsMap = $state<Record<string, any>>({});
+
+    // Delete dialog state
+    let showDeleteDialog = $state(false);
+    let memberToDelete: string | null = $state(null);
+    let memberToDeleteName: string | null = $state(null);
+
+    function openDeleteDialog(member: any) {
+        memberToDelete = member.id;
+        memberToDeleteName = member.name;
+        showDeleteDialog = true;
+    }
+
+    async function confirmDeleteMember() {
+        if (!memberToDelete) return;
+        const id = memberToDelete;
+        const name = memberToDeleteName || id;
+
+        const { error } = await supabase.from('members').delete().eq('member_id', id);
+        if (error) {
+            console.error('Delete error:', error);
+            toast.error(error.message || 'Failed to delete member');
+            showDeleteDialog = false;
+            memberToDelete = null;
+            memberToDeleteName = null;
+            return;
+        }
+
+        await fetchMembers();
+        toast.success(`Deleted ${name}`);
+        showDeleteDialog = false;
+        memberToDelete = null;
+        memberToDeleteName = null;
+    }
 
     let groupItems = $derived(groupOptions.map(group => ({
         value: group,
@@ -255,28 +299,110 @@
             return;
         }
         
-        // 2. Generate Unique ID
+        // 2. Generate Unique ID (sequential per group when possible, otherwise global numeric suffix)
         const groupCode = groupObj.group_code;
-        const newIdNum = Math.floor(Math.random() * 90000) + 10000;
-        const qrId = `${groupCode}-${newIdNum}`;
+        let qrId: string | null = null;
+        let attempt = 0;
 
-        // 3. Insert to DB
-        const { error } = await supabase.from('members').insert({
-            member_id: qrId,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            middle_name: formData.middleInitial,
-            group_id: groupObj.group_id,
-            metadata: {
-                role: "Member",
-                status: "Active",
-                email: ""
+        while (attempt < 5) {
+            // 1) Try group-prefixed IDs first
+            const { data: existingGroup, error: groupFetchErr } = await supabase
+                .from('members')
+                .select('member_id')
+                .ilike('member_id', `${groupCode}-%`);
+
+            if (groupFetchErr) {
+                console.error(groupFetchErr);
+                alert('Failed to generate member id');
+                return;
             }
-        });
 
-        if (error) {
-            console.error(error);
-            alert("Failed to add member");
+            let candidate: string | null = null;
+
+            if ((existingGroup || []).length > 0) {
+                // Extract numeric suffixes for group members
+                let max = -1;
+                (existingGroup || []).forEach((m: any) => {
+                    const re = new RegExp(`^${groupCode}-(\\d+)$`);
+                    const match = (m.member_id || '').match(re);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (!isNaN(num) && num > max) max = num;
+                    }
+                });
+
+                const newNum = max + 1;
+                // Keep zero-padded style for group-prefixed ids
+                candidate = `${groupCode}-${String(newNum).padStart(4, '0')}`;
+            } else {
+                // 2) Fallback: find the highest trailing number across all member_ids and increment
+                const { data: allMembers, error: allFetchErr } = await supabase
+                    .from('members')
+                    .select('member_id');
+
+                if (allFetchErr) {
+                    console.error(allFetchErr);
+                    alert('Failed to generate member id');
+                    return;
+                }
+
+                let max = -1;
+                (allMembers || []).forEach((m: any) => {
+                    const match = (m.member_id || '').match(/(\d+)$/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (!isNaN(num) && num > max) max = num;
+                    }
+                });
+
+                const newNum = max + 1;
+                if (max === -1) {
+                    // No numeric ids found; start at 1
+                    candidate = String(1);
+                } else {
+                    // Use plain numeric id (no group prefix) to follow existing pattern like '522' -> '523'
+                    candidate = String(newNum);
+                }
+            }
+
+            if (!candidate) {
+                alert('Failed to allocate a member id');
+                return;
+            }
+
+            // Try insert
+            const { error: insertErr } = await supabase.from('members').insert({
+                member_id: candidate,
+                first_name: formData.firstName,
+                last_name: formData.lastName,
+                middle_name: formData.middleInitial,
+                group_id: groupObj.group_id,
+                metadata: {
+                    role: 'Member',
+                    status: 'Active',
+                    email: ''
+                }
+            });
+
+            if (!insertErr) {
+                qrId = candidate;
+                break;
+            }
+
+            // On duplicate, increment attempt and retry
+            const msg = (insertErr as any).message || '';
+            if ((insertErr as any).code === '23505' || /duplicate/.test(msg)) {
+                attempt++;
+                continue;
+            } else {
+                console.error(insertErr);
+                alert('Failed to add member');
+                return;
+            }
+        }
+
+        if (!qrId) {
+            alert('Failed to allocate a unique member id; please try again');
             return;
         }
 
@@ -326,6 +452,14 @@
         };
         selectedMemberForEdit = null;
         showAddMemberModal = true;
+        // Ensure inputs are cleared and focus first field to prevent browser autofill popups
+        requestAnimationFrame(() => {
+            const input = document.getElementById('lastName') as HTMLInputElement | null;
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+        });
     }
 
     function openAddMemberDrawer() {
@@ -337,6 +471,14 @@
         };
         selectedMemberForEdit = null;
         showAddMemberDrawer = true;
+        // Clear and focus first input to avoid autofill/persistence
+        requestAnimationFrame(() => {
+            const input = document.getElementById('lastNameMobile') as HTMLInputElement | null;
+            if (input) {
+                input.value = '';
+                input.focus();
+            }
+        });
     }
 
     function openEditModal(member: typeof members[0]) {
@@ -361,6 +503,25 @@
         };
         showEditMemberDrawer = true;
     }
+
+    // Reset edit state (clear form and selected member)
+    function resetEditState() {
+        selectedMemberForEdit = null;
+        formData = {
+            lastName: "",
+            firstName: "",
+            middleInitial: "",
+            group: ""
+        };
+    }
+
+    // Ensure edit state is cleared when edit modal/drawer closes without saving
+    $effect(() => {
+        if (!showEditMemberModal && !showEditMemberDrawer) {
+            // Use a microtask to allow other state changes to settle
+            Promise.resolve().then(() => resetEditState());
+        }
+    });
 
     async function handleEditMember() {
         if (!formData.lastName || !formData.firstName || !formData.group) {
@@ -894,7 +1055,7 @@
                                                 <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                                 <DropdownMenuItem onclick={() => openEditModal(member)}>Edit</DropdownMenuItem>
                                                 <DropdownMenuSeparator />
-                                                <DropdownMenuItem class="text-red-500">Delete</DropdownMenuItem>
+                                                <DropdownMenuItem class="text-red-500" onclick={() => openDeleteDialog(member)}>Delete</DropdownMenuItem>
                                             </DropdownMenuContent>
                                         </DropdownMenu>
                                     </div>
@@ -941,7 +1102,7 @@
                                             <DropdownMenuLabel>Actions</DropdownMenuLabel>
                                             <DropdownMenuItem onclick={() => openEditModal(member)}>Edit</DropdownMenuItem>
                                             <DropdownMenuSeparator />
-                                            <DropdownMenuItem class="text-red-500">Delete</DropdownMenuItem>
+                                            <DropdownMenuItem class="text-red-500" onclick={() => openDeleteDialog(member)}>Delete</DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </div>
@@ -1274,11 +1435,18 @@
                     </div>
                     EDIT MEMBER
                 </DrawerTitle>
-                <DrawerClose>
-                    <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
-                        <X class="h-4 w-4" />
-                    </Button>
-                </DrawerClose>
+                <div class="flex items-center gap-2">
+                    {#if selectedMemberForEdit}
+                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0 text-destructive" aria-label="Delete member" onclick={() => openDeleteDialog(selectedMemberForEdit)}>
+                            <Trash2 class="h-4 w-4" />
+                        </Button>
+                    {/if}
+                    <DrawerClose>
+                        <Button variant="ghost" size="sm" class="h-8 w-8 p-0">
+                            <X class="h-4 w-4" />
+                        </Button>
+                    </DrawerClose>
+                </div>
             </DrawerHeader>
 
             <div class="px-4 pb-4">
@@ -1552,4 +1720,20 @@
         </DrawerContent>
     </Drawer>
 {/if}
+
+<!-- Delete Confirmation -->
+<AlertDialog bind:open={showDeleteDialog}>
+    <AlertDialogContent>
+        <AlertDialogHeader>
+            <AlertDialogTitle>Delete Member</AlertDialogTitle>
+            <AlertDialogDescription>
+                Are you sure you want to permanently delete "{memberToDeleteName}"? This action cannot be undone.
+            </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction class="bg-destructive hover:bg-destructive/90" onclick={confirmDeleteMember}>Delete</AlertDialogAction>
+        </AlertDialogFooter>
+    </AlertDialogContent>
+</AlertDialog>
 {/if}
