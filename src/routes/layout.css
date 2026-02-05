@@ -62,6 +62,13 @@ body {
   --stat-accent: oklch(0.65 0.18 110);
   --stat-success: oklch(0.6 0.15 142);
   --stat-secondary: oklch(0.65 0.16 300);
+
+  /* Color Picker - Light Mode */
+  --cp-bg-color: var(--popover);
+  --cp-border-color: var(--border);
+  --cp-text-color: var(--foreground);
+  --cp-input-color: var(--input-bg);
+  --cp-button-hover-color: var(--muted);
 }
 
 .dark {
@@ -113,6 +120,13 @@ body {
   --stat-accent: oklch(0.65 0.18 110);
   --stat-success: oklch(0.7 0.18 142);
   --stat-secondary: oklch(0.7 0.19 300);
+
+  /* Color Picker - Dark Mode */
+  --cp-bg-color: var(--popover);
+  --cp-border-color: var(--border);
+  --cp-text-color: var(--foreground);
+  --cp-input-color: var(--secondary);
+  --cp-button-hover-color: var(--muted);
 }
 
 @theme inline {

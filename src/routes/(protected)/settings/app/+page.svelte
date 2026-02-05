@@ -84,7 +84,20 @@
     });
 
     onDestroy(() => {
-        if (typeof document !== 'undefined') document.body.classList.remove('hide-mobile-nav');
+        if (typeof document !== 'undefined') {
+            document.body.classList.remove('hide-mobile-nav');
+
+            // Revert unsaved theme changes when leaving the page
+            const savedTheme = localStorage.getItem('theme');
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            const effectiveDark = savedTheme === 'dark' || (!savedTheme && systemDark);
+
+            if (effectiveDark) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
     });
 
 	let isSaving = $state(false);
@@ -129,22 +142,20 @@
 	});
 
 	// Watch for time format changes and update localStorage
-	$effect(() => {
-		const format = settings.timeFormat;
-		localStorage.setItem('time_format', format);
-	});
+	// $effect(() => { ... }) - REMOVED: Only save on explicit action
 
-	// Watch for dark mode changes and update theme + localStorage
+	// Preview mode: Update DOM immediately but DO NOT save to localStorage
 	$effect(() => {
 		const isDark = settings.darkMode;
-		if (isDark) {
-			document.documentElement.classList.add('dark');
-			localStorage.setItem('theme', 'dark');
-		} else {
-			document.documentElement.classList.remove('dark');
-			localStorage.setItem('theme', 'light');
+		if (typeof document !== 'undefined') {
+			if (isDark) {
+				document.documentElement.classList.add('dark');
+			} else {
+				document.documentElement.classList.remove('dark');
+			}
 		}
 	});
+
 
 	async function handleSaveSettings() {
 		isSaving = true;
@@ -165,6 +176,17 @@
 				});
 
 			if (error) throw error;
+
+            // Apply Local Storage Settings (Theme & Time)
+            localStorage.setItem('time_format', settings.timeFormat);
+            
+            if (settings.darkMode) {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            }
 
 			// Add to recent colors if new
 			if (!recentColors.includes(settings.primaryColor)) {
