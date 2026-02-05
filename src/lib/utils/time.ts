@@ -31,33 +31,33 @@ export function ensureUTC(dateString: string): string {
  * Get the user's timezone, with fallback to database or default
  */
 async function getUserTimezone(): Promise<string> {
-	let timezone = 'Asia/Manila'; // Default
+	const defaultTimezone = 'Asia/Manila';
 	
 	try {
 		const settings = get(systemSettings);
 		if (settings?.timezone) {
 			return settings.timezone;
 		}
-	} catch (e) {
+	} catch {
 		// Store might not be available
 	}
 
 	// If store doesn't have it, try database
 	try {
-		const { data, error } = await supabase
+		const { data } = await supabase
 			.from('system_settings')
 			.select('timezone')
 			.eq('id', 1)
 			.single();
 
-		if (!error && data?.timezone) {
+		if (data?.timezone) {
 			return data.timezone;
 		}
-	} catch (e) {
+	} catch {
 		// Database unavailable, use default
 	}
 
-	return timezone;
+	return defaultTimezone;
 }
 
 /**
@@ -145,7 +145,7 @@ export async function convertToUTC(localDateString: string, timeString: string):
 
 		// Step 1: Create a temporary UTC date to format in the user's timezone
 		// We'll use an arbitrary UTC time and adjust until it matches
-		let testDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
+		const testDate = new Date(Date.UTC(year, month - 1, day, hour, minute, 0));
 
 		// Step 2: Create formatter for the user's timezone
 		const formatter = new Intl.DateTimeFormat('en-US', {
@@ -160,8 +160,6 @@ export async function convertToUTC(localDateString: string, timeString: string):
 
 		// Step 3: Check what time this UTC date shows in user's timezone
 		let parts = formatter.formatToParts(testDate);
-		let displayedYear = parseInt(parts.find(p => p.type === 'year')?.value || '2000');
-		let displayedMonth = parseInt(parts.find(p => p.type === 'month')?.value || '1');
 		let displayedDay = parseInt(parts.find(p => p.type === 'day')?.value || '1');
 		let displayedHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
 		let displayedMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');

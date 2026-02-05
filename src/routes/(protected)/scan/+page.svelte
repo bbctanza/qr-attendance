@@ -656,15 +656,17 @@
 	/* Event Session Display */
 	let session = $state<any>(null);
 	
-	$effect(async () => {
+	$effect(() => {
 		if (activeEvent) {
-			session = {
-				title: activeEvent.event_name,
-				location: (activeEvent.metadata as any)?.location || 'Main Sanctuary',
-				timeStart: await formatLocalTime(activeEvent.start_datetime),
-				timeEnd: await formatLocalTime(activeEvent.end_datetime),
-				isActive: activeEvent.status === 'ongoing'
-			};
+			(async () => {
+				session = {
+					title: activeEvent.event_name,
+					location: (activeEvent.metadata as any)?.location || 'Main Sanctuary',
+					timeStart: await formatLocalTime(activeEvent.start_datetime),
+					timeEnd: await formatLocalTime(activeEvent.end_datetime),
+					isActive: activeEvent.status === 'ongoing'
+				};
+			})();
 		} else {
 			session = null;
 		}
