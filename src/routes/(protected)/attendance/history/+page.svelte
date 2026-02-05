@@ -10,6 +10,7 @@
 	import { supabase } from '$lib/supabase';
 	import Progress from '$lib/components/ui/progress';
 	import FullPageLoading from "$lib/components/full-page-loading.svelte";
+	import { formatLocalTime } from '$lib/utils/time';
 
 	type Event = {
 		event_id: number;
@@ -89,15 +90,13 @@
 				.select('member_id, scan_datetime, members(first_name, last_name)')
 				.eq('event_id', ev.event_id);
 
-			const attendees = (presentData || []).map((p: any) => ({
+			const attendees = await Promise.all((presentData || []).map(async (p: any) => ({
 				member_id: p.member_id,
 				first_name: p.members?.first_name || 'Unknown',
 				last_name: p.members?.last_name || 'Member',
-				time: new Date(p.scan_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-			}));
+				time: await formatLocalTime(p.scan_datetime)
+			})));
 
-			// Get Absent
-			// If we want to show absent people, we need to query attendance_absent
 			const { data: absentData } = await supabase
 				.from('attendance_absent')
 				.select('member_id, members(first_name, last_name)')

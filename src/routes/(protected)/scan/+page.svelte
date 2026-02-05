@@ -14,7 +14,7 @@
 		Camera,
 		QrCode,
 		Search,
-		CheckCircle2,
+		Check,
 		X,
 		Plus,
 		MapPin as MapPinIcon,
@@ -38,6 +38,7 @@
 	import { devTools } from '$lib/stores/dev';
 	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
 	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
+	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
 
 	let manualId = $state('');
 	let lastScanned = $state<{ id: string; name: string; timestamp: string } | null>(null);
@@ -439,10 +440,7 @@
 			await attendanceApi.scanMember(id, activeEvent.event_id, mockTime);
 
 			// 3. Success UI - Show modal instead of toast
-			const time = (mockTime || new Date()).toLocaleTimeString([], {
-				hour: '2-digit',
-				minute: '2-digit'
-			});
+			const time = await formatLocalTime((mockTime || new Date()).toISOString());
 
 			successModalData = {
 				memberName: fullName,
@@ -601,10 +599,7 @@
 				successCount++;
 
 				// Add to recent scans for record
-				const time = (mockTime || new Date()).toLocaleTimeString([], {
-					hour: '2-digit',
-					minute: '2-digit'
-				});
+				const time = await formatLocalTime((mockTime || new Date()).toISOString());
 				// Add to local list if not already there
 				if (!recentScans.find((s) => s.id === m.id)) {
 					recentScans = [{ id: m.id, name: m.name, time }, ...recentScans];
@@ -659,23 +654,21 @@
 	}
 
 	/* Event Session Display */
-	let session = $derived(
-		activeEvent
-			? {
-					title: activeEvent.event_name,
-					location: (activeEvent.metadata as any)?.location || 'Main Sanctuary',
-					timeStart: new Date(activeEvent.start_datetime).toLocaleTimeString([], {
-						hour: '2-digit',
-						minute: '2-digit'
-					}),
-					timeEnd: new Date(activeEvent.end_datetime).toLocaleTimeString([], {
-						hour: '2-digit',
-						minute: '2-digit'
-					}),
-					isActive: activeEvent.status === 'ongoing'
-				}
-			: null
-	);
+	let session = $state<any>(null);
+	
+	$effect(async () => {
+		if (activeEvent) {
+			session = {
+				title: activeEvent.event_name,
+				location: (activeEvent.metadata as any)?.location || 'Main Sanctuary',
+				timeStart: await formatLocalTime(activeEvent.start_datetime),
+				timeEnd: await formatLocalTime(activeEvent.end_datetime),
+				isActive: activeEvent.status === 'ongoing'
+			};
+		} else {
+			session = null;
+		}
+	});
 
 	// Toggle a class on <body> to hide the mobile nav when items are selected (use $effect in runes mode)
 	// Updated: Hide nav if Pending Batch List > 0 OR Fullscreen OR in Selection Mode
@@ -953,6 +946,20 @@
 							: 'border-border/40 bg-card/50 hover:border-border/60'}"
 						role="button"
 						tabindex="0"
+						onkeydown={(e) => {
+							if (e.key === 'Enter' || e.key === ' ') {
+								e.preventDefault();
+								if (isSelectionMode) {
+									toggleBatchSelection(i);
+								} else {
+									enterSelectionMode(i);
+									toast.success('Selection mode activated. Long-press to select/deselect.');
+									if (navigator.vibrate) {
+										navigator.vibrate([50, 100, 50]);
+									}
+								}
+							}
+						}}
 						oncontextmenu={(e) => {
 							e.preventDefault();
 							console.log('Context menu / long-press on item', i, 'isSelectionMode:', isSelectionMode);
@@ -987,7 +994,7 @@
 									: 'border-muted-foreground/30 bg-transparent'}"
 							>
 								{#if selectedBatchIndices.has(i)}
-									<CheckCircle2 class="h-4 w-4 text-white" />
+									<Check class="h-4 w-4 text-white" />
 								{/if}
 							</div>
 						{/if}
@@ -1192,7 +1199,7 @@
 								<div class="truncate text-sm font-bold">{scan.name}</div>
 								<div class="text-xs text-muted-foreground">{scan.time}</div>
 							</div>
-							<CheckCircle2 class="h-4 w-4 text-green-500" />
+							<Check class="h-4 w-4 text-green-500" />
 						</div>
 					{:else}
 						<div class="text-center text-sm text-muted-foreground mt-10">

@@ -111,6 +111,7 @@ CREATE TABLE events (
     end_datetime TIMESTAMP NOT NULL,
     status VARCHAR(20) DEFAULT 'upcoming' CHECK (status IN ('upcoming', 'ongoing', 'completed')),
     is_custom BOOLEAN DEFAULT FALSE,
+    is_recurring BOOLEAN DEFAULT FALSE,
     description TEXT,
     metadata JSONB DEFAULT '{}',          -- e.g., location, guest speaker, teacher, auto_complete_error
     created_at TIMESTAMP DEFAULT NOW()
@@ -118,6 +119,7 @@ CREATE TABLE events (
 
 CREATE INDEX idx_events_status ON events(status);
 CREATE INDEX idx_events_date_status ON events(event_date, status);
+CREATE INDEX idx_events_ongoing ON events(status) WHERE status = 'ongoing';
 
 -- Table: attendance_scans (Temporary holding for real-time scanning)
 CREATE TABLE attendance_scans (
@@ -191,13 +193,17 @@ BEGIN
     WHERE event_id = p_event_id
     ON CONFLICT (member_id, event_id) DO NOTHING;
 
-    -- 2. Identify absentees
+    -- 2. Identify absentees (members not in present table for this event)
     INSERT INTO attendance_absent (member_id, event_id, created_at)
     SELECT m.member_id, p_event_id, NOW()
     FROM members m
     WHERE NOT EXISTS (
         SELECT 1 FROM attendance_present ap
         WHERE ap.member_id = m.member_id AND ap.event_id = p_event_id
+    )
+    AND NOT EXISTS (
+        SELECT 1 FROM attendance_absent aa
+        WHERE aa.member_id = m.member_id AND aa.event_id = p_event_id
     )
     ON CONFLICT (member_id, event_id) DO NOTHING;
 
@@ -212,6 +218,8 @@ RETURNS void AS $$
 DECLARE
     r RECORD;
     current_ts TIMESTAMP;
+    ongoing_recurring_count INTEGER;
+    ongoing_custom_count INTEGER;
 BEGIN
     current_ts := p_now;
 
@@ -234,14 +242,39 @@ BEGIN
         END;
     END LOOP;
 
-    -- 2. Handle events moving to 'ongoing'
+    -- 2. Handle simultaneous event prevention: Mark non-recurring as 'completed' if recurring exists
+    SELECT COUNT(*) INTO ongoing_recurring_count
+    FROM events
+    WHERE status IN ('ongoing', 'upcoming')
+    AND current_ts >= start_datetime
+    AND current_ts <= end_datetime
+    AND is_recurring = TRUE;
+
+    IF ongoing_recurring_count > 0 THEN
+        -- Cancel conflicting non-recurring events
+        UPDATE events
+        SET status = 'completed'
+        WHERE is_recurring = FALSE
+        AND status IN ('ongoing', 'upcoming')
+        AND current_ts >= start_datetime
+        AND current_ts <= end_datetime
+        AND NOT EXISTS (
+            SELECT 1 FROM events e2
+            WHERE e2.is_recurring = TRUE
+            AND e2.status IN ('ongoing', 'upcoming')
+            AND current_ts >= e2.start_datetime
+            AND current_ts <= e2.end_datetime
+        );
+    END IF;
+
+    -- 3. Handle events moving to 'ongoing'
     UPDATE events
     SET status = 'ongoing'
-    WHERE status != 'ongoing'
+    WHERE status = 'upcoming'
     AND current_ts >= start_datetime 
     AND current_ts <= end_datetime;
 
-    -- 3. Handle correction (ongoing -> upcoming if time rewound)
+    -- 4. Handle correction (ongoing -> upcoming if time rewound)
     UPDATE events
     SET status = 'upcoming'
     WHERE status = 'ongoing'
@@ -286,17 +319,21 @@ BEGIN
                 INSERT INTO events (
                     event_type_id, event_name, event_date, 
                     start_datetime, end_datetime, 
-                    status, is_custom, description, metadata
+                    status, is_custom, is_recurring, description, metadata
                 ) VALUES (
                     et.event_type_id, et.name, current_d,
                     event_start, event_end,
-                    'upcoming', FALSE, 'Automatically generated from recurring schedule', et.metadata
+                    'upcoming', FALSE, TRUE, 'Automatically generated from recurring schedule', et.metadata
                 );
                 events_created := events_created + 1;
             END IF;
         END LOOP;
         current_d := current_d + 1;
     END LOOP;
+
+    RETURN events_created;
+END;
+$$ LANGUAGE plpgsql;
 
     RETURN events_created;
 END;
@@ -336,6 +373,62 @@ BEGIN
     END LOOP;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Function F: Prevent Simultaneous Non-Recurring Events
+CREATE OR REPLACE FUNCTION check_simultaneous_events()
+RETURNS TRIGGER AS $$
+DECLARE
+    conflict_count INTEGER;
+    recurring_count INTEGER;
+BEGIN
+    -- Check if this is a non-recurring event
+    IF NEW.is_recurring = FALSE THEN
+        -- Check if any recurring event overlaps
+        SELECT COUNT(*) INTO recurring_count
+        FROM events
+        WHERE event_id != NEW.event_id
+        AND is_recurring = TRUE
+        AND status IN ('upcoming', 'ongoing')
+        AND (
+            (NEW.start_datetime < end_datetime AND NEW.end_datetime > start_datetime)
+        );
+
+        IF recurring_count > 0 THEN
+            RAISE EXCEPTION 'Cannot create non-recurring event during recurring event time';
+        END IF;
+
+        -- Check if any other non-recurring event overlaps
+        SELECT COUNT(*) INTO conflict_count
+        FROM events
+        WHERE event_id != NEW.event_id
+        AND is_recurring = FALSE
+        AND status IN ('upcoming', 'ongoing')
+        AND (
+            (NEW.start_datetime < end_datetime AND NEW.end_datetime > start_datetime)
+        );
+
+        IF conflict_count > 0 THEN
+            RAISE EXCEPTION 'Only one non-recurring event can be active at a time';
+        END IF;
+    ELSE
+        -- For recurring events, check if any non-recurring overlaps
+        DELETE FROM events
+        WHERE is_recurring = FALSE
+        AND status IN ('upcoming', 'ongoing')
+        AND (
+            (NEW.start_datetime < end_datetime AND NEW.end_datetime > start_datetime)
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_check_simultaneous_events ON events;
+CREATE TRIGGER trigger_check_simultaneous_events
+BEFORE INSERT OR UPDATE ON events
+FOR EACH ROW
+EXECUTE FUNCTION check_simultaneous_events();
 
 
 -- ============================================

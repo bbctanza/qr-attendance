@@ -3,15 +3,16 @@
     import { Button } from "$lib/components/ui/button";
     import { Bell, Check, Trash2, Info, AlertTriangle, CheckCircle, AlertCircle, ArrowLeft } from 'lucide-svelte';
     import { onMount } from "svelte";
+    import { formatLocalTime } from '$lib/utils/time';
 
-    function formatDate(iso: string) {
+    async function formatDate(iso: string) {
         const date = new Date(iso);
         const now = new Date();
         const diff = now.getTime() - date.getTime();
         
         // If less than 24 hours
         if (diff < 86400000) {
-            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return await formatLocalTime(date.toISOString());
         }
         return date.toLocaleDateString();
     }

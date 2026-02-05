@@ -29,6 +29,7 @@
 	import { eventTypesApi } from '$lib/api/event_types';
 	import { goto } from '$app/navigation';
 	import { CalendarRange, Settings2 } from 'lucide-svelte';
+	import { formatLocalTime, convertToUTC, formatTimeRange } from '$lib/utils/time';
 
 	// Data
 	const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -42,16 +43,6 @@
 
 	let isMobile = $state(false);
 	let isLoading = $state(true);
-
-	function formatTime(dateString: string): string {
-		const date = new Date(dateString);
-		const use12HourFormat = localStorage.getItem('time_format') === '12h';
-		return date.toLocaleTimeString([], {
-			hour: '2-digit',
-			minute: '2-digit',
-			hour12: use12HourFormat
-		});
-	}
 
 	onMount(() => {
 		const load = async () => {
@@ -108,7 +99,7 @@
 		}
 
 		// Process event types into UI format
-		recurringEventTypes = (types || []).map((row) => ({
+		recurringEventTypes = await Promise.all((types || []).map(async (row) => ({
 			event_id: `type-${row.event_type_id}`,
 			db_id: row.event_type_id,
 			name: row.name,
@@ -117,13 +108,13 @@
 			day_name: weekdays[row.day_of_week],
 			start_time: row.start_time,
 			end_time: row.end_time,
-			start_time_formatted: formatTime(`2000-01-01T${row.start_time}`),
-			end_time_formatted: formatTime(`2000-01-01T${row.end_time}`),
+			start_time_formatted: await formatLocalTime(`2000-01-01T${row.start_time}`),
+			end_time_formatted: await formatLocalTime(`2000-01-01T${row.end_time}`),
 			is_active: row.is_active,
 			status: row.is_active ? 'Active' : 'Inactive',
 			is_template: true,
 			_raw: row
-		}));
+		})));
 
 		// 2. Fetch custom events (event_type_id IS NULL) - both upcoming and completed
 		const { data: customEvents, error: customError } = await supabase
@@ -140,20 +131,20 @@
 		}
 
 		// Process all custom events
-		allCustomEvents = (customEvents || []).map((row) => ({
+		allCustomEvents = await Promise.all((customEvents || []).map(async (row) => ({
 			event_id: `custom-${row.event_id}`,
 			db_id: row.event_id,
 			name: row.event_name,
 			type: 'Custom',
 			event_date: row.event_date,
-			start_time: formatTime(row.start_datetime),
-			end_time: formatTime(row.end_datetime),
+			start_time: await formatLocalTime(row.start_datetime),
+			end_time: await formatLocalTime(row.end_datetime),
 			location: row.metadata?.location || '',
 			status: row.status === 'completed' ? 'Inactive' : 'Active',
 			is_template: false,
 			row_status: row.status,
 			_raw: row
-		}));
+		})));
 
 		// Separate upcoming from all custom events
 		upcomingCustomEvents = allCustomEvents.filter((e) => e.row_status !== 'completed');
@@ -449,8 +440,8 @@
 				const payload = {
 					event_name: newEvent.name.trim(),
 					event_date: baseDate,
-					start_datetime: new Date(`${baseDate}T${newEvent.startTime.trim()}`).toISOString(),
-					end_datetime: new Date(`${baseDate}T${newEvent.endTime.trim()}`).toISOString(),
+					start_datetime: await convertToUTC(baseDate, newEvent.startTime.trim()),
+					end_datetime: await convertToUTC(baseDate, newEvent.endTime.trim()),
 					status: 'upcoming' as const,
 					is_custom: true,
 					metadata

@@ -24,9 +24,9 @@
 	import { onMount, onDestroy } from 'svelte';
 	import * as Table from '$lib/components/ui/table';
 	import { supabase } from '$lib/supabase';
-	import type { AttendanceEvent } from '$lib/types';
 	import FullPageLoading from '$lib/components/full-page-loading.svelte';
-
+	import { formatTimeRange } from '$lib/utils/time';
+	import type { AttendanceEvent } from '$lib/types';
 	import { devTools } from '$lib/stores/dev';
 
 	// State
@@ -104,9 +104,7 @@
 				present = scanCount || 0;
 
 				// Format time
-				const start = new Date(currentEventData.start_datetime);
-				const end = new Date(currentEventData.end_datetime);
-				const timeStr = `${start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+				const timeStr = await formatTimeRange(currentEventData.start_datetime, currentEventData.end_datetime);
 
 				liveEvent = {
 					id: currentEventData.event_id.toString(),

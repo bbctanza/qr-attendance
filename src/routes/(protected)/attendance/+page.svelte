@@ -9,6 +9,7 @@
     import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "$lib/components/ui/card";
     import * as Chart from "$lib/components/ui/chart/index.js";
     import { ArcChart, Text } from "layerchart";
+    import { formatTimeRange, formatLocalTime } from '$lib/utils/time';
     import {
         DropdownMenu,
         DropdownMenuContent,
@@ -82,7 +83,7 @@
                 id: data.event_id,
                 name: data.event_name,
                 date: data.event_date,
-                time: `${start.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})} - ${end.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`,
+                time: await formatTimeRange(data.start_datetime, data.end_datetime),
                 place: data.metadata?.location || 'Main Sanctuary'
             };
             stats = {
@@ -125,13 +126,13 @@
             .limit(5);
         
         if (data) {
-            recentScans = data.map(s => ({
+            recentScans = await Promise.all(data.map(async (s) => ({
                 id: s.scan_id,
                 name: s.members ? `${s.members.first_name} ${s.members.last_name}` : 'Unknown Member',
                 role: s.members?.metadata?.role || 'Member',
-                time: new Date(s.scan_datetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                time: await formatLocalTime(s.scan_datetime),
                 avatar: s.members ? `https://api.dicebear.com/7.x/initials/svg?seed=${s.members.first_name}%20${s.members.last_name}` : 'https://api.dicebear.com/7.x/initials/svg?seed=U'
-            }));
+            })));
         }
     }
 
