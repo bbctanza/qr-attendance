@@ -11,7 +11,7 @@
 
     let user = $state({ name: 'User', role: 'Staff', avatar: '' });
     let isLoading = $state(true);
-    let version = $state('QR Attendance System v1.2.0');
+    let version = $state('QR Attendance System v1.0.0');
 
     onMount(async () => {
         await fetchProfile();
