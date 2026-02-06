@@ -10,10 +10,10 @@
     interface Props {
         userEmail: string;
         userId: string;
-        open: boolean;
+        isOpen: boolean;
     }
 
-    let { userEmail, userId, open = $bindable() }: Props = $props();
+    let { userEmail, userId, isOpen = $bindable() }: Props = $props();
 
     let username = $state('');
     let password = $state('');
@@ -150,7 +150,7 @@
             }
 
             toast.success('Profile setup complete! Welcome aboard!');
-            open = false;
+            isOpen = false;
 
             // Reload the page to refresh the user data
             setTimeout(() => {
@@ -166,20 +166,20 @@
     }
 </script>
 
-{#if open}
+{#if isOpen}
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
         <!-- Modal Container -->
-        <div class="relative w-full max-w-sm bg-card rounded-2xl border border-border shadow-2xl">
+        <div class="relative w-full max-w-md bg-card rounded-2xl border border-border shadow-2xl max-h-[95vh] overflow-hidden flex flex-col">
             <!-- Modal Header -->
-            <div class="border-b border-border/40 p-6 sm:p-8">
+            <div class="border-b border-border/40 p-6 sm:p-8 shrink-0">
                 <h2 class="text-2xl font-bold">Welcome! Complete Your Profile</h2>
                 <p class="text-sm text-muted-foreground mt-2">
                     Please complete your profile to get started. This is a one-time setup.
                 </p>
             </div>
 
-            <!-- Modal Content -->
-            <div class="overflow-y-auto max-h-[calc(90vh-180px)] p-6 sm:p-8">
+            <!-- Modal Content - Scrollable -->
+            <div class="overflow-y-auto flex-1 p-6 sm:p-8">
                 <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6">
                     <!-- Avatar Upload -->
                     <div class="flex flex-col items-center gap-4">

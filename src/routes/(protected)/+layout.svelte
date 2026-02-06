@@ -4,13 +4,11 @@
     import { onMount } from 'svelte';
     import { page } from '$app/state';
     import { devTools } from '$lib/stores/dev';
+    import { onboardingState } from '$lib/stores/onboarding';
     import OnboardingModal from '$lib/components/onboarding-modal.svelte';
 
     let { children } = $props();
     let isLoading = $state(true);
-    let showOnboarding = $state(false);
-    let userEmail = $state('');
-    let userId = $state('');
 
     onMount(() => {
         let mounted = true;
@@ -19,6 +17,7 @@
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
                 devTools.clearMockTime();
+                onboardingState.set({ isOpen: false, userEmail: '', userId: '' });
                 goto('/login');
             }
         });
@@ -39,9 +38,11 @@
                 if (!error && profile) {
                     // If onboarding_completed is null or false, show onboarding
                     if (!profile.onboarding_completed) {
-                        showOnboarding = true;
-                        userEmail = profile.email || session.user.email || '';
-                        userId = profile.id;
+                        onboardingState.set({
+                            isOpen: true,
+                            userEmail: profile.email || session.user.email || '',
+                            userId: profile.id
+                        });
                     }
                 }
                 
@@ -64,6 +65,6 @@
         <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
     </div>
 {:else}
-    <OnboardingModal bind:open={showOnboarding} {userEmail} {userId} />
+    <OnboardingModal bind:isOpen={$onboardingState.isOpen} userEmail={$onboardingState.userEmail} userId={$onboardingState.userId} />
     {@render children()}
 {/if}

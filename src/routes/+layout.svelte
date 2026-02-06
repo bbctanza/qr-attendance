@@ -24,6 +24,7 @@
     import { onMount } from 'svelte';
     import { loadSettings, systemSettings } from "$lib/stores/settings";
     import { devTools } from "$lib/stores/dev";
+    import { onboardingState } from "$lib/stores/onboarding";
     import { supabase } from '$lib/supabase';
     import { goto } from '$app/navigation';
     import { updateCurrentSessionActivity, getCurrentSessionId } from '$lib/utils/sessions';
@@ -42,45 +43,49 @@
 
     let { children } = $props();
 
-    onMount(async () => {
-        await loadSettings();
-        devTools.init();
-        
-        // Global Auth Guard
-        const { data: { session } } = await supabase.auth.getSession();
-        const path = $page.url.pathname;
-        const publicRoutes = ['/login', '/forgot-password'];
+    onMount(() => {
+        let activityInterval: ReturnType<typeof setInterval>;
 
-        if (!session && !publicRoutes.includes(path)) {
-            goto('/login');
-        } else if (session && publicRoutes.includes(path)) {
-            goto('/');
-        }
+        (async () => {
+            await loadSettings();
+            devTools.init();
+            
+            // Global Auth Guard
+            const { data: { session } } = await supabase.auth.getSession();
+            const path = $page.url.pathname;
+            const publicRoutes = ['/login', '/forgot-password'];
 
-        // Update session activity on initial load
-        if (session) {
-            await updateCurrentSessionActivity();
-        }
+            if (!session && !publicRoutes.includes(path)) {
+                goto('/login');
+            } else if (session && publicRoutes.includes(path)) {
+                goto('/');
+            }
 
-        // Update session activity every 5 minutes
-        const activityInterval = setInterval(async () => {
-            await updateCurrentSessionActivity();
-        }, 5 * 60 * 1000);
+            // Update session activity on initial load
+            if (session) {
+                await updateCurrentSessionActivity();
+            }
 
-        // Listen for auth state changes
-        supabase.auth.onAuthStateChange((event, session) => {
-             const currentPath = window.location.pathname; // $page might be stale in callback
-             if (event === 'SIGNED_OUT') {
-                 // Clear session ID on logout
-                 if (typeof window !== 'undefined') {
-                     localStorage.removeItem('currentSessionId');
+            // Update session activity every 5 minutes
+            activityInterval = setInterval(async () => {
+                await updateCurrentSessionActivity();
+            }, 5 * 60 * 1000);
+
+            // Listen for auth state changes
+            supabase.auth.onAuthStateChange((event, session) => {
+                 const currentPath = window.location.pathname; // $page might be stale in callback
+                 if (event === 'SIGNED_OUT') {
+                     // Clear session ID on logout
+                     if (typeof window !== 'undefined') {
+                         localStorage.removeItem('currentSessionId');
+                     }
+                     if (!publicRoutes.includes(currentPath)) goto('/login');
+                     clearInterval(activityInterval);
+                 } else if (event === 'SIGNED_IN' || session) {
+                     if (publicRoutes.includes(currentPath)) goto('/');
                  }
-                 if (!publicRoutes.includes(currentPath)) goto('/login');
-                 clearInterval(activityInterval);
-             } else if (event === 'SIGNED_IN' || session) {
-                 if (publicRoutes.includes(currentPath)) goto('/');
-             }
-        });
+            });
+        })();
 
         return () => {
             clearInterval(activityInterval);
@@ -195,8 +200,10 @@
             <main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
                 {@render children()}
             </main>
-            <!-- Mobile bottom navigation -->
-            <MobileNav class="md:hidden" />
+            <!-- Mobile bottom navigation - Hidden when onboarding is active -->
+            {#if !$onboardingState.isOpen}
+                <MobileNav class="md:hidden" />
+            {/if}
         </SidebarInset>
     </SidebarProvider>
 {:else}
