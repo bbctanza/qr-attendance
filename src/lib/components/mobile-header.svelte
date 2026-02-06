@@ -5,13 +5,54 @@
   import { unreadCount } from "$lib/stores/notifications";
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import { supabase } from '$lib/supabase';
+  import { onMount } from 'svelte';
 
-  export let title: string = 'Overview';
+  interface Props {
+    title?: string;
+  }
+
+  let { title = 'Overview' } = $props();
 
   const sidebar = useSidebar();
   
   // Check if we are on the notifications page
-  $: isNotificationsPage = $page.url.pathname === '/notifications';
+  let isNotificationsPage = $derived($page.url.pathname === '/notifications');
+
+  let userProfile = $state({
+    name: '',
+    email: '',
+    avatar: ''
+  });
+
+  onMount(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (prof) {
+          userProfile = {
+            name: prof.full_name || user.user_metadata?.full_name || 'User',
+            email: user.email || '',
+            avatar: prof.avatar_url || user.user_metadata?.avatar_url || ''
+          };
+        } else {
+          userProfile = {
+            name: user.user_metadata?.full_name || 'User',
+            email: user.email || '',
+            avatar: user.user_metadata?.avatar_url || ''
+          };
+        }
+      }
+    } catch (e) {
+      // Silently fail, use defaults
+    }
+  });
 </script>
 
 <header class="flex items-center justify-between px-6 py-4 bg-background sticky top-0 z-40 md:hidden border-b border-border/40">
@@ -50,8 +91,10 @@
     
     <a href="/settings/profile" class="block active:scale-95 transition-transform">
       <Avatar class="h-10 w-10 border-2 border-primary/20">
-        <AvatarImage src="https://github.com/shadcn.png" alt="User profile" />
-        <AvatarFallback>CN</AvatarFallback>
+        {#if userProfile.avatar}
+          <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
+        {/if}
+        <AvatarFallback>{(userProfile.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
       </Avatar>
     </a>
   </div>

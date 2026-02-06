@@ -10,6 +10,7 @@
 	import { Turnstile } from 'svelte-turnstile';
 	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import * as Dialog from '$lib/components/ui/dialog';
+	import { createSession } from '$lib/utils/sessions';
 
 	// State
 	let email = $state('');
@@ -22,7 +23,6 @@
 	let showTurnstileModal = $state(false);
 
 	async function startLogin() {
-		console.log('Login started with:', email);
 		errorMessage = '';
 		if (!email || !password) {
 			errorMessage = 'Please enter both email and password.';
@@ -31,7 +31,6 @@
 		
 		// Open modal to trigger Turnstile
 		showTurnstileModal = true;
-		console.log('Turnstile modal should be showing now');
 	}
 
 	async function handleTurnstileCallback(token: string) {
@@ -50,12 +49,12 @@
 			if (error) {
 				errorMessage = error.message;
 			} else {
-				// Login successful
+				// Login successful - create session
+				await createSession();
 				goto('/dashboard');
 			}
 		} catch (e) {
 			errorMessage = 'An unexpected error occurred.';
-			console.error(e);
 		} finally {
 			isLoading = false;
 		}

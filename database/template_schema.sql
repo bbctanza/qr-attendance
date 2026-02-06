@@ -67,6 +67,22 @@ CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION handle_new_user();
 
+-- Table: user_sessions (Track active user sessions)
+DROP TABLE IF EXISTS user_sessions CASCADE;
+CREATE TABLE user_sessions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    device_name TEXT DEFAULT 'Unknown Device',
+    browser TEXT DEFAULT 'Unknown Browser',
+    ip_address TEXT,
+    location TEXT DEFAULT 'Unknown Location',
+    last_active TIMESTAMP DEFAULT NOW(),
+    created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX idx_user_sessions_last_active ON user_sessions(last_active);
+
 -- 3. CORE TABLES
 
 -- Table: groups (Generic grouping: Classes, Care Groups, Departments, etc.)
@@ -445,6 +461,7 @@ ALTER TABLE attendance_scans ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_present ENABLE ROW LEVEL SECURITY;
 ALTER TABLE attendance_absent ENABLE ROW LEVEL SECURITY;
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Helper Function
 CREATE OR REPLACE FUNCTION get_user_role()
@@ -455,7 +472,8 @@ $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 -- Profiles Policies
 CREATE POLICY "Everyone can view profiles" ON profiles FOR SELECT TO authenticated, anon USING (true);
 CREATE POLICY "Users can update their own profile" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
-CREATE POLICY "Developers have full access to profiles" ON profiles FOR DELETE TO authenticated USING (get_user_role() = 'developer');
+CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
+CREATE POLICY "Developers have full access to profiles" ON profiles FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'developer'));
 
 -- Groups Policies
 CREATE POLICY "Developer/Admin full access to groups" ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
@@ -491,6 +509,12 @@ CREATE POLICY "Staff and above can modify settings" ON system_settings FOR INSER
 CREATE POLICY "Staff and above can update settings" ON system_settings FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
 CREATE POLICY "Developers can delete settings" ON system_settings FOR DELETE TO authenticated USING (get_user_role() = 'developer');
 
+-- User Sessions Policies
+CREATE POLICY "Users can view their own sessions" ON user_sessions FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "System can create sessions" ON user_sessions FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Users can update their own sessions" ON user_sessions FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
+CREATE POLICY "Users can delete their own sessions" ON user_sessions FOR DELETE TO authenticated USING (user_id = auth.uid());
+
 -- 7. STORAGE POLICIES
 -- QR Background Image Storage Policies
 CREATE POLICY "Allow authenticated upload" ON storage.objects
@@ -508,6 +532,23 @@ USING (bucket_id = 'qr-background');
 CREATE POLICY "Allow public read" ON storage.objects
 FOR SELECT TO anon
 USING (bucket_id = 'qr-background');
+
+-- User Profile Avatar Storage Policies
+CREATE POLICY "Allow authenticated upload avatars" ON storage.objects
+FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'user-profile');
+
+CREATE POLICY "Allow authenticated delete avatars" ON storage.objects
+FOR DELETE TO authenticated
+USING (bucket_id = 'user-profile');
+
+CREATE POLICY "Allow authenticated read avatars" ON storage.objects
+FOR SELECT TO authenticated
+USING (bucket_id = 'user-profile');
+
+CREATE POLICY "Allow public read avatars" ON storage.objects
+FOR SELECT TO anon
+USING (bucket_id = 'user-profile');
 
 -- 8. DEFAULT DATA
 INSERT INTO system_settings (id, site_name, primary_color, timezone)

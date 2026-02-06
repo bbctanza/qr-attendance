@@ -12,6 +12,7 @@
 	import { supabase } from "$lib/supabase";
 	import { onMount } from "svelte";
 	import FullPageLoading from "$lib/components/full-page-loading.svelte";
+	import { getUserSessions, deleteSession, deleteAllOtherSessions, formatLastActive, type UserSession } from "$lib/utils/sessions";
 
 	// Profile state
 	let profile = $state({
@@ -22,9 +23,17 @@
 		role: "staff"
 	});
 
+	let originalProfile = $state({
+		id: "",
+		name: "",
+		email: "",
+		avatar: "",
+		role: "staff"
+	});
+
 	let isLoading = $state(true);
-	let isSavingProfile = $state(false);
-	let isSavingPassword = $state(false);
+	let isSaving = $state(false);
+	let isLoadingSessions = $state(false);
 
 	let passwordForm = $state({
 		currentPassword: "",
@@ -37,14 +46,18 @@
 
 	let twoFaEnabled = $state(false);
 
-	let activeSessions = $state([
-		{ id: 1, device: "iPhone 14 Pro", location: "San Francisco, CA", lastActive: "Now", current: true },
-		{ id: 2, device: "MacBook Pro", location: "San Francisco, CA", lastActive: "2 hours ago", current: false },
-		{ id: 3, device: "Windows PC", location: "New York, NY", lastActive: "1 day ago", current: false }
-	]);
+	let activeSessions: UserSession[] = $state([]);
+
+	// Check if there are unsaved changes
+	let hasUnsavedChanges = $derived(
+		profile.name !== originalProfile.name ||
+		profile.avatar !== originalProfile.avatar ||
+		passwordForm.newPassword !== ""
+	);
 
 	onMount(async () => {
 		await fetchProfile();
+		await loadSessions();
 	});
 
 	async function fetchProfile() {
@@ -63,7 +76,6 @@
 				.single();
 
 			if (error) {
-				console.error("Error fetching profile:", error);
 				// If profile doesn't exist yet (unlikely due to trigger, but possible)
 				profile = {
 					id: user.id,
@@ -79,33 +91,104 @@
 				profile = {
 					id: p.id,
 					name: p.full_name || user.user_metadata?.full_name || "User",
-					email: p.email,
+					email: p.email || user.email || "",
 					avatar: p.avatar_url || user.user_metadata?.avatar_url || "",
-					role: p.role
+					role: p.role || "staff"
 				};
 			}
+			// Store original values for change detection
+			originalProfile = { ...profile };
 		} catch (e) {
-			console.error("Profile fetch exception:", e);
 		} finally {
 			isLoading = false;
 		}
 	}
 
-	async function handleSaveProfile() {
-		if (!profile.name.trim() || !profile.email.trim()) {
-			toast.error("Please fill in all fields");
+	async function handleChangeAvatar() {
+		const input = document.createElement('input');
+		input.type = 'file';
+		input.accept = 'image/*';
+		input.onchange = async (e) => {
+			const file = (e.target as HTMLInputElement).files?.[0];
+			if (!file) return;
+
+			// Check file size (max 5MB)
+			if (file.size > 5 * 1024 * 1024) {
+				toast.error('Image size must be less than 5MB');
+				return;
+			}
+
+			try {
+				toast.info('Uploading avatar...');
+				
+				// Delete old avatar if exists
+				if (profile.avatar) {
+					const oldFileName = profile.avatar.split('/').pop();
+					if (oldFileName) {
+						try {
+							await supabase.storage.from('user-profile').remove([oldFileName]);
+						} catch (e) {
+							console.log('Could not delete old avatar:', e);
+						}
+					}
+				}
+
+				// Generate unique filename
+				const timestamp = Date.now();
+				const extension = file.name.split('.').pop();
+				const fileName = `avatar-${profile.id}-${timestamp}.${extension}`;
+
+				// Upload to Supabase Storage
+				const { data, error } = await supabase.storage
+					.from('user-profile')
+					.upload(fileName, file, {
+						cacheControl: '3600',
+						upsert: true
+					});
+
+				if (error) {
+					throw new Error(`Upload failed: ${error.message}`);
+				}
+
+				if (!data) {
+					throw new Error('Upload returned no data');
+				}
+
+				// Get signed URL (valid for 1 hour)
+				const { data: urlData } = await supabase.storage
+					.from('user-profile')
+					.createSignedUrl(fileName, 3600);
+
+				if (!urlData?.signedUrl) {
+					throw new Error('Could not generate signed URL');
+				}
+
+				profile.avatar = urlData.signedUrl;
+				
+				// Don't save immediately - let user click Save button
+				toast.success('Avatar uploaded. Click Save to confirm changes');
+			} catch (error) {
+				toast.error(error instanceof Error ? error.message : 'Failed to upload avatar');
+			}
+		};
+		input.click();
+	}
+
+	async function handleSave() {
+		if (!profile.name.trim()) {
+			toast.error("Please fill in your name");
 			return;
 		}
-		isSavingProfile = true;
+
+		isSaving = true;
 		try {
-			// 1. Update auth metadata (useful for SSR and immediate UI updates elsewhere)
+			// Save profile changes
 			const { error: authError } = await supabase.auth.updateUser({
 				data: { full_name: profile.name, avatar_url: profile.avatar }
 			});
 
 			if (authError) throw authError;
 
-			// 2. Update profiles table
 			const { error: profError } = await supabase
 				.from('profiles')
 				.update({
@@ -115,54 +198,60 @@
 				} as any)
 				.eq('id', profile.id);
 
-			if (profError) {
-				console.error("Profile table update failed:", profError);
-				// We don't necessarily throw here if auth metadata succeeded
+			if (profError) throw profError;
+
+			// Save password change if provided
+			if (passwordForm.newPassword) {
+				if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+					toast.error("New passwords do not match");
+					isSaving = false;
+					return;
+				}
+				if (passwordForm.newPassword.length < 8) {
+					toast.error("Password must be at least 8 characters");
+					isSaving = false;
+					return;
+				}
+
+				const { error: passError } = await supabase.auth.updateUser({
+					password: passwordForm.newPassword
+				});
+
+				if (passError) throw passError;
+
+				// Reset password form
+				passwordForm = {
+					currentPassword: "",
+					newPassword: "",
+					confirmPassword: "",
+					showCurrent: false,
+					showNew: false,
+					showConfirm: false
+				};
 			}
 
-			toast.success("Profile updated successfully");
+			// Update original values after successful save
+			originalProfile = { ...profile };
+			toast.success("Changes saved successfully");
 		} catch (e: any) {
-			toast.error(e.message || "Failed to update profile");
+			toast.error(e.message || "Failed to save changes");
 		} finally {
-			isSavingProfile = false;
+			isSaving = false;
 		}
 	}
 
-	async function handleChangePassword() {
-		if (!passwordForm.currentPassword || !passwordForm.newPassword || !passwordForm.confirmPassword) {
-			toast.error("Please fill in all password fields");
-			return;
-		}
-		if (passwordForm.newPassword !== passwordForm.confirmPassword) {
-			toast.error("New passwords do not match");
-			return;
-		}
-		if (passwordForm.newPassword.length < 8) {
-			toast.error("Password must be at least 8 characters");
-			return;
-		}
-		isSavingPassword = true;
-		try {
-			const { error } = await supabase.auth.updateUser({
-				password: passwordForm.newPassword
-			});
-
-			if (error) throw error;
-
-			passwordForm = {
-				currentPassword: "",
-				newPassword: "",
-				confirmPassword: "",
-				showCurrent: false,
-				showNew: false,
-				showConfirm: false
-			};
-			toast.success("Password changed successfully");
-		} catch (e: any) {
-			toast.error(e.message || "Failed to change password");
-		} finally {
-			isSavingPassword = false;
-		}
+	function handleCancel() {
+		// Revert all changes
+		profile = { ...originalProfile };
+		passwordForm = {
+			currentPassword: "",
+			newPassword: "",
+			confirmPassword: "",
+			showCurrent: false,
+			showNew: false,
+			showConfirm: false
+		};
+		toast.success("Changes discarded");
 	}
 
 	function handleToggle2FA() {
@@ -173,15 +262,47 @@
 		}
 	}
 
-	function handleLogoutSession(id: number) {
-		activeSessions = activeSessions.filter(s => s.id !== id);
-		toast.success("Session logged out");
+	async function loadSessions() {
+		isLoadingSessions = true;
+		try {
+			const sessions = await getUserSessions();
+			activeSessions = sessions;
+		} catch (e) {
+			toast.error("Failed to load sessions");
+		} finally {
+			isLoadingSessions = false;
+		}
 	}
 
-	function handleLogoutAllSessions() {
-		if (confirm("Are you sure? You will be logged out of all devices.")) {
-			activeSessions = activeSessions.filter(s => s.current);
-			toast.success("Logged out of all other sessions");
+	async function handleLogoutSession(sessionId: string) {
+		try {
+			const success = await deleteSession(sessionId);
+			if (success) {
+				activeSessions = activeSessions.filter(s => s.id !== sessionId);
+				toast.success("Session logged out");
+			} else {
+				toast.error("Failed to logout session");
+			}
+		} catch (e) {
+			toast.error("Failed to logout session");
+		}
+	}
+
+	async function handleLogoutAllSessions() {
+		if (!confirm("Are you sure? You will be logged out of all devices except this one.")) {
+			return;
+		}
+
+		try {
+			const success = await deleteAllOtherSessions();
+			if (success) {
+				await loadSessions();
+				toast.success("Logged out of all other sessions");
+			} else {
+				toast.error("Failed to logout all sessions");
+			}
+		} catch (e) {
+			toast.error("Failed to logout all sessions");
 		}
 	}
 </script>
@@ -193,14 +314,27 @@
 <div class="md:hidden flex flex-col min-h-screen bg-background pb-20">
 	<!-- Header -->
 	<div class="hidden sm:flex sticky top-0 bg-background border-b border-border/10 z-10">
-		<div class="flex items-center gap-3 px-4 py-4 w-full">
-			<button onclick={() => goto('/settings')} class="p-2 hover:bg-muted rounded-lg transition shrink-0">
-				<ChevronLeft class="h-5 w-5" />
-			</button>
-			<div class="min-w-0 flex-1">
-				<h1 class="text-xl font-bold">Profile</h1>
-				<p class="text-xs text-muted-foreground">Manage your account</p>
+		<div class="flex items-center justify-between gap-3 px-4 py-4 w-full">
+			<div class="flex items-center gap-3 min-w-0 flex-1">
+				<button onclick={() => goto('/settings')} class="p-2 hover:bg-muted rounded-lg transition shrink-0">
+					<ChevronLeft class="h-5 w-5" />
+				</button>
+				<div class="min-w-0 flex-1">
+					<h1 class="text-xl font-bold">Profile</h1>
+					<p class="text-xs text-muted-foreground">Manage your account</p>
+				</div>
 			</div>
+			{#if hasUnsavedChanges}
+				<div class="flex items-center gap-2">
+					<Badge variant="outline" class="bg-yellow-50 text-yellow-900 border-yellow-200">Unsaved</Badge>
+					<Button size="sm" onclick={handleSave} disabled={isSaving}>
+						{isSaving ? "Saving..." : "Save"}
+					</Button>
+					<Button size="sm" variant="outline" onclick={handleCancel} disabled={isSaving}>
+						Cancel
+					</Button>
+				</div>
+			{/if}
 		</div>
 	</div>
 
@@ -210,29 +344,31 @@
 		<Card>
 			<CardHeader class="pb-3">
 				<CardTitle class="text-base">Basic Information</CardTitle>
+				<CardDescription class="text-xs">Update your profile details</CardDescription>
 			</CardHeader>
-			<CardContent class="space-y-4">
-				<div class="flex items-center gap-4 pb-4 border-b border-border/20">
-					<Avatar class="h-16 w-16 shrink-0">
+			<CardContent class="space-y-6">
+				<!-- Avatar Section -->
+				<div class="flex items-center gap-4">
+					<Avatar class="h-20 w-20">
 						{#if profile.avatar}
 							<AvatarImage src={profile.avatar} alt={profile.name} />
-						{:else}
-							<AvatarFallback>{profile.name.split(' ').map(n => n[0]).join('').substring(0, 2)}</AvatarFallback>
 						{/if}
+						<AvatarFallback class="text-lg">{(profile.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
 					</Avatar>
-					<Button variant="outline" size="sm" class="text-xs">Change Avatar</Button>
+					<Button variant="outline" onclick={handleChangeAvatar}>Change Avatar</Button>
 				</div>
-				<div>
-					<Label class="text-xs font-bold uppercase">Full Name</Label>
-					<Input bind:value={profile.name} placeholder="Your name" class="mt-2" />
+
+				<!-- Form Fields -->
+				<div class="space-y-4">
+					<div>
+						<Label for="name" class="text-sm font-medium">Full Name</Label>
+						<Input id="name" bind:value={profile.name} placeholder="Your name" class="mt-2" />
+					</div>
+					<div>
+						<Label for="email" class="text-sm font-medium">Email</Label>
+						<Input id="email" bind:value={profile.email} type="email" placeholder="your@email.com" class="mt-2" disabled />
+					</div>
 				</div>
-				<div>
-					<Label class="text-xs font-bold uppercase">Email</Label>
-					<Input bind:value={profile.email} type="email" placeholder="your@email.com" class="mt-2" />
-				</div>
-				<Button class="w-full" onclick={handleSaveProfile} disabled={isSavingProfile}>
-					{isSavingProfile ? "Saving..." : "Save Changes"}
-				</Button>
 			</CardContent>
 		</Card>
 
@@ -241,7 +377,10 @@
 			<CardHeader class="pb-3">
 				<div class="flex items-center gap-2">
 					<Lock class="h-5 w-5 text-primary" />
-					<CardTitle class="text-base">Password & Security</CardTitle>
+					<div>
+						<CardTitle class="text-base">Password & Security</CardTitle>
+						<CardDescription class="text-xs">Manage your password and authentication</CardDescription>
+					</div>
 				</div>
 			</CardHeader>
 			<CardContent class="space-y-4">
@@ -308,9 +447,6 @@
 							</button>
 						</div>
 					</div>
-					<Button class="w-full" onclick={handleChangePassword} disabled={isSavingPassword}>
-						{isSavingPassword ? "Updating..." : "Update Password"}
-					</Button>
 				</div>
 
 				<!-- 2FA Section -->
@@ -329,36 +465,46 @@
 			<CardHeader class="pb-3">
 				<div class="flex items-center gap-2">
 					<Smartphone class="h-5 w-5 text-primary" />
-					<CardTitle class="text-base">Active Sessions</CardTitle>
+					<div>
+						<CardTitle class="text-base">Active Sessions</CardTitle>
+						<CardDescription class="text-xs">{activeSessions.length} device{activeSessions.length !== 1 ? 's' : ''}</CardDescription>
+					</div>
 				</div>
 			</CardHeader>
 			<CardContent class="space-y-3">
-				{#each activeSessions as session}
-					<div class="flex items-start justify-between p-3 rounded-lg bg-card/50">
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-2">
-								<span class="font-medium text-sm">{session.device}</span>
-								{#if session.current}
-									<Badge class="text-xs">Current</Badge>
-								{/if}
+				{#if isLoadingSessions}
+					<p class="text-xs text-muted-foreground text-center py-4">Loading sessions...</p>
+				{:else if activeSessions.length === 0}
+					<p class="text-xs text-muted-foreground text-center py-4">No active sessions found</p>
+				{:else}
+					{#each activeSessions as session}
+						<div class="flex items-start justify-between p-3 rounded-lg bg-card/50">
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-2">
+									<span class="font-medium text-sm">{session.device_name}</span>
+									{#if session.is_current}
+										<Badge class="text-xs">Current</Badge>
+									{/if}
+								</div>
+								<p class="text-xs text-muted-foreground mt-1">{session.browser}</p>
+								<p class="text-xs text-muted-foreground">{session.location}</p>
+								<p class="text-xs text-muted-foreground">Last active: {formatLastActive(session.last_active)}</p>
 							</div>
-							<p class="text-xs text-muted-foreground mt-1">{session.location}</p>
-							<p class="text-xs text-muted-foreground">Last active: {session.lastActive}</p>
+							{#if !session.is_current}
+								<button
+									onclick={() => handleLogoutSession(session.id)}
+									class="p-2 text-muted-foreground hover:text-red-500 transition shrink-0"
+								>
+									<LogOut class="h-4 w-4" />
+								</button>
+							{/if}
 						</div>
-						{#if !session.current}
-							<button
-								onclick={() => handleLogoutSession(session.id)}
-								class="p-2 text-muted-foreground hover:text-red-500 transition shrink-0"
-							>
-								<LogOut class="h-4 w-4" />
-							</button>
-						{/if}
-					</div>
-				{/each}
-				{#if activeSessions.length > 1}
-					<Button variant="outline" class="w-full text-xs text-red-500 hover:text-red-600" onclick={handleLogoutAllSessions}>
-						Log out all other sessions
-					</Button>
+					{/each}
+					{#if activeSessions.length > 1}
+						<Button variant="outline" class="w-full text-xs text-red-500 hover:text-red-600" onclick={handleLogoutAllSessions}>
+							Log out all other sessions
+						</Button>
+					{/if}
 				{/if}
 			</CardContent>
 		</Card>
@@ -373,10 +519,21 @@
 			<h1 class="text-3xl font-bold">Profile</h1>
 			<p class="text-muted-foreground mt-1">Manage your account and security</p>
 		</div>
-		<Button variant="outline" onclick={() => goto('/settings')}>
-			<ChevronLeft class="mr-2 h-4 w-4" />
-			Back
-		</Button>
+		<div class="flex items-center gap-2">
+			{#if hasUnsavedChanges}
+				<Badge variant="outline" class="bg-yellow-50 text-yellow-900 border-yellow-200">Unsaved</Badge>
+				<Button onclick={handleSave} disabled={isSaving}>
+					{isSaving ? "Saving..." : "Save Changes"}
+				</Button>
+				<Button variant="outline" onclick={handleCancel} disabled={isSaving}>
+					Cancel
+				</Button>
+			{/if}
+			<Button variant="outline" onclick={() => goto('/settings')}>
+				<ChevronLeft class="mr-2 h-4 w-4" />
+				Back
+			</Button>
+		</div>
 	</div>
 
 	<!-- Content Grid -->
@@ -390,16 +547,18 @@
 					<CardDescription>Update your profile details</CardDescription>
 				</CardHeader>
 				<CardContent class="space-y-6">
+					<!-- Avatar Section -->
 					<div class="flex items-center gap-6">
 						<Avatar class="h-24 w-24">
 							{#if profile.avatar}
 								<AvatarImage src={profile.avatar} alt={profile.name} />
-							{:else}
-								<AvatarFallback class="text-xl">{profile.name.split(' ').map(n => n[0]).join('').substring(0, 2)}</AvatarFallback>
 							{/if}
+							<AvatarFallback class="text-xl">{(profile.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
 						</Avatar>
-						<Button variant="outline">Change Avatar</Button>
+						<Button variant="outline" onclick={handleChangeAvatar}>Change Avatar</Button>
 					</div>
+
+					<!-- Form Fields -->
 					<div class="grid grid-cols-2 gap-4">
 						<div>
 							<Label for="fullName" class="text-sm font-medium">Full Name</Label>
@@ -407,12 +566,9 @@
 						</div>
 						<div>
 							<Label for="email" class="text-sm font-medium">Email</Label>
-							<Input id="email" bind:value={profile.email} type="email" placeholder="your@email.com" class="mt-2" />
+							<Input id="email" bind:value={profile.email} type="email" placeholder="your@email.com" class="mt-2" disabled />
 						</div>
 					</div>
-					<Button onclick={handleSaveProfile} disabled={isSavingProfile}>
-						{isSavingProfile ? "Saving..." : "Save Changes"}
-					</Button>
 				</CardContent>
 			</Card>
 
@@ -495,9 +651,6 @@
 								</div>
 							</div>
 						</div>
-						<Button class="w-full" onclick={handleChangePassword} disabled={isSavingPassword}>
-							{isSavingPassword ? "Updating..." : "Update Password"}
-						</Button>
 					</div>
 
 					<!-- 2FA -->
@@ -525,38 +678,45 @@
 					</div>
 				</CardHeader>
 				<CardContent class="space-y-3">
-					{#each activeSessions as session}
-						<div class="flex items-start justify-between p-3 rounded-lg border border-border/20 bg-card/50">
-							<div class="min-w-0 flex-1">
-								<div class="flex items-center gap-2">
-									<span class="font-medium text-sm">{session.device}</span>
-									{#if session.current}
-										<Badge class="text-xs">Current</Badge>
-									{/if}
+					{#if isLoadingSessions}
+						<p class="text-xs text-muted-foreground text-center py-4">Loading sessions...</p>
+					{:else if activeSessions.length === 0}
+						<p class="text-xs text-muted-foreground text-center py-4">No active sessions found</p>
+					{:else}
+						{#each activeSessions as session}
+							<div class="flex items-start justify-between p-3 rounded-lg border border-border/20 bg-card/50">
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-2">
+										<span class="font-medium text-sm">{session.device_name}</span>
+										{#if session.is_current}
+											<Badge class="text-xs">Current</Badge>
+										{/if}
+									</div>
+									<p class="text-xs text-muted-foreground mt-1">{session.browser}</p>
+									<p class="text-xs text-muted-foreground">{session.location}</p>
+									<p class="text-xs text-muted-foreground">Last active: {formatLastActive(session.last_active)}</p>
 								</div>
-								<p class="text-xs text-muted-foreground mt-1">{session.location}</p>
-								<p class="text-xs text-muted-foreground">Last active: {session.lastActive}</p>
+								{#if !session.is_current}
+									<button
+										onclick={() => handleLogoutSession(session.id)}
+										class="p-2 text-muted-foreground hover:text-red-500 transition shrink-0"
+										title="Logout"
+									>
+										<LogOut class="h-4 w-4" />
+									</button>
+								{/if}
 							</div>
-							{#if !session.current}
-								<button
-									onclick={() => handleLogoutSession(session.id)}
-									class="p-2 text-muted-foreground hover:text-red-500 transition shrink-0"
-									title="Logout"
-								>
-									<LogOut class="h-4 w-4" />
-								</button>
-							{/if}
-						</div>
-					{/each}
-					{#if activeSessions.length > 1}
-						<Button
-							variant="outline"
-							size="sm"
-							class="w-full text-xs text-red-500 hover:text-red-600"
-							onclick={handleLogoutAllSessions}
-						>
-							Log out all other sessions
-						</Button>
+						{/each}
+						{#if activeSessions.length > 1}
+							<Button
+								variant="outline"
+								size="sm"
+								class="w-full text-xs text-red-500 hover:text-red-600"
+								onclick={handleLogoutAllSessions}
+							>
+								Log out all other sessions
+							</Button>
+						{/if}
 					{/if}
 				</CardContent>
 			</Card>

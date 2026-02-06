@@ -35,6 +35,8 @@
   import { siteConfig } from '$lib/config/site';
   import { goto } from '$app/navigation';
   import { systemSettings } from '$lib/stores/settings';
+  import { supabase } from '$lib/supabase';
+  import { onMount } from 'svelte';
 
   // Menu items
   const items = [
@@ -64,6 +66,46 @@
       icon: MoreHorizontal,
     },
   ];
+
+  let userProfile = $state({
+    name: '',
+    email: '',
+    avatar: ''
+  });
+
+  onMount(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: prof } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+
+        if (prof) {
+          userProfile = {
+            name: prof.full_name || user.user_metadata?.full_name || 'User',
+            email: user.email || '',
+            avatar: prof.avatar_url || user.user_metadata?.avatar_url || ''
+          };
+        } else {
+          userProfile = {
+            name: user.user_metadata?.full_name || 'User',
+            email: user.email || '',
+            avatar: user.user_metadata?.avatar_url || ''
+          };
+        }
+      }
+    } catch (e) {
+      // Silently fail, use defaults
+    }
+  });
+
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    goto('/login');
+  }
 </script>
 
 <Sidebar>
@@ -116,12 +158,14 @@
                     {...props}
                 >
                 <Avatar class="h-8 w-8 rounded-lg">
-                    <AvatarImage src="https://github.com/shadcn.png" alt="User" />
-                    <AvatarFallback class="rounded-lg">CN</AvatarFallback>
+                    {#if userProfile.avatar}
+                      <AvatarImage src={userProfile.avatar} alt={userProfile.name} />
+                    {/if}
+                    <AvatarFallback class="rounded-lg">{(userProfile.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
                 </Avatar>
                 <div class="grid flex-1 text-left text-sm leading-tight">
-                    <span class="truncate font-semibold">Admin User</span>
-                    <span class="truncate text-xs">admin@example.com</span>
+                    <span class="truncate font-semibold">{userProfile.name || 'User'}</span>
+                    <span class="truncate text-xs">{userProfile.email || 'No email'}</span>
                 </div>
                 <ChevronUp class="ml-auto size-4" />
                 </SidebarMenuButton>
@@ -131,16 +175,14 @@
             side="top"
             class="w-[--sidebar-width] min-w-56 rounded-lg bg-popover text-popover-foreground shadow-lg"
           >
-            <DropdownMenuItem>
-              <span>Account</span>
+            <DropdownMenuItem onclick={() => goto('/settings/profile')}>
+              <User2 class="mr-2 h-4 w-4" />
+              <span>Profile</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
-              <span>Billing</span>
-            </DropdownMenuItem>
-            <!-- <DropdownMenuItem class="text-destructive focus:text-destructive">
+            <DropdownMenuItem onclick={handleLogout} class="text-destructive focus:text-destructive">
               <LogOut class="mr-2 h-4 w-4" />
               <span>Sign out</span>
-            </DropdownMenuItem> -->
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
