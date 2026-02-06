@@ -6,13 +6,25 @@
     import { devTools } from '$lib/stores/dev';
     import { onboardingState } from '$lib/stores/onboarding';
     import OnboardingModal from '$lib/components/onboarding-modal.svelte';
+    import ChangelogModal from '$lib/components/changelog-modal.svelte';
     import { AutomationEngine } from '$lib/logic/automation';
+    import { changelogStore } from '$lib/stores/changelog';
+    import { CURRENT_VERSION, changelog } from '$lib/config/changelog';
 
     let { children } = $props();
     let isLoading = $state(true);
+    let isChangelogOpen = $state(false);
+    let changelogEntry = $state<any>(null);
 
     onMount(() => {
         let mounted = true;
+
+        // Check for new version and show changelog if needed
+        const shouldShow = changelogStore.checkAndShowChangelog(CURRENT_VERSION);
+        if (shouldShow && changelog.length > 0) {
+            changelogEntry = changelog[0];
+            isChangelogOpen = true;
+        }
 
         // Start automation engine
         const engine = new AutomationEngine();
@@ -73,5 +85,6 @@
     </div>
 {:else}
     <OnboardingModal bind:isOpen={$onboardingState.isOpen} userEmail={$onboardingState.userEmail} userId={$onboardingState.userId} />
+    <ChangelogModal bind:open={isChangelogOpen} entry={changelogEntry} />
     {@render children()}
 {/if}

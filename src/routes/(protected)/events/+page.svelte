@@ -425,13 +425,13 @@
 					newEvent.days.length > 0 ? newEvent.days : [weekdays[new Date().getDay()]];
 
 				// Remove duplicates from days to create
-				const uniqueDays = [...new Set(daysToCreate)];
+				const uniqueDays = [...new Set(daysToCreate)] as string[];
 
 				let createdCount = 0;
 				let skippedCount = 0;
 
 				for (const day of uniqueDays) {
-					const dayOfWeek = dayMap[day];
+					const dayOfWeek = dayMap[day as keyof typeof dayMap];
 					const startTime = newEvent.startTime.trim();
 					const endTime = newEvent.endTime.trim();
 

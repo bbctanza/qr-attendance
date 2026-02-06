@@ -4,14 +4,16 @@
     import { Badge } from "$lib/components/ui/badge";
     import { Separator } from "$lib/components/ui/separator";
     import { goto } from '$app/navigation';
-    import { ChevronRight, Edit, Clock, Calendar, Users, Settings, LogOut, BarChart3 } from '@lucide/svelte';
+    import { ChevronRight, Edit, Clock, Calendar, Users, Settings, LogOut, BarChart3, Info } from '@lucide/svelte';
     import { supabase } from '$lib/supabase';
     import { onMount } from 'svelte';
     import FullPageLoading from '$lib/components/full-page-loading.svelte';
+    import AboutModal from '$lib/components/about-modal.svelte';
+    import { CURRENT_VERSION } from '$lib/config/changelog';
 
     let user = $state({ name: 'User', role: 'Staff', avatar: '' });
     let isLoading = $state(true);
-    let version = $state('QR Attendance System v1.0.0');
+    let isAboutOpen = $state(false);
 
     onMount(async () => {
         await fetchProfile();
@@ -160,6 +162,15 @@
                 </div>
                 <ChevronRight class="text-muted-foreground shrink-0" />
             </button>
+
+            <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => isAboutOpen = true}> 
+                <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><Info class="h-5 w-5" /></div>
+                <div class="flex-1 text-left min-w-0">
+                    <div class="font-bold text-sm sm:text-base">About</div>
+                    <div class="text-xs sm:text-sm text-muted-foreground truncate">About this application</div>
+                </div>
+                <ChevronRight class="text-muted-foreground shrink-0" />
+            </button>
         </div>
     </div>
 
@@ -170,7 +181,10 @@
             <LogOut class="h-4 w-4 inline mr-2" />
             Log Out
         </button>
-        <div class="text-xs text-muted-foreground text-center sm:text-right">{version}</div>
+        <div class="text-xs text-muted-foreground text-center sm:text-right">QR Attendance System v{CURRENT_VERSION}</div>
     </div>
 </div>
 {/if}
+
+<!-- About Modal -->
+<AboutModal bind:open={isAboutOpen} />

@@ -837,7 +837,7 @@
                             </div>
                             <div class="space-y-3">
                                 {#if settings.qrBackgroundImage}
-                                    <div class="group relative w-full bg-gradient-to-br from-muted to-muted/50 rounded-xl border-2 border-border/30 overflow-hidden shadow-md hover:shadow-lg transition-all duration-300">
+                                    <div class="group relative w-full bg-linear-to-br from-muted to-muted/50 rounded-xl border-2 border-border/30 overflow-hidden shadow-md hover:shadow-lg transition-all duration-300">
                                         <!-- Image Container -->
                                         <div class="relative w-full h-48 overflow-hidden bg-muted">
                                             <img 
@@ -846,7 +846,7 @@
                                                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
                                             />
                                             <!-- Overlay Gradient -->
-                                            <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+                                            <div class="absolute inset-0 bg-linear-to-t from-black/20 to-transparent pointer-events-none"></div>
                                         </div>
                                         
                                         <!-- Remove Button -->
@@ -866,7 +866,7 @@
                                                     <span class="font-medium text-foreground">Image uploaded</span>
                                                 </div>
                                                 <button
-                                                    onclick={() => document.getElementById('qrBackground').click()}
+                                                    onclick={() => (document.getElementById('qrBackground') as HTMLInputElement)?.click()}
                                                     class="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
                                                 >
                                                     Change
@@ -884,14 +884,14 @@
                                     >
                                         <div class={cn(
                                             "flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed rounded-xl transition-all duration-300 bg-muted/20",
-                                            isDragging 
+                                            (isDragging ?? false)
                                                 ? "border-primary bg-primary/10 scale-105" 
                                                 : "border-border/40 group-hover:border-primary/50 group-hover:bg-primary/5"
                                         )}>
                                             <div class="flex flex-col items-center justify-center gap-2">
                                                 <div class={cn(
                                                     "p-3 rounded-lg transition-all",
-                                                    isDragging 
+                                                    (isDragging ?? false)
                                                         ? "bg-primary/30 scale-110" 
                                                         : "bg-primary/10 group-hover:bg-primary/20"
                                                 )}>

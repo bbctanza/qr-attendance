@@ -28,9 +28,6 @@
     import { supabase } from '$lib/supabase';
     import { goto } from '$app/navigation';
     import { updateCurrentSessionActivity, getCurrentSessionId } from '$lib/utils/sessions';
-    import ChangelogModal from '$lib/components/changelog-modal.svelte';
-    import { changelogStore } from '$lib/stores/changelog';
-    import { CURRENT_VERSION, changelog } from '$lib/config/changelog';
 
     // Initialize theme synchronously from localStorage before render
     if (browser) {
@@ -45,8 +42,6 @@
     }
 
     let { children } = $props();
-    let isChangelogOpen = $state(false);
-    let changelogEntry = $state<any>(null);
 
     onMount(() => {
         let activityInterval: ReturnType<typeof setInterval>;
@@ -54,15 +49,6 @@
         (async () => {
             await loadSettings();
             devTools.init();
-            
-            // Check for new version and show changelog if needed
-            if (browser) {
-                const shouldShow = changelogStore.checkAndShowChangelog(CURRENT_VERSION);
-                if (shouldShow && changelog.length > 0) {
-                    changelogEntry = changelog[0];
-                    isChangelogOpen = true;
-                }
-            }
             
             // Global Auth Guard
             const { data: { session } } = await supabase.auth.getSession();
@@ -173,7 +159,7 @@
 </script>
 
 <svelte:head>
-    <link rel="icon" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.svg?v={Date.now()}" />
     <title>{$systemSettings.siteName}</title>
 </svelte:head>
 <Toaster position="top-center" />
@@ -222,9 +208,6 @@
 {:else}
     {@render children()}
 {/if}
-
-<!-- Changelog Modal -->
-<ChangelogModal bind:open={isChangelogOpen} entry={changelogEntry} />
 
 {#if $devTools.isMockTimeActive}
     <div class="fixed bottom-24 right-4 md:bottom-6 md:right-6 z-100 bg-orange-500 text-white text-[10px] md:text-xs px-3 py-1.5 rounded-full font-mono font-bold shadow-lg flex items-center gap-2 pointer-events-none border-2 border-orange-400 animate-in fade-in slide-in-from-bottom-4">
