@@ -8,16 +8,21 @@
 		AlertDialogHeader,
 		AlertDialogTitle,
 	} from '$lib/components/ui/alert-dialog';
-	import { Info } from 'lucide-svelte';
+	import { Info, BookOpen } from 'lucide-svelte';
 
 	interface Props {
 		open?: boolean;
+		onViewChangelog?: () => void;
 	}
 
-	let { open = $bindable(false) }: Props = $props();
+	let { open = $bindable(false), onViewChangelog }: Props = $props();
 
 	function handleClose() {
 		open = false;
+	}
+
+	function handleViewChangelog() {
+		onViewChangelog?.();
 	}
 </script>
 
@@ -52,6 +57,10 @@
 		</AlertDialogDescription>
 
 		<div class="flex gap-3 justify-end pt-4">
+			<Button variant="outline" onclick={handleViewChangelog} class="gap-2">
+				<BookOpen class="h-4 w-4" />
+				Changelog
+			</Button>
 			<AlertDialogAction onclick={handleClose}>
 				Got it
 			</AlertDialogAction>

@@ -354,10 +354,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-    RETURN events_created;
-END;
-$$ LANGUAGE plpgsql;
-
 -- Function D: Developer Tools - Clear History
 CREATE OR REPLACE FUNCTION clear_attendance_history()
 RETURNS void AS $$

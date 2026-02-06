@@ -9,11 +9,13 @@
     import { onMount } from 'svelte';
     import FullPageLoading from '$lib/components/full-page-loading.svelte';
     import AboutModal from '$lib/components/about-modal.svelte';
+    import ChangelogModal from '$lib/components/changelog-modal.svelte';
     import { CURRENT_VERSION } from '$lib/config/changelog';
 
     let user = $state({ name: 'User', role: 'Staff', avatar: '' });
     let isLoading = $state(true);
     let isAboutOpen = $state(false);
+    let isChangelogOpen = $state(false);
 
     onMount(async () => {
         await fetchProfile();
@@ -187,4 +189,13 @@
 {/if}
 
 <!-- About Modal -->
-<AboutModal bind:open={isAboutOpen} />
+<AboutModal 
+    bind:open={isAboutOpen} 
+    onViewChangelog={() => {
+        isAboutOpen = false;
+        isChangelogOpen = true;
+    }}
+/>
+
+<!-- Changelog Modal -->
+<ChangelogModal bind:open={isChangelogOpen} />
