@@ -26,7 +26,7 @@
 </script>
 
 {#if isOpen}
-	<div class="fixed inset-0 z-[150] flex items-center justify-center p-4 pointer-events-auto">
+	<div class="fixed inset-0 z-150 flex items-center justify-center p-4 pointer-events-auto">
 		<!-- Backdrop -->
 		<div
 			class="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"

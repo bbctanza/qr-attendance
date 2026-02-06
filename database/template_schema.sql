@@ -47,6 +47,7 @@ CREATE TABLE profiles (
     full_name TEXT,
     avatar_url TEXT,
     role user_role DEFAULT 'staff' NOT NULL,
+    onboarding_completed BOOLEAN DEFAULT FALSE,
     updated_at TIMESTAMP DEFAULT NOW(),
     created_at TIMESTAMP DEFAULT NOW()
 );
