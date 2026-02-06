@@ -100,24 +100,27 @@
         try {
             let avatarUrl = '';
 
-            // Upload avatar if provided
+            // Upload avatar if provided (optional - silently skip if it fails)
             if (avatarFile) {
-                const fileExt = avatarFile.name.split('.').pop();
-                const fileName = `${userId}-${Date.now()}.${fileExt}`;
-                const filePath = `avatars/${fileName}`;
+                try {
+                    const fileExt = avatarFile.name.split('.').pop();
+                    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+                    const filePath = `avatars/${fileName}`;
 
-                const { error: uploadError } = await supabase.storage
-                    .from('profiles')
-                    .upload(filePath, avatarFile);
-
-                if (uploadError) {
-                    console.error('Error uploading avatar:', uploadError);
-                    toast.error('Failed to upload profile picture');
-                } else {
-                    const { data: urlData } = supabase.storage
+                    const { error: uploadError } = await supabase.storage
                         .from('profiles')
-                        .getPublicUrl(filePath);
-                    avatarUrl = urlData.publicUrl;
+                        .upload(filePath, avatarFile);
+
+                    if (!uploadError) {
+                        const { data: urlData } = supabase.storage
+                            .from('profiles')
+                            .getPublicUrl(filePath);
+                        avatarUrl = urlData.publicUrl;
+                    }
+                    // Silently ignore avatar upload errors - it's optional
+                } catch (avatarError) {
+                    console.warn('Avatar upload skipped:', avatarError);
+                    // Continue without avatar - it's optional
                 }
             }
 
