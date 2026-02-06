@@ -108,12 +108,12 @@
                     const filePath = `avatars/${fileName}`;
 
                     const { error: uploadError } = await supabase.storage
-                        .from('profiles')
+                        .from('user-profile')
                         .upload(filePath, avatarFile);
 
                     if (!uploadError) {
                         const { data: urlData } = supabase.storage
-                            .from('profiles')
+                            .from('user-profile')
                             .getPublicUrl(filePath);
                         avatarUrl = urlData.publicUrl;
                     }
