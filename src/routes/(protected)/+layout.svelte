@@ -6,6 +6,7 @@
     import { devTools } from '$lib/stores/dev';
     import { onboardingState } from '$lib/stores/onboarding';
     import OnboardingModal from '$lib/components/onboarding-modal.svelte';
+    import { AutomationEngine } from '$lib/logic/automation';
 
     let { children } = $props();
     let isLoading = $state(true);
@@ -13,11 +14,16 @@
     onMount(() => {
         let mounted = true;
 
+        // Start automation engine
+        const engine = new AutomationEngine();
+        engine.start();
+
         // Set up a listener for auth changes synchronously to ensure we catch everything
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
                 devTools.clearMockTime();
                 onboardingState.set({ isOpen: false, userEmail: '', userId: '' });
+                engine.stop();
                 goto('/login');
             }
         });
@@ -56,6 +62,7 @@
         return () => {
             mounted = false;
             subscription.unsubscribe();
+            engine.stop();
         };
     });
 </script>

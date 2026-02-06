@@ -29,7 +29,7 @@
 	import { eventTypesApi } from '$lib/api/event_types';
 	import { goto } from '$app/navigation';
 	import { CalendarRange, Settings2 } from 'lucide-svelte';
-	import { formatLocalTime, convertToUTC, formatTimeRange } from '$lib/utils/time';
+	import { formatLocalTime, convertToUTC, formatTimeRange, formatTimeColumn } from '$lib/utils/time';
 
 	// Data
 	const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -48,22 +48,6 @@
 		const load = async () => {
 			isLoading = true;
 			try {
-				// Auto-generate recurring events for only the next 7 days (1 week)
-				const today = new Date();
-				const nextWeek = new Date(today);
-				nextWeek.setDate(today.getDate() + 7);
-
-				const startDate = today.toISOString().split('T')[0];
-				const endDate = nextWeek.toISOString().split('T')[0];
-
-				try {
-					const count = await eventTypesApi.generateEvents(startDate, endDate);
-					if (count > 0) console.log(`Generated ${count} recurring events for next week`);
-				} catch (genError) {
-					console.error('Failed to generate recurring events:', genError);
-					// Continue anyway - don't block the page
-				}
-
 				await fetchData();
 			} finally {
 				isLoading = false;
@@ -108,8 +92,8 @@
 			day_name: weekdays[row.day_of_week],
 			start_time: row.start_time,
 			end_time: row.end_time,
-			start_time_formatted: await formatLocalTime(`2000-01-01T${row.start_time}`),
-			end_time_formatted: await formatLocalTime(`2000-01-01T${row.end_time}`),
+			start_time_formatted: formatTimeColumn(row.start_time),
+			end_time_formatted: formatTimeColumn(row.end_time),
 			is_active: row.is_active,
 			status: row.is_active ? 'Active' : 'Inactive',
 			is_template: true,
@@ -245,7 +229,36 @@
 	}
 
 	async function deleteEvent(id: string) {
-		const customEvent = upcomingCustomEvents.find((e) => e.event_id === id);
+		const isRecurringTemplate = id.startsWith('type-');
+
+		if (isRecurringTemplate) {
+			const eventType = recurringEventTypes.find((e) => e.event_id === id);
+			if (!eventType) return;
+
+			if (!confirm(`Delete recurring template: "${eventType.name}"? This will stop future events from being generated.`)) return;
+
+			const { error } = await supabase
+				.from('event_types')
+				.delete()
+				.eq('event_type_id', eventType.db_id);
+
+			if (error) {
+				toast.error('Failed to delete template');
+				console.error(error);
+				return;
+			}
+			toast.success('Recurring template deleted');
+			fetchData();
+			return;
+		}
+
+		// Handle Custom Events
+		let customEvent = upcomingCustomEvents.find((e) => e.event_id === id);
+		// If not in upcoming, might be in all events (for deleting past/completed ones if we want to allow that later)
+		if (!customEvent) {
+			customEvent = allCustomEvents.find((e) => e.event_id === id);
+		}
+
 		if (!customEvent) return;
 
 		// Check if event has attendance scans
@@ -259,7 +272,7 @@
 			return;
 		}
 
-		// Only allow deletion of upcoming custom events
+		// Only allow deletion of upcoming custom events (unless we change policy)
 		if (customEvent.row_status !== 'upcoming') {
 			toast.error('Can only delete upcoming events.');
 			return;
@@ -267,7 +280,7 @@
 
 		if (!confirm(`Delete this custom event: "${customEvent.name}"?`)) return;
 
-		// Delete associated attendance scans first
+		// Delete associated attendance scans first (though we checked count is 0, just in case)
 		const { error: scansError } = await supabase
 			.from('attendance_scans')
 			.delete()
@@ -275,7 +288,6 @@
 
 		if (scansError) {
 			console.error('Error deleting attendance scans:', scansError);
-			// Continue with event deletion anyway
 		}
 
 		// Delete the event
@@ -412,12 +424,49 @@
 				const daysToCreate =
 					newEvent.days.length > 0 ? newEvent.days : [weekdays[new Date().getDay()]];
 
-				for (const day of daysToCreate) {
+				// Remove duplicates from days to create
+				const uniqueDays = [...new Set(daysToCreate)];
+
+				let createdCount = 0;
+				let skippedCount = 0;
+
+				for (const day of uniqueDays) {
+					const dayOfWeek = dayMap[day];
+					const startTime = newEvent.startTime.trim();
+					const endTime = newEvent.endTime.trim();
+
+					// Check if a template already exists for this day/time
+					const { data: existing, error: checkError } = await supabase
+						.from('event_types')
+						.select('event_type_id')
+						.eq('day_of_week', dayOfWeek)
+						.eq('start_time', startTime)
+						.eq('end_time', endTime)
+						.eq('name', newEvent.name.trim());
+
+					if (checkError) throw checkError;
+
+					if (existing && existing.length > 0) {
+						// Update existing template
+						const { error } = await supabase
+							.from('event_types')
+							.update({
+								is_active: true,
+								metadata
+							})
+							.eq('event_type_id', existing[0].event_type_id);
+
+						if (error) throw error;
+						skippedCount++;
+						continue;
+					}
+
+					// Create new template
 					const typePayload = {
 						name: newEvent.name.trim(),
-						day_of_week: dayMap[day],
-						start_time: newEvent.startTime.trim(),
-						end_time: newEvent.endTime.trim(),
+						day_of_week: dayOfWeek,
+						start_time: startTime,
+						end_time: endTime,
 						is_active: true,
 						metadata
 					};
@@ -433,8 +482,16 @@
 					}
 
 					if (error) throw error;
+					createdCount++;
 				}
-				toast.success(isEditing ? 'Templates updated' : 'Recurring templates added');
+
+				if (createdCount === 0 && skippedCount > 0) {
+					toast.success('Templates already exist - updated instead');
+				} else if (createdCount > 0 && skippedCount > 0) {
+					toast.success(`Created ${createdCount}, updated ${skippedCount} templates`);
+				} else {
+					toast.success(isEditing ? 'Templates updated' : `Recurring templates added (${createdCount})`);
+				}
 			} else {
 				// One-time or Monthly (Monthly not fully supported by event_types schema yet, so treat as custom instance for now)
 				const payload = {

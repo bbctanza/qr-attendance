@@ -146,8 +146,7 @@
         // Members
         if (path === '/members') return [{ name: 'Members' }];
         
-        // Dashboard
-        if (path === '/dashboard') return [{ name: 'Dashboard' }];
+
         
         // History
         if (path === '/history') return [{ name: 'History' }];

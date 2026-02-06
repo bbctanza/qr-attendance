@@ -98,6 +98,27 @@ export async function formatLocalDateTime(dateString: string, showTime = true): 
 }
 
 /**
+ * Format a 'HH:mm:ss' time string (e.g. from postgres time column) into a friendly display string
+ * Does NOT perform timezone conversion. Assumes time is already in target timezone.
+ */
+export function formatTimeColumn(timeString: string): string {
+	if (!timeString) return '';
+	
+	const [hours, minutes] = timeString.split(':').map(Number);
+	const date = new Date();
+	date.setHours(hours);
+	date.setMinutes(minutes);
+	
+	const use12HourFormat = typeof localStorage !== 'undefined' && localStorage.getItem('time_format') !== '24h'; // Default to 12h
+
+	return date.toLocaleTimeString([], { 
+		hour: 'numeric', 
+		minute: '2-digit', 
+		hour12: use12HourFormat 
+	});
+}
+
+/**
  * Format only the time part of a datetime string
  * @param dateString - ISO datetime string or database string
  * @returns Formatted time in user's timezone and format preference
@@ -155,7 +176,8 @@ export async function convertToUTC(localDateString: string, timeString: string):
 			day: '2-digit',
 			hour: '2-digit',
 			minute: '2-digit',
-			second: '2-digit'
+			second: '2-digit',
+			hour12: false // CRITICAL: enforce 24h format for consistent calculation logic
 		});
 
 		// Step 3: Check what time this UTC date shows in user's timezone

@@ -58,7 +58,7 @@
 				} else {
 					console.warn('Failed to create session');
 				}
-				goto('/dashboard');
+				goto('/');
 			}
 		} catch (e) {
 			errorMessage = 'An unexpected error occurred.';
