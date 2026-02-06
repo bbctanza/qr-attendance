@@ -11,9 +11,10 @@
     interface Props {
         userEmail: string;
         userId: string;
+        open: boolean;
     }
 
-    let { userEmail, userId }: Props = $props();
+    let { userEmail, userId, open = $bindable() }: Props = $props();
 
     let username = $state('');
     let password = $state('');
@@ -22,15 +23,6 @@
     let avatarPreview = $state('');
     let isSubmitting = $state(false);
     let errors = $state({
-        username: '',
-        password: '',
-        confirmPassword: ''
-    });
-
-    // Debug logging
-    console.log('🎯 Onboarding Modal Rendered');
-    console.log('📧 User Email:', userEmail);
-    console.log('🆔 User ID:', userId);
         username: '',
         password: '',
         confirmPassword: ''
@@ -159,6 +151,7 @@
             }
 
             toast.success('Profile setup complete! Welcome aboard!');
+            open = false;
 
             // Reload the page to refresh the user data
             setTimeout(() => {
@@ -174,7 +167,7 @@
     }
 </script>
 
-<Dialog open={true} closeOnEscape={false} closeOnOutsideClick={false}>
+<Dialog bind:open closeOnEscape={false} closeOnOutsideClick={false}>
     <DialogContent class="sm:max-w-[500px] max-h-[90vh] overflow-y-auto [&>button]:hidden">
         <DialogHeader>
             <DialogTitle class="text-2xl">Welcome! Complete Your Profile</DialogTitle>
