@@ -266,8 +266,10 @@
 		isLoadingSessions = true;
 		try {
 			const sessions = await getUserSessions();
+			console.log('Loaded sessions:', sessions);
 			activeSessions = sessions;
 		} catch (e) {
+			console.error('Error loading sessions:', e);
 			toast.error("Failed to load sessions");
 		} finally {
 			isLoadingSessions = false;

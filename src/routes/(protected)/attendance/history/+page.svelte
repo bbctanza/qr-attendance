@@ -422,8 +422,53 @@
 	<div class="flex flex-col gap-4 md:gap-6 p-4 md:px-12 md:py-10 lg:px-16 lg:py-12">
 
   <Card>
-    <CardHeader>
+    <CardHeader class="flex flex-row items-center justify-between pb-2">
       <CardTitle>Total Attendance</CardTitle>
+      <div>
+        {#if filterPresent}
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              {#snippet child({ props })}
+                <Button variant="outline" size="sm" class="gap-2" {...props}>
+                  <Download class="h-4 w-4" />
+                  <span class="hidden sm:inline">Export</span>
+                </Button>
+              {/snippet}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onclick={handleExportPresentCSV}>
+                <Download class="mr-2 h-4 w-4" />
+                <span>Export as CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onclick={handleExportPresentPDF}>
+                <Download class="mr-2 h-4 w-4" />
+                <span>Export as PDF</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        {:else}
+          <DropdownMenu>
+            <DropdownMenuTrigger>
+              {#snippet child({ props })}
+                <Button variant="outline" size="sm" class="gap-2" {...props}>
+                  <Download class="h-4 w-4" />
+                  <span class="hidden sm:inline">Export</span>
+                </Button>
+              {/snippet}
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onclick={handleExportAbsentCSV}>
+                <Download class="mr-2 h-4 w-4" />
+                <span>Export as CSV</span>
+              </DropdownMenuItem>
+              <DropdownMenuItem onclick={handleExportAbsentPDF}>
+                <Download class="mr-2 h-4 w-4" />
+                <span>Export as PDF</span>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        {/if}
+      </div>
     </CardHeader>
     <CardContent>
       <div class="flex items-center justify-between">
@@ -450,7 +495,7 @@
   </div>
 
   <div class="flex flex-col items-center md:flex-row md:justify-between md:items-center mt-2 md:mt-4">
-    <div class="flex items-center gap-2 mb-2 md:mb-0">
+    <div class="flex items-center gap-2">
       <button class="p-2 rounded-full bg-card/30 text-muted-foreground hover:bg-card/50 disabled:opacity-50" disabled={!hasPrev} onclick={() => monthPage--}>
         <ChevronLeft class="h-4 w-4" />
       </button>
@@ -461,68 +506,23 @@
         <ChevronRight class="h-4 w-4" />
       </button>
     </div>
-    <div class="flex flex-col items-center md:flex-row md:justify-between md:items-center gap-4">
-      <div role="tablist" aria-label="Present or Absent" class="inline-flex rounded-2xl border border-border/20 bg-card/10 p-1">
-        <button
-          role="tab"
-          aria-selected={filterPresent}
-          class={"text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (filterPresent ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}
-          onclick={() => filterPresent = true}
-        >
-          PRESENT
-        </button>
-        <button
-          role="tab"
-          aria-selected={!filterPresent}
-          class={"text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (!filterPresent ? "bg-destructive text-primary-foreground shadow-sm" : "text-muted-foreground")}
-          onclick={() => filterPresent = false}
-        >
-          ABSENT
-        </button>
-      </div>
-      {#if filterPresent}
-        <DropdownMenu>
-          <DropdownMenuTrigger>
-            {#snippet child({ props })}
-              <Button variant="outline" size="sm" class="gap-2" {...props}>
-                <Download class="h-4 w-4" />
-                <span class="hidden sm:inline">Export</span>
-              </Button>
-            {/snippet}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onclick={handleExportPresentCSV}>
-              <Download class="mr-2 h-4 w-4" />
-              <span>Export as CSV</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onclick={handleExportPresentPDF}>
-              <Download class="mr-2 h-4 w-4" />
-              <span>Export as PDF</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      {:else}
-        <DropdownMenu>
-          <DropdownMenuTrigger>
-            {#snippet child({ props })}
-              <Button variant="outline" size="sm" class="gap-2" {...props}>
-                <Download class="h-4 w-4" />
-                <span class="hidden sm:inline">Export</span>
-              </Button>
-            {/snippet}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onclick={handleExportAbsentCSV}>
-              <Download class="mr-2 h-4 w-4" />
-              <span>Export as CSV</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem onclick={handleExportAbsentPDF}>
-              <Download class="mr-2 h-4 w-4" />
-              <span>Export as PDF</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      {/if}
+    <div role="tablist" aria-label="Present or Absent" class="inline-flex rounded-2xl border border-border/20 bg-card/10 p-1 mt-4 md:mt-0">
+      <button
+        role="tab"
+        aria-selected={filterPresent}
+        class={"text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (filterPresent ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground")}
+        onclick={() => filterPresent = true}
+      >
+        PRESENT
+      </button>
+      <button
+        role="tab"
+        aria-selected={!filterPresent}
+        class={"text-sm font-bold py-2 px-6 rounded-xl transition-all text-center " + (!filterPresent ? "bg-destructive text-primary-foreground shadow-sm" : "text-muted-foreground")}
+        onclick={() => filterPresent = false}
+      >
+        ABSENT
+      </button>
     </div>
   </div>
 

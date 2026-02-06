@@ -76,12 +76,14 @@ CREATE TABLE user_sessions (
     browser TEXT DEFAULT 'Unknown Browser',
     ip_address TEXT,
     location TEXT DEFAULT 'Unknown Location',
-    last_active TIMESTAMP DEFAULT NOW(),
-    created_at TIMESTAMP DEFAULT NOW()
+    is_active BOOLEAN DEFAULT TRUE,
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX idx_user_sessions_last_active ON user_sessions(last_active);
+CREATE INDEX idx_user_sessions_is_active ON user_sessions(is_active);
 
 -- 3. CORE TABLES
 

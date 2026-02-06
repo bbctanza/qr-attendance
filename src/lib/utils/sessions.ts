@@ -76,6 +76,8 @@ export async function createSession() {
     const { device, browser } = getDeviceInfo();
     const { ip_address, location } = await getIpAndLocation();
     
+    const now = new Date().toISOString();
+    
     const { data, error } = await supabase
       .from('user_sessions')
       .insert([{
@@ -83,7 +85,8 @@ export async function createSession() {
         device_name: device,
         browser: browser,
         ip_address: ip_address,
-        location: location
+        location: location,
+        last_active: now
       }])
       .select()
       .single();
@@ -113,6 +116,7 @@ export async function getUserSessions(): Promise<UserSession[]> {
       .from('user_sessions')
       .select('*')
       .eq('user_id', user.id)
+      .eq('is_active', true)
       .order('last_active', { ascending: false });
 
     if (error) {
@@ -133,7 +137,7 @@ export async function getUserSessions(): Promise<UserSession[]> {
   }
 }
 
-// Delete a specific session
+// Delete a specific session (mark as inactive)
 export async function deleteSession(sessionId: string) {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -144,7 +148,7 @@ export async function deleteSession(sessionId: string) {
 
     const { error } = await supabase
       .from('user_sessions')
-      .delete()
+      .update({ is_active: false })
       .eq('id', sessionId)
       .eq('user_id', user.id);
 
@@ -160,7 +164,7 @@ export async function deleteSession(sessionId: string) {
   }
 }
 
-// Delete all sessions except current
+// Delete all sessions except current (mark as inactive)
 export async function deleteAllOtherSessions() {
   try {
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -169,11 +173,12 @@ export async function deleteAllOtherSessions() {
       return false;
     }
 
-    // Get all sessions
+    // Get all active sessions
     const { data: sessions, error: fetchError } = await supabase
       .from('user_sessions')
       .select('id')
       .eq('user_id', user.id)
+      .eq('is_active', true)
       .order('last_active', { ascending: false });
 
     if (fetchError) {
@@ -185,12 +190,12 @@ export async function deleteAllOtherSessions() {
       return true; // Nothing to delete
     }
 
-    // Delete all except the first (current) one
+    // Mark all except the first (current) one as inactive
     const idsToDelete = sessions.slice(1).map((s: { id: string }) => s.id);
 
     const { error } = await supabase
       .from('user_sessions')
-      .delete()
+      .update({ is_active: false })
       .eq('user_id', user.id)
       .in('id', idsToDelete);
 
@@ -206,40 +211,138 @@ export async function deleteAllOtherSessions() {
   }
 }
 
-// Update last_active for current session
-export async function updateSessionActivity(sessionId: string) {
+// Get current session ID from localStorage (or generate identifier)
+export function getCurrentSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('currentSessionId');
+}
+
+// Set current session ID in localStorage
+export function setCurrentSessionId(sessionId: string): void {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem('currentSessionId', sessionId);
+}
+
+// Update current session activity
+export async function updateCurrentSessionActivity(): Promise<boolean> {
   try {
+    const sessionId = getCurrentSessionId();
+    if (!sessionId) {
+      console.warn('No current session ID found');
+      return false;
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('User not authenticated');
+      return false;
+    }
+
     const { error } = await supabase
       .from('user_sessions')
       .update({ last_active: new Date().toISOString() })
-      .eq('id', sessionId);
+      .eq('id', sessionId)
+      .eq('user_id', user.id);
 
     if (error) {
-      console.error('Failed to update session activity:', error);
+      console.error('Failed to update current session activity:', error);
       return false;
     }
 
     return true;
   } catch (e) {
-    console.error('Error updating session activity:', e);
+    console.error('Error updating current session activity:', e);
     return false;
   }
 }
 
-// Format relative time (e.g., "2 hours ago")
-export function formatLastActive(timestamp: string): string {
-  const now = new Date();
-  const then = new Date(timestamp);
-  const diff = now.getTime() - then.getTime();
+// Locale-specific translations for relative time
+const translations: Record<string, Record<string, string>> = {
+  en: {
+    now: 'Now',
+    m_ago: 'm ago',
+    h_ago: 'h ago',
+    d_ago: 'd ago',
+    invalid: 'Invalid date'
+  },
+  es: {
+    now: 'Ahora',
+    m_ago: 'hace {0}m',
+    h_ago: 'hace {0}h',
+    d_ago: 'hace {0}d',
+    invalid: 'Fecha inválida'
+  },
+  fr: {
+    now: 'À l\'instant',
+    m_ago: 'il y a {0}m',
+    h_ago: 'il y a {0}h',
+    d_ago: 'il y a {0}d',
+    invalid: 'Date invalide'
+  },
+  de: {
+    now: 'Jetzt',
+    m_ago: 'vor {0}m',
+    h_ago: 'vor {0}h',
+    d_ago: 'vor {0}d',
+    invalid: 'Ungültiges Datum'
+  }
+};
 
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
+// Get current locale from browser or fallback to 'en'
+function getCurrentLocale(): string {
+  if (typeof window === 'undefined') return 'en';
+  return (navigator.language || 'en').split('-')[0];
+}
 
-  if (minutes < 1) return 'Now';
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  if (days < 7) return `${days}d ago`;
+// Format relative time with locale support and proper timezone handling
+export function formatLastActive(timestamp: string | null | undefined, locale?: string): string {
+  if (!timestamp) return 'Unknown';
   
-  return then.toLocaleDateString();
+  try {
+    const currentLocale = locale || getCurrentLocale();
+    const trans = translations[currentLocale] || translations['en'];
+    
+    // Parse timestamp - handle both ISO and PostgreSQL formats
+    let then: Date;
+    
+    // If timestamp doesn't have timezone info, assume it's UTC
+    if (timestamp.includes('T')) {
+      // ISO format: 2026-02-06T13:32:28.621Z or 2026-02-06T13:32:28.621
+      then = new Date(timestamp.endsWith('Z') ? timestamp : timestamp + 'Z');
+    } else {
+      // PostgreSQL format: 2026-02-06 13:32:28.621
+      // Replace space with T and append Z for UTC
+      const isoString = timestamp.replace(' ', 'T') + 'Z';
+      then = new Date(isoString);
+    }
+    
+    // Handle invalid dates
+    if (isNaN(then.getTime())) {
+      console.warn('Invalid timestamp:', timestamp);
+      return trans.invalid;
+    }
+    
+    const now = new Date();
+    const diff = now.getTime() - then.getTime();
+    
+    // Handle negative differences (clock skew)
+    if (diff < 0) {
+      return trans.now;
+    }
+
+    const minutes = Math.floor(diff / 60000);
+    const hours = Math.floor(diff / 3600000);
+    const days = Math.floor(diff / 86400000);
+
+    if (minutes < 1) return trans.now;
+    if (minutes < 60) return trans.m_ago.replace('{0}', minutes.toString());
+    if (hours < 24) return trans.h_ago.replace('{0}', hours.toString());
+    if (days < 7) return trans.d_ago.replace('{0}', days.toString());
+    
+    // For older dates, show localized date
+    return then.toLocaleDateString(currentLocale);
+  } catch (e) {
+    console.error('Error formatting last active:', e, timestamp);
+    return 'Unknown';
+  }
 }

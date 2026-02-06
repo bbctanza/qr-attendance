@@ -26,6 +26,7 @@
     import { devTools } from "$lib/stores/dev";
     import { supabase } from '$lib/supabase';
     import { goto } from '$app/navigation';
+    import { updateCurrentSessionActivity, getCurrentSessionId } from '$lib/utils/sessions';
 
     // Initialize theme synchronously from localStorage before render
     if (browser) {
@@ -56,15 +57,34 @@
             goto('/');
         }
 
+        // Update session activity on initial load
+        if (session) {
+            await updateCurrentSessionActivity();
+        }
+
+        // Update session activity every 5 minutes
+        const activityInterval = setInterval(async () => {
+            await updateCurrentSessionActivity();
+        }, 5 * 60 * 1000);
+
         // Listen for auth state changes
         supabase.auth.onAuthStateChange((event, session) => {
              const currentPath = window.location.pathname; // $page might be stale in callback
              if (event === 'SIGNED_OUT') {
+                 // Clear session ID on logout
+                 if (typeof window !== 'undefined') {
+                     localStorage.removeItem('currentSessionId');
+                 }
                  if (!publicRoutes.includes(currentPath)) goto('/login');
+                 clearInterval(activityInterval);
              } else if (event === 'SIGNED_IN' || session) {
                  if (publicRoutes.includes(currentPath)) goto('/');
              }
         });
+
+        return () => {
+            clearInterval(activityInterval);
+        };
     });
 
     // Determine if we should show the sidebar

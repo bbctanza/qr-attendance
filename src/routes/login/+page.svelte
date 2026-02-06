@@ -10,7 +10,7 @@
 	import { Turnstile } from 'svelte-turnstile';
 	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { createSession } from '$lib/utils/sessions';
+	import { createSession, setCurrentSessionId } from '$lib/utils/sessions';
 
 	// State
 	let email = $state('');
@@ -50,7 +50,14 @@
 				errorMessage = error.message;
 			} else {
 				// Login successful - create session
-				await createSession();
+				const session = await createSession();
+				if (session) {
+					// Store the session ID for activity tracking
+					setCurrentSessionId(session.id);
+					console.log('Session created:', session.id, 'Last active:', session.last_active);
+				} else {
+					console.warn('Failed to create session');
+				}
 				goto('/dashboard');
 			}
 		} catch (e) {
