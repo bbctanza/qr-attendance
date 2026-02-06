@@ -103,19 +103,26 @@
             // Upload avatar if provided (optional - silently skip if it fails)
             if (avatarFile) {
                 try {
-                    const fileExt = avatarFile.name.split('.').pop();
-                    const fileName = `${userId}-${Date.now()}.${fileExt}`;
-                    const filePath = `avatars/${fileName}`;
+                    const timestamp = Date.now();
+                    const extension = avatarFile.name.split('.').pop();
+                    const fileName = `avatar-${userId}-${timestamp}.${extension}`;
 
-                    const { error: uploadError } = await supabase.storage
+                    const { data, error: uploadError } = await supabase.storage
                         .from('user-profile')
-                        .upload(filePath, avatarFile);
+                        .upload(fileName, avatarFile, {
+                            cacheControl: '3600',
+                            upsert: true
+                        });
 
-                    if (!uploadError) {
-                        const { data: urlData } = supabase.storage
+                    if (!uploadError && data) {
+                        // Get signed URL (valid for 1 hour)
+                        const { data: urlData } = await supabase.storage
                             .from('user-profile')
-                            .getPublicUrl(filePath);
-                        avatarUrl = urlData.publicUrl;
+                            .createSignedUrl(fileName, 3600);
+
+                        if (urlData?.signedUrl) {
+                            avatarUrl = urlData.signedUrl;
+                        }
                     }
                     // Silently ignore avatar upload errors - it's optional
                 } catch (avatarError) {
