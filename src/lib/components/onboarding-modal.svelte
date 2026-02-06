@@ -1,5 +1,5 @@
 <script lang="ts">
-    import { Upload, Loader2 } from '@lucide/svelte';
+    import { Upload, Loader2, Eye, EyeOff } from '@lucide/svelte';
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Button } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
@@ -21,6 +21,8 @@
     let avatarFile: File | null = $state(null);
     let avatarPreview = $state('');
     let isSubmitting = $state(false);
+    let showPassword = $state(false);
+    let showConfirmPassword = $state(false);
     let errors = $state({
         username: '',
         password: '',
@@ -242,14 +244,28 @@
                     <!-- Password -->
                     <div class="space-y-2">
                         <Label for="password">Password <span class="text-destructive">*</span></Label>
-                        <Input
-                            id="password"
-                            type="password"
-                            bind:value={password}
-                            placeholder="Create a password"
-                            required
-                            class={errors.password ? 'border-destructive' : ''}
-                        />
+                        <div class="relative">
+                            <Input
+                                id="password"
+                                type={showPassword ? 'text' : 'password'}
+                                bind:value={password}
+                                placeholder="Create a password"
+                                required
+                                class={errors.password ? 'border-destructive pr-10' : 'pr-10'}
+                            />
+                            <button
+                                type="button"
+                                onclick={() => showPassword = !showPassword}
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {#if showPassword}
+                                    <EyeOff class="h-4 w-4" />
+                                {:else}
+                                    <Eye class="h-4 w-4" />
+                                {/if}
+                            </button>
+                        </div>
                         {#if errors.password}
                             <p class="text-sm text-destructive">{errors.password}</p>
                         {:else}
@@ -260,14 +276,28 @@
                     <!-- Confirm Password -->
                     <div class="space-y-2">
                         <Label for="confirmPassword">Confirm Password <span class="text-destructive">*</span></Label>
-                        <Input
-                            id="confirmPassword"
-                            type="password"
-                            bind:value={confirmPassword}
-                            placeholder="Re-enter your password"
-                            required
-                            class={errors.confirmPassword ? 'border-destructive' : ''}
-                        />
+                        <div class="relative">
+                            <Input
+                                id="confirmPassword"
+                                type={showConfirmPassword ? 'text' : 'password'}
+                                bind:value={confirmPassword}
+                                placeholder="Re-enter your password"
+                                required
+                                class={errors.confirmPassword ? 'border-destructive pr-10' : 'pr-10'}
+                            />
+                            <button
+                                type="button"
+                                onclick={() => showConfirmPassword = !showConfirmPassword}
+                                class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                                aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
+                            >
+                                {#if showConfirmPassword}
+                                    <EyeOff class="h-4 w-4" />
+                                {:else}
+                                    <Eye class="h-4 w-4" />
+                                {/if}
+                            </button>
+                        </div>
                         {#if errors.confirmPassword}
                             <p class="text-sm text-destructive">{errors.confirmPassword}</p>
                         {/if}
