@@ -491,7 +491,25 @@ CREATE POLICY "Staff and above can modify settings" ON system_settings FOR INSER
 CREATE POLICY "Staff and above can update settings" ON system_settings FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
 CREATE POLICY "Developers can delete settings" ON system_settings FOR DELETE TO authenticated USING (get_user_role() = 'developer');
 
--- 7. DEFAULT DATA
+-- 7. STORAGE POLICIES
+-- QR Background Image Storage Policies
+CREATE POLICY "Allow authenticated upload" ON storage.objects
+FOR INSERT TO authenticated
+WITH CHECK (bucket_id = 'qr-background');
+
+CREATE POLICY "Allow authenticated delete" ON storage.objects
+FOR DELETE TO authenticated
+USING (bucket_id = 'qr-background');
+
+CREATE POLICY "Allow authenticated read" ON storage.objects
+FOR SELECT TO authenticated
+USING (bucket_id = 'qr-background');
+
+CREATE POLICY "Allow public read" ON storage.objects
+FOR SELECT TO anon
+USING (bucket_id = 'qr-background');
+
+-- 8. DEFAULT DATA
 INSERT INTO system_settings (id, site_name, primary_color, timezone)
 VALUES (1, 'Scan-in System', '#275032', 'Asia/Manila')
 ON CONFLICT (id) DO NOTHING;

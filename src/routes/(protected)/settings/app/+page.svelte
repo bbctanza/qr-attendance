@@ -67,6 +67,10 @@
 		qrBackgroundImage: $systemSettings.qrBackgroundImage || ''
 	});
 
+	// Drag and drop state
+	let draggedFileName = $state<string>('');
+	let isDragging = $state(false);
+
     // Track original settings for dirty checking (initialized in onMount)
     let originalSettings = $state({} as typeof settings);
     
@@ -102,6 +106,7 @@
 
 	let isSaving = $state(false);
 	let recentColors = $state<string[]>([]);
+	let previewBackgroundDataUrl = $state<string>('');
 
 	// Load settings from localStorage on mount
 	onMount(async () => {
@@ -156,11 +161,47 @@
 		}
 	});
 
+	// Convert background image URL to data URL for live preview
+	$effect(() => {
+		if (settings.qrBackgroundImage && settings.qrBackgroundImage.startsWith('http')) {
+			(async () => {
+				try {
+					const fileName = settings.qrBackgroundImage.split('/').pop();
+					if (fileName) {
+						const { data, error } = await supabase.storage
+							.from('qr-background')
+							.download(fileName);
+						if (!error && data) {
+							previewBackgroundDataUrl = await new Promise<string>((resolve, reject) => {
+								const reader = new FileReader();
+								reader.onload = () => resolve(reader.result as string);
+								reader.onerror = reject;
+								reader.readAsDataURL(data);
+							});
+						}
+					}
+				} catch (e) {
+					console.warn('Could not convert background image for preview', e);
+				}
+			})();
+		} else {
+			previewBackgroundDataUrl = '';
+		}
+	});
+
 
 	async function handleSaveSettings() {
 		isSaving = true;
 		
 		try {
+			// Delete old image from storage if image was removed
+			if (originalSettings.qrBackgroundImage && !settings.qrBackgroundImage) {
+				const oldFileName = originalSettings.qrBackgroundImage.split('/').pop();
+				if (oldFileName) {
+					await supabase.storage.from('qr-background').remove([oldFileName]);
+				}
+			}
+			
 			// Update Supabase
 			const { error } = await supabase
 				.from('system_settings')
@@ -265,15 +306,7 @@
 		}
 		
 		try {
-			toast.info('Uploading image...');
-			
-			// Delete old image if exists
-			if (settings.qrBackgroundImage) {
-				const oldFileName = settings.qrBackgroundImage.split('/').pop();
-				if (oldFileName) {
-					await supabase.storage.from('qr-bg').remove([oldFileName]);
-				}
-			}
+			toast.info('Image selected. Click Save to apply changes.');
 			
 			// Generate unique filename
 			const timestamp = Date.now();
@@ -282,7 +315,7 @@
 			
 			// Upload to Supabase Storage
 			const { data, error } = await supabase.storage
-				.from('qr-bg')
+				.from('qr-background')
 				.upload(fileName, file, {
 					cacheControl: '3600',
 					upsert: false
@@ -292,11 +325,23 @@
 			
 			// Get public URL
 			const { data: urlData } = supabase.storage
-				.from('qr-bg')
+				.from('qr-background')
 				.getPublicUrl(fileName);
 			
+			// Only update local state - don't save to database yet
 			settings.qrBackgroundImage = urlData.publicUrl;
-			toast.success('Background image uploaded');
+			
+			// Convert to data URL for preview
+			try {
+				previewBackgroundDataUrl = await new Promise<string>((resolve, reject) => {
+					const reader = new FileReader();
+					reader.onload = (e) => resolve(e.target?.result as string);
+					reader.onerror = reject;
+					reader.readAsDataURL(file);
+				});
+			} catch (err) {
+				previewBackgroundDataUrl = '';
+			}
 			
 			// Reset input
 			input.value = '';
@@ -309,21 +354,44 @@
 	async function handleRemoveImage() {
 		if (!confirm('Remove background image?')) return;
 		
-		try {
-			// Delete from storage
-			if (settings.qrBackgroundImage) {
-				const fileName = settings.qrBackgroundImage.split('/').pop();
-				if (fileName) {
-					const { error } = await supabase.storage.from('qr-bg').remove([fileName]);
-					if (error) console.error('Failed to delete from storage:', error);
-				}
-			}
+		// Only update local state - don't delete from database yet
+		settings.qrBackgroundImage = '';
+		previewBackgroundDataUrl = '';
+		draggedFileName = '';
+		
+		toast.info('Background image removed. Click Save to apply changes.');
+	}
+
+	function handleDragOver(event: DragEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		isDragging = true;
+	}
+
+	function handleDragLeave(event: DragEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		isDragging = false;
+	}
+
+	function handleDrop(event: DragEvent) {
+		event.preventDefault();
+		event.stopPropagation();
+		isDragging = false;
+
+		const files = event.dataTransfer?.files;
+		if (files && files.length > 0) {
+			const file = files[0];
+			draggedFileName = file.name;
 			
-			settings.qrBackgroundImage = '';
-			toast.success('Background image removed');
-		} catch (error) {
-			console.error('Remove error:', error);
-			toast.error('Failed to remove image');
+			// Set file to input and trigger upload
+			const input = document.getElementById('qrBackground') as HTMLInputElement;
+			const dataTransfer = new DataTransfer();
+			dataTransfer.items.add(file);
+			input.files = dataTransfer.files;
+			
+			// Trigger change event
+			input.dispatchEvent(new Event('change', { bubbles: true }));
 		}
 	}
 
@@ -725,19 +793,34 @@
                     <!-- Config Side -->
                     <div class="space-y-6">
                         <div class="space-y-2">
-                            <Label for="qrHeader" class="text-sm sm:text-base font-medium">Header Title</Label>
+                            <div class="flex items-center gap-2">
+                                <Label for="qrHeader" class="text-sm sm:text-base font-medium">Header Title</Label>
+                                {#if settings.qrHeaderTitle !== originalSettings.qrHeaderTitle}
+                                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded">Unsaved</span>
+                                {/if}
+                            </div>
                             <Input id="qrHeader" bind:value={settings.qrHeaderTitle} placeholder="e.g., Your Organization Name" />
                             <p class="text-xs text-muted-foreground">Main title displayed at the top of the QR card.</p>
                         </div>
 
                         <div class="space-y-2">
-                            <Label for="qrSubheader" class="text-sm sm:text-base font-medium">Subheader Text</Label>
+                            <div class="flex items-center gap-2">
+                                <Label for="qrSubheader" class="text-sm sm:text-base font-medium">Subheader Text</Label>
+                                {#if settings.qrSubheaderTitle !== originalSettings.qrSubheaderTitle}
+                                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded">Unsaved</span>
+                                {/if}
+                            </div>
                             <Input id="qrSubheader" bind:value={settings.qrSubheaderTitle} placeholder="e.g., Your tagline or mission" />
                             <p class="text-xs text-muted-foreground">Subtitle or tagline displayed below the main header.</p>
                         </div>
 
                         <div class="space-y-2">
-                            <Label for="qrCardColor" class="text-sm sm:text-base font-medium">Branding Color</Label>
+                            <div class="flex items-center gap-2">
+                                <Label for="qrCardColor" class="text-sm sm:text-base font-medium">Branding Color</Label>
+                                {#if settings.qrCardColor !== originalSettings.qrCardColor}
+                                    <span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded">Unsaved</span>
+                                {/if}
+                            </div>
                             <div class="flex gap-3 items-center">
                                 <ColorPicker
                                     bind:hex={settings.qrCardColor}
@@ -748,25 +831,91 @@
                         </div>
 
                         <div class="space-y-2">
-                            <Label for="qrBackground" class="text-sm sm:text-base font-medium">Background Image</Label>
+                            <div class="flex items-center gap-2">
+                                <Label for="qrBackground" class="text-sm sm:text-base font-medium">Background Image</Label>
+                                <span class="text-xs font-medium text-muted-foreground bg-muted px-2 py-1 rounded">Optional</span>
+                            </div>
                             <div class="space-y-3">
                                 {#if settings.qrBackgroundImage}
-                                    <div class="relative w-full h-32 rounded-lg border border-border/50 overflow-hidden bg-muted">
-                                        <img src={settings.qrBackgroundImage} alt="Background" class="w-full h-full object-cover" />
+                                    <div class="group relative w-full bg-gradient-to-br from-muted to-muted/50 rounded-xl border-2 border-border/30 overflow-hidden shadow-md hover:shadow-lg transition-all duration-300">
+                                        <!-- Image Container -->
+                                        <div class="relative w-full h-48 overflow-hidden bg-muted">
+                                            <img 
+                                                src={settings.qrBackgroundImage} 
+                                                alt="Background preview" 
+                                                class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" 
+                                            />
+                                            <!-- Overlay Gradient -->
+                                            <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent pointer-events-none"></div>
+                                        </div>
+                                        
+                                        <!-- Remove Button -->
                                         <button
                                             onclick={handleRemoveImage}
-                                            class="absolute top-2 right-2 p-1.5 bg-destructive text-destructive-foreground rounded-md hover:bg-destructive/90 transition-colors"
-                                            aria-label="Remove image"
+                                            class="absolute top-3 right-3 p-2 bg-red-500/90 hover:bg-red-600 text-white rounded-lg shadow-md transition-all duration-200 transform hover:scale-110 z-10"
+                                            aria-label="Remove background image"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                                         </button>
+
+                                        <!-- Info Footer -->
+                                        <div class="px-4 py-3 bg-muted/50 border-t border-border/20">
+                                            <div class="flex items-center justify-between">
+                                                <div class="flex items-center gap-2 text-sm">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L7 21"/></svg>
+                                                    <span class="font-medium text-foreground">Image uploaded</span>
+                                                </div>
+                                                <button
+                                                    onclick={() => document.getElementById('qrBackground').click()}
+                                                    class="text-xs font-medium text-primary hover:text-primary/80 transition-colors"
+                                                >
+                                                    Change
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 {:else}
-                                    <label for="qrBackground" class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-border/50 rounded-lg cursor-pointer hover:border-primary/50 hover:bg-muted/50 transition-colors">
-                                        <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-muted-foreground mb-2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                                            <p class="text-xs text-muted-foreground">Click to upload image</p>
-                                            <p class="text-xs text-muted-foreground/60 mt-1">PNG, JPG (max 5MB)</p>
+                                    <label 
+                                        for="qrBackground" 
+                                        class="block group cursor-pointer"
+                                        ondragover={handleDragOver}
+                                        ondragleave={handleDragLeave}
+                                        ondrop={handleDrop}
+                                    >
+                                        <div class={cn(
+                                            "flex flex-col items-center justify-center w-full px-6 py-8 border-2 border-dashed rounded-xl transition-all duration-300 bg-muted/20",
+                                            isDragging 
+                                                ? "border-primary bg-primary/10 scale-105" 
+                                                : "border-border/40 group-hover:border-primary/50 group-hover:bg-primary/5"
+                                        )}>
+                                            <div class="flex flex-col items-center justify-center gap-2">
+                                                <div class={cn(
+                                                    "p-3 rounded-lg transition-all",
+                                                    isDragging 
+                                                        ? "bg-primary/30 scale-110" 
+                                                        : "bg-primary/10 group-hover:bg-primary/20"
+                                                )}>
+                                                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class={cn(
+                                                        "transition-colors",
+                                                        isDragging ? "text-primary" : "text-primary"
+                                                    )}><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-5-5L7 21"/></svg>
+                                                </div>
+                                                {#if draggedFileName}
+                                                    <div class="flex items-center gap-2">
+                                                        <p class="text-sm font-semibold text-primary">{draggedFileName}</p>
+                                                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary animate-pulse"><polyline points="20 6 9 17 4 12"/></svg>
+                                                    </div>
+                                                    <p class="text-xs text-muted-foreground">Ready to upload</p>
+                                                {:else}
+                                                    <p class="text-sm font-semibold text-foreground">Upload Background Image</p>
+                                                    <p class="text-xs text-muted-foreground">or drag and drop</p>
+                                                {/if}
+                                            </div>
+                                            <div class="flex gap-2 mt-4 text-xs text-muted-foreground">
+                                                <span class="px-2 py-1 bg-muted rounded-md font-medium">PNG</span>
+                                                <span class="px-2 py-1 bg-muted rounded-md font-medium">JPG</span>
+                                                <span class="px-2 py-1 bg-muted rounded-md font-medium">Max 5MB</span>
+                                            </div>
                                         </div>
                                     </label>
                                 {/if}
@@ -778,7 +927,10 @@
                                     onchange={handleImageUpload}
                                 />
                             </div>
-                            <p class="text-xs text-muted-foreground">Optional background image for the QR card.</p>
+                            <p class="text-xs text-muted-foreground flex items-center gap-2">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="opacity-60"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+                                Used as background on generated QR cards. Visible in all exports.
+                            </p>
                         </div>
                     </div>
 
@@ -789,38 +941,38 @@
                         <!-- Mini QR Card Mock -->
                         <div class="w-75 h-75 bg-white rounded-xl shadow-xl border border-border/20 overflow-hidden flex flex-col items-center p-4 relative">
                             <!-- Background Image Overlay -->
-                            {#if settings.qrBackgroundImage}
-                                <div class="absolute inset-0 -z-10">
-                                    <img src={settings.qrBackgroundImage} alt="Background" class="w-full h-full object-cover opacity-20" />
+                            {#if previewBackgroundDataUrl}
+                                <div class="absolute inset-0 z-0">
+                                    <img src={previewBackgroundDataUrl} alt="Background" class="w-full h-full object-cover" />
                                 </div>
                             {/if}
                             <!-- Header Text -->
-                            <div class="text-center mt-2 px-2">
+                            <div class="text-center mt-2 px-2 relative z-10">
                                 <h4 class="text-[14px] leading-tight font-bold" style="color: {settings.qrCardColor}">
                                     {settings.qrHeaderTitle || 'HEADER TITLE'}
                                 </h4>
-                                <p class="text-[10px] italic mt-1 font-medium opacity-80" style="color: {settings.qrCardColor}">
+                                <p class="text-[10px] italic mt-1 font-medium opacity-100" style="color: {settings.qrCardColor}">
                                     {settings.qrSubheaderTitle || 'Subheader goes here'}
                                 </p>
                             </div>
 
                             <!-- Mock QR Code Box -->
-                            <div class="mt-4 w-36 h-36 border-4 rounded-lg flex items-center justify-center" style="border-color: {settings.qrCardColor}20">
-                                <QrCode class="w-24 h-24 opacity-20" style="color: {settings.qrCardColor}" />
+                            <div class="mt-4 w-36 h-36 border-4 rounded-lg flex items-center justify-center bg-white relative z-10" style="border-color: {settings.qrCardColor}20">
+                                <QrCode class="w-24 h-24 opacity-100" style="color: {settings.qrCardColor}" />
                             </div>
 
                             <!-- Member Name (Below QR) -->
-                            <div class="mt-4 text-center">
+                            <div class="mt-4 text-center relative z-10">
                                 <div class="text-[12px] font-bold uppercase" style="color: {settings.qrCardColor}">Sample Member</div>
                             </div>
 
                             <!-- Member ID (Bottom) -->
-                            <div class="mt-2 mb-4 text-center">
+                            <div class="mt-2 mb-4 text-center relative z-10">
                                 <div class="text-[12px] font-black tracking-widest" style="color: {settings.qrCardColor}">ENG-1234</div>
                             </div>
 
                             <!-- BG Pattern Mock (Subtle) -->
-                            <div class="absolute inset-0 -z-10 opacity-5 pointer-events-none overflow-hidden">
+                            <div class="absolute inset-0 -z-10 opacity-100 pointer-events-none overflow-hidden">
                                 <div class="absolute top-0 right-0 w-32 h-32 rounded-full blur-3xl" style="background-color: {settings.qrCardColor}"></div>
                                 <div class="absolute bottom-0 left-0 w-32 h-32 rounded-full blur-3xl" style="background-color: {settings.qrCardColor}"></div>
                             </div>

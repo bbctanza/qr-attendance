@@ -38,6 +38,7 @@
     import { supabase } from "$lib/supabase";
     import FullPageLoading from "$lib/components/full-page-loading.svelte";
 import { toast } from 'svelte-sonner';
+import { exportMembersToCSV, exportMembersToPDF, exportMembersQRPDF, type MemberExportRecord } from '$lib/utils/membersExport';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -78,6 +79,33 @@ import {
     let members = $state<any[]>([]);
     let groupOptions = $state<string[]>([]);
     let groupsMap = $state<Record<string, any>>({});
+
+    // Selection state for exports / batch operations
+    let selectedMemberIds = $state<Set<string>>(new Set());
+    let selectAllFiltered = $state(false);
+
+    function toggleSelectMember(id: string) {
+        const newSet = new Set(selectedMemberIds);
+        if (newSet.has(id)) newSet.delete(id); else newSet.add(id);
+        selectedMemberIds = newSet;
+        // update selectAllFiltered flag
+        selectAllFiltered = filteredMembers().every(m => newSet.has(m.id));
+    }
+
+    function toggleSelectAllFiltered() {
+        if (selectAllFiltered) {
+            // unselect all filtered
+            const newSet = new Set(selectedMemberIds);
+            filteredMembers().forEach(m => newSet.delete(m.id));
+            selectedMemberIds = newSet;
+            selectAllFiltered = false;
+        } else {
+            const newSet = new Set(selectedMemberIds);
+            filteredMembers().forEach(m => newSet.add(m.id));
+            selectedMemberIds = newSet;
+            selectAllFiltered = true;
+        }
+    }
 
     // Delete dialog state
     let showDeleteDialog = $state(false);
@@ -571,7 +599,8 @@ import {
             const settings = {
                 qrHeaderTitle: $systemSettings.qrHeaderTitle || 'Organization Name',
                 qrSubheaderTitle: $systemSettings.qrSubheaderTitle || 'Tagline or Subtitle',
-                qrCardColor: $systemSettings.qrCardColor || '#275032'
+                qrCardColor: $systemSettings.qrCardColor || '#275032',
+                qrBackgroundImage: $systemSettings.qrBackgroundImage || ''
             };
 
             // Generate QR Code Data URL
@@ -606,35 +635,58 @@ import {
             if (!ctx) return;
 
             // 1. Draw Background Information
-            // Try to load the provided "church" image or fallback to a color
+            // Try to load the background image from settings or fallback to a color
             const padding = 40;
             
             // Fill white first
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // Try loading background image
-            // Assuming the user has placed the image at /church-bg.png
-            try {
-                const bgImg = new Image();
-                bgImg.crossOrigin = "anonymous";
-                bgImg.src = "/church-bg.png"; 
-                await new Promise((resolve, reject) => {
-                    bgImg.onload = resolve;
-                    bgImg.onerror = reject;
-                });
-                
-                // Draw Image (Cover)
-                const scale = Math.max(canvas.width / bgImg.width, canvas.height / bgImg.height);
-                const x = (canvas.width / 2) - (bgImg.width / 2) * scale;
-                const y = (canvas.height / 2) - (bgImg.height / 2) * scale;
-                ctx.drawImage(bgImg, x, y, bgImg.width * scale, bgImg.height * scale);
-
-            } catch (e) {
-                // Fallback background if image missing
-                ctx.fillStyle = '#f8fafc'; // slate-50
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-                // Draw a simple pattern or gradient
+            // Try loading background image from settings
+            if (settings.qrBackgroundImage) {
+                try {
+                    // Extract filename from URL
+                    const fileName = settings.qrBackgroundImage.split('/').pop();
+                    if (!fileName) throw new Error('Invalid image URL');
+                    
+                    // Download from Supabase using authenticated client
+                    const { data, error: dlError } = await supabase.storage
+                        .from('qr-background')
+                        .download(fileName);
+                    
+                    if (dlError || !data) throw new Error(dlError?.message || 'Failed to download');
+                    
+                    // Convert blob to data URL
+                    const dataUrl = await new Promise<string>((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result as string);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(data);
+                    });
+                    
+                    const bgImg = new Image();
+                    bgImg.src = dataUrl;
+                    await new Promise((resolve, reject) => {
+                        bgImg.onload = resolve;
+                        bgImg.onerror = reject;
+                    });
+                    
+                    // Draw Image (Cover)
+                    const scale = Math.max(canvas.width / bgImg.width, canvas.height / bgImg.height);
+                    const x = (canvas.width / 2) - (bgImg.width / 2) * scale;
+                    const y = (canvas.height / 2) - (bgImg.height / 2) * scale;
+                    ctx.drawImage(bgImg, x, y, bgImg.width * scale, bgImg.height * scale);
+                } catch (e) {
+                    console.warn('Failed to load background image, using fallback', e);
+                    // Fallback background if image fails
+                    const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+                    grad.addColorStop(0, '#e2e8f0');
+                    grad.addColorStop(1, '#94a3b8');
+                    ctx.fillStyle = grad;
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                }
+            } else {
+                // Default gradient when no background image
                 const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
                 grad.addColorStop(0, '#e2e8f0');
                 grad.addColorStop(1, '#94a3b8');
@@ -722,6 +774,77 @@ import {
         } catch (err) {
             console.error("Failed to generate QR", err);
             alert("Could not generate QR code. Please try again.");
+        }
+    }
+
+    // --- Export helpers ---
+    function getExportRecords() {
+        const chosen = selectedMemberIds && selectedMemberIds.size > 0
+            ? members.filter(m => selectedMemberIds.has(m.id))
+            : filteredMembers();
+
+        return chosen.map(m => ({
+            member_id: m.qrId || m.id,
+            first_name: m.firstName || m.name.split(' ')[0],
+            last_name: m.lastName || m.name.split(' ').slice(1).join(' '),
+            group: m.group,
+            email: m.email,
+            status: m.status,
+            created_at: m.created_at
+        }));
+    }
+
+    function exportMembersCSVHandler() {
+        const recs = getExportRecords();
+        if (recs.length === 0) return alert('No members to export');
+        exportMembersToCSV(recs);
+    }
+
+    function exportMembersPDFHandler() {
+        const recs = getExportRecords();
+        if (recs.length === 0) return alert('No members to export');
+        exportMembersToPDF(recs);
+    }
+
+    async function exportMembersQRZipHandler() {
+        const recs = getExportRecords();
+        if (recs.length === 0) return alert('No members to export');
+        // show temporary toast/loading
+        const id = toast.loading('Preparing ZIP...');
+        try {
+            // Pre-fetch and convert background image to data URL to avoid fetch issues in utility
+            let bgDataUrl: string | undefined;
+            if ($systemSettings.qrBackgroundImage) {
+                try {
+                    const fileName = $systemSettings.qrBackgroundImage.split('/').pop();
+                    if (fileName) {
+                        const { data, error } = await supabase.storage
+                            .from('qr-background')
+                            .download(fileName);
+                        if (!error && data) {
+                            bgDataUrl = await new Promise<string>((resolve, reject) => {
+                                const reader = new FileReader();
+                                reader.onload = () => resolve(reader.result as string);
+                                reader.onerror = reject;
+                                reader.readAsDataURL(data);
+                            });
+                        }
+                    }
+                } catch (e) {
+                    console.warn('Could not pre-fetch background image for ZIP', e);
+                }
+            }
+
+            const mod: any = await import('$lib/utils/membersExport');
+            await mod.exportMembersQRZip(recs, {
+                siteName: $systemSettings.qrHeaderTitle || $systemSettings.siteName,
+                subheader: $systemSettings.qrSubheaderTitle,
+                qrCardColor: $systemSettings.qrCardColor,
+                qrBackgroundImage: bgDataUrl || $systemSettings.qrBackgroundImage
+            });
+            toast.success('ZIP ready', { id });
+        } catch (err) {
+            toast.error('Failed to create ZIP', { id });
         }
     }
 </script>
@@ -855,9 +978,19 @@ import {
             <p class="text-muted-foreground mt-1">Manage your congregation and attendees.</p>
         </div>
         <div class="flex gap-2">
-            <Button variant="outline" size="sm" class="hidden sm:flex">
-                <FileDown class="mr-2 h-4 w-4" /> Export
-            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger>
+                    <Button variant="outline" size="sm" class="hidden sm:flex">
+                        <FileDown class="mr-2 h-4 w-4" /> Export
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Export Members</DropdownMenuLabel>
+                    <DropdownMenuItem onclick={() => exportMembersCSVHandler()}>CSV</DropdownMenuItem>
+                    <DropdownMenuItem onclick={() => exportMembersPDFHandler()}>PDF</DropdownMenuItem>
+                    <DropdownMenuItem onclick={() => exportMembersQRZipHandler()}>QR + Details (ZIP)</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
             <Button size="sm" onclick={openAddMemberModal}>
                 <Plus class="mr-2 h-4 w-4" /> Add Member
             </Button>
@@ -970,6 +1103,9 @@ import {
             <Table.Root class="table-fixed w-full">
                 <Table.Header>
                     <Table.Row class="border-b">
+                        <Table.Head class="w-12">
+                            <input type="checkbox" checked={selectAllFiltered} onchange={toggleSelectAllFiltered} aria-label="Select all filtered" />
+                        </Table.Head>
                         <Table.Head class="w-12"></Table.Head>
                         <Table.Head class="w-40">
                             <Button variant="ghost" class="h-auto p-0 font-semibold hover:bg-transparent" onclick={() => handleSort("name")}>
@@ -1017,6 +1153,9 @@ import {
                     {:else}
                         {#each filteredMembers() as member (member.id)}
                             <Table.Row class="hover:bg-muted/50 transition-colors">
+                                <Table.Cell>
+                                    <input type="checkbox" checked={selectedMemberIds.has(member.id)} onchange={() => toggleSelectMember(member.id)} aria-label={`Select ${member.name}`} />
+                                </Table.Cell>
                                 <Table.Cell>
                                     <Avatar class="h-8 w-8">
                                         <AvatarImage src={member.avatar} alt={member.name} />
