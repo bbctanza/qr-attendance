@@ -1,11 +1,10 @@
 <script lang="ts">
-    import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "$lib/components/ui/dialog";
+    import { Upload, Loader2 } from '@lucide/svelte';
+    import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Button } from "$lib/components/ui/button";
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
-    import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { supabase } from '$lib/supabase';
-    import { Upload, Loader2 } from '@lucide/svelte';
     import { toast } from 'svelte-sonner';
 
     interface Props {
@@ -167,117 +166,124 @@
     }
 </script>
 
-<Dialog bind:open closeOnEscape={false} closeOnOutsideClick={false}>
-    <DialogContent class="sm:max-w-[500px] max-h-[90vh] overflow-y-auto [&>button]:hidden">
-        <DialogHeader>
-            <DialogTitle class="text-2xl">Welcome! Complete Your Profile</DialogTitle>
-            <DialogDescription>
-                Please complete your profile to get started. This is a one-time setup.
-            </DialogDescription>
-        </DialogHeader>
+{#if open}
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+        <!-- Modal Container -->
+        <div class="relative w-full max-w-sm bg-card rounded-2xl border border-border shadow-2xl">
+            <!-- Modal Header -->
+            <div class="border-b border-border/40 p-6 sm:p-8">
+                <h2 class="text-2xl font-bold">Welcome! Complete Your Profile</h2>
+                <p class="text-sm text-muted-foreground mt-2">
+                    Please complete your profile to get started. This is a one-time setup.
+                </p>
+            </div>
 
-        <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6 py-4">
-            <!-- Avatar Upload -->
-            <div class="flex flex-col items-center gap-4">
-                <Avatar class="h-24 w-24">
-                    {#if avatarPreview}
-                        <AvatarImage src={avatarPreview} alt="Profile preview" />
-                    {:else}
-                        <AvatarFallback class="text-2xl">
-                            {username ? username.charAt(0).toUpperCase() : '?'}
-                        </AvatarFallback>
-                    {/if}
-                </Avatar>
-                <div class="flex flex-col items-center gap-2">
-                    <Label for="avatar" class="cursor-pointer">
-                        <div class="flex items-center gap-2 text-sm text-primary hover:underline">
-                            <Upload class="h-4 w-4" />
-                            Upload Profile Picture (Optional)
+            <!-- Modal Content -->
+            <div class="overflow-y-auto max-h-[calc(90vh-180px)] p-6 sm:p-8">
+                <form onsubmit={(e) => { e.preventDefault(); handleSubmit(); }} class="space-y-6">
+                    <!-- Avatar Upload -->
+                    <div class="flex flex-col items-center gap-4">
+                        <Avatar class="h-24 w-24">
+                            {#if avatarPreview}
+                                <AvatarImage src={avatarPreview} alt="Profile preview" />
+                            {:else}
+                                <AvatarFallback class="text-2xl">
+                                    {username ? username.charAt(0).toUpperCase() : '?'}
+                                </AvatarFallback>
+                            {/if}
+                        </Avatar>
+                        <div class="flex flex-col items-center gap-2">
+                            <Label for="avatar" class="cursor-pointer">
+                                <div class="flex items-center gap-2 text-sm text-primary hover:underline">
+                                    <Upload class="h-4 w-4" />
+                                    Upload Profile Picture (Optional)
+                                </div>
+                            </Label>
+                            <Input
+                                id="avatar"
+                                type="file"
+                                accept="image/*"
+                                class="hidden"
+                                onchange={handleAvatarChange}
+                            />
+                            <p class="text-xs text-muted-foreground">Max 5MB, JPG, PNG, or GIF</p>
                         </div>
-                    </Label>
-                    <Input
-                        id="avatar"
-                        type="file"
-                        accept="image/*"
-                        class="hidden"
-                        onchange={handleAvatarChange}
-                    />
-                    <p class="text-xs text-muted-foreground">Max 5MB, JPG, PNG, or GIF</p>
-                </div>
-            </div>
+                    </div>
 
-            <!-- Email (Read-only confirmation) -->
-            <div class="space-y-2">
-                <Label for="email">Email</Label>
-                <Input
-                    id="email"
-                    type="email"
-                    value={userEmail}
-                    disabled
-                    class="bg-muted"
-                />
-                <p class="text-xs text-muted-foreground">This is your account email and cannot be changed</p>
-            </div>
+                    <!-- Email (Read-only confirmation) -->
+                    <div class="space-y-2">
+                        <Label for="email">Email</Label>
+                        <Input
+                            id="email"
+                            type="email"
+                            value={userEmail}
+                            disabled
+                            class="bg-muted"
+                        />
+                        <p class="text-xs text-muted-foreground">This is your account email and cannot be changed</p>
+                    </div>
 
-            <!-- Username -->
-            <div class="space-y-2">
-                <Label for="username">Full Name / Username <span class="text-destructive">*</span></Label>
-                <Input
-                    id="username"
-                    type="text"
-                    bind:value={username}
-                    placeholder="Enter your full name"
-                    required
-                    class={errors.username ? 'border-destructive' : ''}
-                />
-                {#if errors.username}
-                    <p class="text-sm text-destructive">{errors.username}</p>
-                {/if}
-            </div>
+                    <!-- Username -->
+                    <div class="space-y-2">
+                        <Label for="username">Full Name / Username <span class="text-destructive">*</span></Label>
+                        <Input
+                            id="username"
+                            type="text"
+                            bind:value={username}
+                            placeholder="Enter your full name"
+                            required
+                            class={errors.username ? 'border-destructive' : ''}
+                        />
+                        {#if errors.username}
+                            <p class="text-sm text-destructive">{errors.username}</p>
+                        {/if}
+                    </div>
 
-            <!-- Password -->
-            <div class="space-y-2">
-                <Label for="password">Password <span class="text-destructive">*</span></Label>
-                <Input
-                    id="password"
-                    type="password"
-                    bind:value={password}
-                    placeholder="Create a password"
-                    required
-                    class={errors.password ? 'border-destructive' : ''}
-                />
-                {#if errors.password}
-                    <p class="text-sm text-destructive">{errors.password}</p>
-                {:else}
-                    <p class="text-xs text-muted-foreground">Minimum 6 characters</p>
-                {/if}
-            </div>
+                    <!-- Password -->
+                    <div class="space-y-2">
+                        <Label for="password">Password <span class="text-destructive">*</span></Label>
+                        <Input
+                            id="password"
+                            type="password"
+                            bind:value={password}
+                            placeholder="Create a password"
+                            required
+                            class={errors.password ? 'border-destructive' : ''}
+                        />
+                        {#if errors.password}
+                            <p class="text-sm text-destructive">{errors.password}</p>
+                        {:else}
+                            <p class="text-xs text-muted-foreground">Minimum 6 characters</p>
+                        {/if}
+                    </div>
 
-            <!-- Confirm Password -->
-            <div class="space-y-2">
-                <Label for="confirmPassword">Confirm Password <span class="text-destructive">*</span></Label>
-                <Input
-                    id="confirmPassword"
-                    type="password"
-                    bind:value={confirmPassword}
-                    placeholder="Re-enter your password"
-                    required
-                    class={errors.confirmPassword ? 'border-destructive' : ''}
-                />
-                {#if errors.confirmPassword}
-                    <p class="text-sm text-destructive">{errors.confirmPassword}</p>
-                {/if}
-            </div>
+                    <!-- Confirm Password -->
+                    <div class="space-y-2">
+                        <Label for="confirmPassword">Confirm Password <span class="text-destructive">*</span></Label>
+                        <Input
+                            id="confirmPassword"
+                            type="password"
+                            bind:value={confirmPassword}
+                            placeholder="Re-enter your password"
+                            required
+                            class={errors.confirmPassword ? 'border-destructive' : ''}
+                        />
+                        {#if errors.confirmPassword}
+                            <p class="text-sm text-destructive">{errors.confirmPassword}</p>
+                        {/if}
+                    </div>
 
-            <!-- Submit Button -->
-            <Button type="submit" class="w-full" disabled={isSubmitting}>
-                {#if isSubmitting}
-                    <Loader2 class="mr-2 h-4 w-4 animate-spin" />
-                    Setting up your profile...
-                {:else}
-                    Complete Setup
-                {/if}
-            </Button>
-        </form>
-    </DialogContent>
-</Dialog>
+                    <!-- Submit Button -->
+                    <Button type="submit" class="w-full" disabled={isSubmitting}>
+                        {#if isSubmitting}
+                            <Loader2 class="mr-2 h-4 w-4 animate-spin" />
+                            Setting up your profile...
+                        {:else}
+                            Complete Setup
+                        {/if}
+                    </Button>
+                </form>
+            </div>
+        </div>
+    </div>
+{/if}
