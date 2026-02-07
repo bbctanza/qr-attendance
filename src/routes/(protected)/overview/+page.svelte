@@ -3,16 +3,17 @@
 	import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
-	import { QrCode, Users, UserCheck, UserX, Calendar, ArrowUpRight, Plus, UserPlus, CheckCircle2, XCircle, Maximize } from '@lucide/svelte';
+	import { QrCode, Users, UserCheck, UserX, Calendar, ArrowUpRight, Plus, UserPlus, CheckCircle2, XCircle, Maximize, ChevronDown, Monitor, Download } from '@lucide/svelte';
 	import { automation } from '$lib/logic/automation';
 	import { onMount, onDestroy } from 'svelte';
     import { goto } from '$app/navigation';
     import * as Table from "$lib/components/ui/table";
+    import * as DropdownMenu from "$lib/components/ui/dropdown-menu";
     import { supabase } from '$lib/supabase';
     import FullPageLoading from '$lib/components/full-page-loading.svelte';
 	import { formatTimeRange } from '$lib/utils/time';
     import QRCode from 'qrcode';
-    import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '$lib/components/ui/dialog';
+    import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogPortal, DialogOverlay } from '$lib/components/ui/dialog';
 
     // State
     let isLoading = $state(true);
@@ -31,6 +32,16 @@
         } catch (err) {
             console.error('Failed to generate QR', err);
         }
+    }
+
+    function downloadQR() {
+        if (!qrCodeDataUrl || !liveEvent) return;
+        const link = document.createElement('a');
+        link.href = qrCodeDataUrl;
+        link.download = `QR-CheckIn-${liveEvent.title.replace(/\s+/g, '-')}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
     }
 
     let statsData = $state({
@@ -192,14 +203,32 @@
                     <QrCode class="mr-2 h-5 w-5" />
                     Scan Attendees
                 </Button>
-                <Button 
-                    variant="outline"
-                    onclick={openProjector}
-                    class="w-full h-auto py-4 rounded-2xl font-bold active:scale-[0.98] transition-all border-border/60 hover:bg-muted/50"
-                >
-                    <Maximize class="mr-2 h-5 w-5" />
-                    Project QR Code
-                </Button>
+                
+                <DropdownMenu.Root>
+                    <DropdownMenu.Trigger>
+                        {#snippet child({ props })}
+                            <Button 
+                                {...props}
+                                variant="outline"
+                                class="w-full h-auto py-4 rounded-2xl font-bold active:scale-[0.98] transition-all border-border/60 hover:bg-muted/50"
+                            >
+                                <Maximize class="mr-2 h-5 w-5" />
+                                Project QR Code
+                                <ChevronDown class="ml-auto h-4 w-4 opacity-50" />
+                            </Button>
+                        {/snippet}
+                    </DropdownMenu.Trigger>
+                    <DropdownMenu.Content class="w-full min-w-75 rounded-xl">
+                        <DropdownMenu.Item onclick={openProjector} class="py-3 cursor-pointer">
+                            <QrCode class="mr-2 h-4 w-4" />
+                            <span>Show QR Dialog</span>
+                        </DropdownMenu.Item>
+                        <DropdownMenu.Item onclick={() => window.open(`/display/${liveEvent.id}`, '_blank')} class="py-3 cursor-pointer">
+                            <Monitor class="mr-2 h-4 w-4" />
+                            <span>Open Display Page</span>
+                        </DropdownMenu.Item>
+                    </DropdownMenu.Content>
+                </DropdownMenu.Root>
             </div>
         {:else}
              <div class="flex flex-col items-center justify-center space-y-4 text-center py-6">
@@ -324,10 +353,28 @@
                         <QrCode class="mr-2 h-5 w-5" />
                         Scan Attendees
                     </Button>
-                    <Button size="lg" variant="outline" class="w-full md:w-auto font-bold border-border/60" onclick={openProjector}>
-                        <Maximize class="mr-2 h-5 w-5" />
-                        Project QR Code
-                    </Button>
+                    
+                    <DropdownMenu.Root>
+                        <DropdownMenu.Trigger>
+                            {#snippet child({ props })}
+                                <Button {...props} size="lg" variant="outline" class="w-full md:w-auto font-bold border-border/60">
+                                    <Maximize class="mr-2 h-5 w-5" />
+                                    Project QR Code
+                                    <ChevronDown class="ml-2 h-4 w-4 opacity-50 transition-transform duration-200" />
+                                </Button>
+                            {/snippet}
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content align="start" class="w-56 rounded-xl">
+                            <DropdownMenu.Item onclick={openProjector} class="cursor-pointer">
+                                <QrCode class="mr-2 h-4 w-4" />
+                                <span>Show QR Dialog</span>
+                            </DropdownMenu.Item>
+                            <DropdownMenu.Item onclick={() => window.open(`/display/${liveEvent.id}`, '_blank')} class="cursor-pointer">
+                                <Monitor class="mr-2 h-4 w-4" />
+                                <span>Open Display Page</span>
+                            </DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                    </DropdownMenu.Root>
                 </div>
             </CardContent>
         {:else}
@@ -477,21 +524,35 @@
 </div>
 
     <Dialog bind:open={showProjectorModal}>
-        <DialogContent class="sm:max-w-md">
-            <DialogHeader>
-                <DialogTitle>Self Check-in QR Code</DialogTitle>
-                <DialogDescription>
-                    Project this code on the screen. Attendees can scan it to mark their own attendance.
-                </DialogDescription>
-            </DialogHeader>
-            <div class="flex flex-col items-center justify-center p-6 space-y-4">
-                {#if qrCodeDataUrl}
-                    <!-- svelte-ignore a11y_img_redundant_alt -->
-                    <img src={qrCodeDataUrl} alt="Check-in QR Code" class="w-64 h-64 border rounded-lg shadow-sm" />
-                {/if}
-                <p class="text-sm text-muted-foreground text-center">
-                    Scan to check in to <strong>{liveEvent?.title}</strong>
-                </p>
-            </div>
-        </DialogContent>
-    </Dialog>{/if}
+        <DialogPortal>
+            <DialogOverlay class="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+            <DialogContent class="fixed left-1/2 top-1/2 z-50 w-full max-w-md -translate-x-1/2 -translate-y-1/2 rounded-xl border bg-card p-0 shadow-lg outline-none">
+                <DialogHeader class="p-6 pb-0">
+                    <DialogTitle>Self Check-in QR Code</DialogTitle>
+                    <DialogDescription>
+                        Project this code on the screen. Attendees can scan it to mark their own attendance.
+                    </DialogDescription>
+                </DialogHeader>
+                <div class="flex flex-col items-center justify-center p-6 space-y-4">
+                    {#if qrCodeDataUrl}
+                        <!-- svelte-ignore a11y_img_redundant_alt -->
+                        <img src={qrCodeDataUrl} alt="Check-in QR Code" class="w-64 h-64 border rounded-lg shadow-sm" />
+                    {/if}
+                    <p class="text-sm text-muted-foreground text-center">
+                        Scan to check in to <strong>{liveEvent?.title}</strong>
+                    </p>
+                    <div class="flex w-full gap-2 pt-2">
+                        <Button variant="outline" class="flex-1 font-bold" onclick={downloadQR}>
+                            <Download class="mr-2 h-4 w-4" />
+                            Download
+                        </Button>
+                        <Button class="flex-1 font-bold" onclick={() => window.open(`/display/${liveEvent.id}`, '_blank')}>
+                            <Monitor class="mr-2 h-4 w-4" />
+                            Projector
+                        </Button>
+                    </div>
+                </div>
+            </DialogContent>
+        </DialogPortal>
+    </Dialog>
+{/if}

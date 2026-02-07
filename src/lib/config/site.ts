@@ -1,5 +1,5 @@
 export const siteConfig = {
-	name: 'Scan-in',
+	name: 'QR Attendance System',
 	description: 'Attendance Tracking System',
 	logo: null, // Placeholder for future SVG/Image upload
 	theme: {

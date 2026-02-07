@@ -33,9 +33,8 @@
     // Initialize theme synchronously from localStorage before render
     if (browser) {
         const savedTheme = localStorage.getItem('theme');
-        const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
         
-        if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+        if (savedTheme === 'dark') {
             document.documentElement.classList.add('dark');
         } else {
             document.documentElement.classList.remove('dark');
@@ -60,7 +59,9 @@
             const { data: { session } } = await supabase.auth.getSession();
             const path = $page.url.pathname;
             const publicRoutes = ['/', '/forgot-password'];
-            const isPublicRoute = publicRoutes.includes(path) || path.startsWith('/check-in/');
+            const isPublicRoute = publicRoutes.includes(path) || 
+                                path.startsWith('/check-in/') || 
+                                path.startsWith('/display/');
 
             if (!session && !isPublicRoute) {
                 goto('/');
@@ -81,7 +82,9 @@
             // Listen for auth state changes
             supabase.auth.onAuthStateChange((event, session) => {
                  const currentPath = window.location.pathname; // $page might be stale in callback
-                 const isPublic = publicRoutes.includes(currentPath) || currentPath.startsWith('/check-in/');
+                 const isPublic = publicRoutes.includes(currentPath) || 
+                                 currentPath.startsWith('/check-in/') ||
+                                 currentPath.startsWith('/display/');
                  if (event === 'SIGNED_OUT') {
                      // Clear session ID on logout
                      if (typeof window !== 'undefined') {
@@ -101,22 +104,23 @@
     });
 
     // Determine if we should show the sidebar
-    // Hide on login (root), forgot-password, and self check-in pages
+    // Hide on login (root), forgot-password, display pages, and self check-in pages
     let showSidebar = $derived(
         !['/'].includes($page.url.pathname) && 
         !$page.url.pathname.startsWith('/check-in/') &&
+        !$page.url.pathname.startsWith('/display/') &&
         browser
     );
 
-    // Force light mode for check-in route
+    // Force light mode for check-in and display routes
     $effect(() => {
-        if ($page.url.pathname.startsWith('/check-in/')) {
+        const path = $page.url.pathname;
+        if (path.startsWith('/check-in/') || path.startsWith('/display/')) {
             document.documentElement.classList.remove('dark');
         } else {
             // Restore theme for other routes
             const savedTheme = localStorage.getItem('theme');
-            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+            if (savedTheme === 'dark') {
                 document.documentElement.classList.add('dark');
             } else {
                 document.documentElement.classList.remove('dark');

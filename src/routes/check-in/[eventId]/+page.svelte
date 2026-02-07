@@ -134,8 +134,19 @@
 	}
 </script>
 
-<div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-	<div class="max-w-md w-full">
+<div class="min-h-screen relative flex items-center justify-center p-4">
+	<!-- Background Image -->
+	<div class="absolute inset-0 z-0">
+		<img 
+			src="/Background.png" 
+			alt="Background" 
+			class="w-full h-full object-cover opacity-100" 
+		/>
+		<!-- White overlay to ensure form readability -->
+		<div class="absolute inset-0 bg-white/60 backdrop-blur-[2px]"></div>
+	</div>
+
+	<div class="max-w-md w-full relative z-10">
 		{#if loading}
 			<div class="flex justify-center p-8">
 				<Loader2 class="h-8 w-8 animate-spin text-primary" />

@@ -96,8 +96,7 @@
 
             // Revert unsaved theme changes when leaving the page
             const savedTheme = localStorage.getItem('theme');
-            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-            const effectiveDark = savedTheme === 'dark' || (!savedTheme && systemDark);
+            const effectiveDark = savedTheme === 'dark';
 
             if (effectiveDark) {
                 document.documentElement.classList.add('dark');
@@ -114,8 +113,7 @@
 	// Load settings from localStorage on mount
 	onMount(async () => {
 		const savedTheme = localStorage.getItem('theme');
-		const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-		settings.darkMode = savedTheme === 'dark' || (!savedTheme && systemDark);
+		settings.darkMode = savedTheme === 'dark';
 		
 		// Load recent colors
 		const savedColors = localStorage.getItem('recentColors');

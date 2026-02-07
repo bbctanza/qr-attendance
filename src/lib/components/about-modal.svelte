@@ -48,6 +48,11 @@
 				</p>
 			</div>
 
+			<div class="space-y-1 pt-2 border-t border-border/50">
+				<p class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Bible Baptist Church Tanza © 2026</p>
+				<p class="text-xs italic text-muted-foreground">"1 Corinthians 14:40 Let all things be done decently and in order."</p>
+			</div>
+
 			<div class="space-y-2">
 				<p class="text-xs font-semibold text-muted-foreground uppercase">Features</p>
 				<ul class="text-sm space-y-1 text-muted-foreground">

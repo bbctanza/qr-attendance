@@ -182,6 +182,12 @@
 			</div>
 
 		</div>
+
+		<!-- Footer outside the card -->
+		<div class="flex flex-col items-center space-y-1 text-center text-muted-foreground">
+			<p class="text-xs font-medium">Bible Baptist Church Tanza © 2026</p>
+			<p class="text-[10px] italic">"1 Corinthians 14:40 Let all things be done decently and in order."</p>
+		</div>
 	</div>
 </div>
 
