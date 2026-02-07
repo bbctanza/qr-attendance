@@ -3,79 +3,101 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+/**
+ * HIGH-SECURITY INVITATION SERVICE
+ * 1. Checks if the inviter is authorized (Admin/Developer)
+ * 2. Requires the inviter's own password to confirm identity (Security feature)
+ * 3. Prevents inviting users with the 'developer' role
+ * 4. Dispatches a direct Supabase Invitation Email
+ */
 Deno.serve(async (req) => {
+  // CORS Preflight
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { 
-      headers: corsHeaders,
-      status: 200 
-    })
+    return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
-
-    const { action, ...payload } = await req.json()
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) throw new Error('Missing Authorization header')
+    if (!authHeader) throw new Error('Authentication header missing')
 
+    // Env Vars
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+
+    // Admin Client (Uses Service Role)
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey)
+    
+    // Validate Inviter Session
     const token = authHeader.replace('Bearer ', '')
-    const { data: { user: adminUser }, error: authError } = await supabaseClient.auth.getUser(token)
+    const { data: { user: inviter }, error: authError } = await supabaseAdmin.auth.getUser(token)
+    
+    if (authError || !inviter) throw new Error('Invalid or expired session. Please log in again.')
 
-    if (authError || !adminUser) throw new Error('Unauthorized')
+    // Parse Body
+    const { action, inviteEmail, inviteRole, password } = await req.json()
+    
+    if (action !== 'send-invite') throw new Error('Invalid operation')
+    if (!inviteEmail || !inviteRole || !password) throw new Error('Please provide email, role, and your password.')
 
-    // Verify admin/developer role
-    const { data: profile } = await supabaseClient
+    // 1. Security check: User cannot invite a Developer
+    if (inviteRole === 'developer') {
+      throw new Error('For security reasons, developer accounts cannot be created via invitations.')
+    }
+
+    // 2. Authorization check: Check inviter profile
+    const { data: profile } = await supabaseAdmin
       .from('profiles')
       .select('role')
-      .eq('id', adminUser.id)
+      .eq('id', inviter.id)
       .single()
 
     if (!profile || (profile.role !== 'admin' && profile.role !== 'developer')) {
-      throw new Error('Unauthorized permissions')
+      throw new Error('Permission Denied: You do not have authority to invite users.')
     }
 
-    if (action === 'send-invite') {
-      const { password, inviteEmail, inviteRole } = payload
+    // 3. Security verification: Check inviter's password
+    const authClient = createClient(supabaseUrl, anonKey)
+    const { error: passCheckError } = await authClient.auth.signInWithPassword({
+      email: inviter.email!,
+      password: password,
+    })
 
-      // 1. Verify admin password (Security check)
-      const { error: signInError } = await createClient(
-        Deno.env.get('SUPABASE_URL') ?? '',
-        Deno.env.get('SUPABASE_ANON_KEY') ?? ''
-      ).auth.signInWithPassword({
-        email: adminUser.email!,
-        password: password,
-      })
-
-      if (signInError) throw new Error('Invalid password verification')
-
-      // 2. Send Supabase Invitation directly
-      const { error: inviteError } = await supabaseClient.auth.admin.inviteUserByEmail(inviteEmail, {
-        data: {
-          role: inviteRole,
-          invited_by: adminUser.id
-        }
-      })
-
-      if (inviteError) throw inviteError
-
-      return new Response(JSON.stringify({ success: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
+    if (passCheckError) {
+      throw new Error('Identity verification failed: Incorrect password.')
     }
 
-    throw new Error('Invalid action')
+    // 4. Send the Supabase Invitation
+    const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(inviteEmail, {
+      data: {
+        role: inviteRole,
+        invited_by: inviter.id
+      }
+    })
+
+    if (inviteError) {
+      // Handle cases like "User already exists" gracefully for the UI
+      if (inviteError.message.includes('already registered')) {
+        throw new Error('This email address is already registered in the system.')
+      }
+      throw inviteError
+    }
+
+    return new Response(JSON.stringify({ success: true }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    })
 
   } catch (error: any) {
+    console.error('Invitation Service Error:', error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 400,
     })
   }
 })
+
+
+
 
