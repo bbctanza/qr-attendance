@@ -39,6 +39,7 @@
 	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
 	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
 	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
+	import { getErrorMessage, getErrorTitle } from '$lib/utils';
 
 	let manualId = $state('');
 	let lastScanned = $state<{ id: string; name: string; timestamp: string } | null>(null);
@@ -239,15 +240,18 @@
 						}
 					);
 				} else {
-					toast.error('No cameras found on device.');
-					isScanning = false;
-				}
-			} catch (err) {
-				console.error(err);
-				toast.error('Camera access failed. Check permissions.');
-				isScanning = false;
-			}
-		}, 100);
+						const msg = getErrorMessage({ message: 'No cameras found on device.' });
+						toast.error(msg);
+						isScanning = false;
+					}
+				} catch (err) {
+					console.error(err);
+					const msg = getErrorMessage(err);
+					const title = getErrorTitle(err);
+					toast.error(`${title}: ${msg}`);
+			isScanning = false;
+		}
+	}, 100);
 	}
 
 	async function stopScanner() {
@@ -258,31 +262,22 @@
 			try {
 				if (scanner.isScanning) {
 					await scanner.stop();
+					await scanner.clear();
 				}
-				scanner.clear();
-			} catch (err) {
-				console.error('Stop failed', err);
-			} finally {
-				scanner = null;
+			} catch (e) {
+				console.error('Error stopping scanner:', e);
 			}
 		}
 		isScanning = false;
-		isFullscreen = false;
 	}
 
 	async function switchCamera() {
-		if (!scanner || cameras.length < 2) {
-			toast.error('No other cameras available');
-			return;
-		}
+		if (!scanner || !scanner.isScanning) return;
 
 		try {
-			// Stop current camera
-			if (scanner.isScanning) {
-				await scanner.stop();
-			}
-			
-			// Switch to next camera
+			await scanner.stop();
+			await scanner.clear();
+
 			currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
 			const nextCamera = cameras[currentCameraIndex];
 			
@@ -299,7 +294,9 @@
 			toast.success(`Switched to ${nextCamera.label}`);
 		} catch (err) {
 			console.error('Camera switch failed:', err);
-			toast.error('Failed to switch camera. Try again.');
+			const msg = getErrorMessage(err);
+			const title = getErrorTitle(err);
+			toast.error(`${title}: ${msg}`);
 			
 			// Try to restart the original camera
 			try {
@@ -313,7 +310,8 @@
 				}
 			} catch (retryErr) {
 				console.error('Failed to recover camera:', retryErr);
-				toast.error('Camera is unavailable. Restart the page.');
+				const fallbackMsg = getErrorMessage(retryErr);
+				toast.error(`Camera unavailable: ${fallbackMsg}`);
 			}
 		}
 	}
@@ -352,12 +350,16 @@
 						}
 					} catch (err) {
 						console.error('Failed to restart camera in fullscreen:', err);
-						toast.error('Failed to restart camera. Try changing scan size or camera.');
+						const msg = getErrorMessage(err);
+						const title = getErrorTitle(err);
+						toast.error(`${title}: ${msg}`);
 					}
 				}, 100);
 			} catch (err) {
 				console.error('Fullscreen error:', err);
-				toast.error('Failed to enter fullscreen mode');
+				const msg = getErrorMessage(err);
+				const title = getErrorTitle(err);
+				toast.error(`${title}: ${msg}`);
 			}
 		} else {
 			try {
@@ -369,7 +371,8 @@
 				isFullscreen = false;
 			} catch (err) {
 				console.error('Exit fullscreen error:', err);
-				toast.error('Failed to exit fullscreen mode');
+				const msg = getErrorMessage(err);
+				toast.error(`Fullscreen error: ${msg}`);
 			}
 		}
 	}
@@ -393,7 +396,8 @@
 				.single();
 
 			if (memberError || !member) {
-				toast.error(`Member ID ${id} not found`, { id: toastId });
+				const msg = getErrorMessage(memberError || { message: 'Member not found' });
+				toast.error(`Member not found: ${msg}`, { id: toastId });
 				return;
 			}
 
@@ -465,10 +469,12 @@
 			manualId = ''; // Clear input
 		} catch (e: any) {
 			console.error(e);
+			const msg = getErrorMessage(e);
+			const title = getErrorTitle(e);
 			if (e.message?.includes('duplicate')) {
-				toast.info(`Member ${id} already checked in`, { id: toastId });
+				toast.info(`Already checked in: ${msg}`, { id: toastId });
 			} else {
-				toast.error('Scan failed: ' + e.message, { id: toastId });
+				toast.error(`${title}: ${msg}`, { id: toastId });
 			}
 		} finally {
 			// Delay buffer to prevent double-scan

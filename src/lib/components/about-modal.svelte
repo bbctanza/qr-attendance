@@ -23,6 +23,7 @@
 
 	function handleViewChangelog() {
 		onViewChangelog?.();
+		open = false;
 	}
 </script>
 
@@ -33,7 +34,9 @@
 				<div class="p-2 rounded-lg bg-primary/10 text-primary">
 					<Info class="h-5 w-5" />
 				</div>
-				<AlertDialogTitle>About This App</AlertDialogTitle>
+				<div>
+					<AlertDialogTitle>About This App</AlertDialogTitle>
+				</div>
 			</div>
 		</AlertDialogHeader>
 

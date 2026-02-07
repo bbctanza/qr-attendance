@@ -39,7 +39,7 @@ DROP FUNCTION IF EXISTS force_process_all_events();
 -- 2. AUTH & PROFILES
 -- Role type for access control
 DROP TYPE IF EXISTS user_role;
-CREATE TYPE user_role AS ENUM ('developer', 'admin', 'staff');
+CREATE TYPE user_role AS ENUM ('developer', 'admin', 'staff', 'guest');
 
 CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -476,31 +476,36 @@ CREATE POLICY "Developers have full access to profiles" ON profiles FOR DELETE T
 
 -- Groups Policies
 CREATE POLICY "Developer/Admin full access to groups" ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-CREATE POLICY "Staff can view groups" ON groups FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+CREATE POLICY "Staff and Guest can view groups" ON groups FOR SELECT TO authenticated USING (get_user_role() IN ('staff', 'guest'));
 CREATE POLICY "Staff can create and edit groups" ON groups FOR INSERT TO authenticated WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
 CREATE POLICY "Staff can update groups" ON groups FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
 CREATE POLICY "Staff can delete groups" ON groups FOR DELETE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
 -- Members Policies
 CREATE POLICY "Developer/Admin full access to members" ON members FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-CREATE POLICY "Staff can view members" ON members FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+CREATE POLICY "Staff and Guest can view members" ON members FOR SELECT TO authenticated USING (get_user_role() IN ('staff', 'guest'));
+CREATE POLICY "Staff can create members" ON members FOR INSERT TO authenticated WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Staff can update members" ON members FOR UPDATE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff')) WITH CHECK (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Staff can delete members" ON members FOR DELETE TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
 
 -- Event Types Policies
 CREATE POLICY "Developer/Admin full access to event_types" ON event_types FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Guest can view event_types" ON event_types FOR SELECT TO authenticated USING (get_user_role() = 'guest');
 
 -- Events Policies
 CREATE POLICY "Developer/Admin full access to events" ON events FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin', 'staff'));
+CREATE POLICY "Guest can view events" ON events FOR SELECT TO authenticated USING (get_user_role() = 'guest');
 
 -- Attendance Scans Policies
 CREATE POLICY "Developer/Admin full access to scans" ON attendance_scans FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
 CREATE POLICY "Staff can insert scans" ON attendance_scans FOR INSERT TO authenticated WITH CHECK (get_user_role() = 'staff');
-CREATE POLICY "Staff can view scans" ON attendance_scans FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+CREATE POLICY "Staff and Guest can view scans" ON attendance_scans FOR SELECT TO authenticated USING (get_user_role() IN ('staff', 'guest'));
 
 -- Attendance History Policies
 CREATE POLICY "Developer/Admin full access to history" ON attendance_present FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
 CREATE POLICY "Developer/Admin full access to absent history" ON attendance_absent FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));
-CREATE POLICY "Staff can view history" ON attendance_present FOR SELECT TO authenticated USING (get_user_role() = 'staff');
-CREATE POLICY "Staff can view absent history" ON attendance_absent FOR SELECT TO authenticated USING (get_user_role() = 'staff');
+CREATE POLICY "Staff and Guest can view history" ON attendance_present FOR SELECT TO authenticated USING (get_user_role() IN ('staff', 'guest'));
+CREATE POLICY "Staff and Guest can view absent history" ON attendance_absent FOR SELECT TO authenticated USING (get_user_role() IN ('staff', 'guest'));
 
 -- System Settings Policies
 CREATE POLICY "Everyone can view settings" ON system_settings FOR SELECT TO authenticated, anon USING (true);
@@ -509,7 +514,7 @@ CREATE POLICY "Staff and above can update settings" ON system_settings FOR UPDAT
 CREATE POLICY "Developers can delete settings" ON system_settings FOR DELETE TO authenticated USING (get_user_role() = 'developer');
 
 -- User Sessions Policies
-CREATE POLICY "Users can view their own sessions" ON user_sessions FOR SELECT TO authenticated USING (user_id = auth.uid());
+CREATE POLICY "Users can view their own sessions" ON user_sessions FOR SELECT TO authenticated USING (user_id = auth.uid() OR get_user_role() IN ('developer', 'admin'));
 CREATE POLICY "System can create sessions" ON user_sessions FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "Users can update their own sessions" ON user_sessions FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "Users can delete their own sessions" ON user_sessions FOR DELETE TO authenticated USING (user_id = auth.uid());

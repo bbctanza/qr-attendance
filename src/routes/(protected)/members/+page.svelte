@@ -39,6 +39,7 @@
     import FullPageLoading from "$lib/components/full-page-loading.svelte";
 import { toast } from 'svelte-sonner';
 import { exportMembersToCSV, exportMembersToPDF, exportMembersQRPDF, type MemberExportRecord } from '$lib/utils/membersExport';
+import { getErrorMessage, getErrorTitle } from '$lib/utils';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -126,7 +127,9 @@ import {
         const { error } = await supabase.from('members').delete().eq('member_id', id);
         if (error) {
             console.error('Delete error:', error);
-            toast.error(error.message || 'Failed to delete member');
+            const msg = getErrorMessage(error);
+            const title = getErrorTitle(error);
+            toast.error(`${title}: ${msg}`);
             showDeleteDialog = false;
             memberToDelete = null;
             memberToDeleteName = null;
