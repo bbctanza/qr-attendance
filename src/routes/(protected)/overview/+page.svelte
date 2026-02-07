@@ -26,7 +26,7 @@
     async function openProjector() {
         if (!liveEvent) return;
         try {
-            const url = `${window.location.origin}/check-in/${liveEvent.id}`;
+            const url = `https://check-in-bbct.vercel.app/check-in/${liveEvent.id}`;
             qrCodeDataUrl = await QRCode.toDataURL(url, { width: 400, margin: 2 });
             showProjectorModal = true;
         } catch (err) {

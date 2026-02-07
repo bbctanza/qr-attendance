@@ -1,7 +1,43 @@
 import { sequence } from '@sveltejs/kit/hooks';
-import { redirect } from '@sveltejs/kit';
+import { redirect, error } from '@sveltejs/kit';
 import type { Handle } from '@sveltejs/kit';
 import { supabase } from '$lib/supabase';
+
+/**
+ * Domain routing hook
+ * Restricts access to admin panel on the check-in domain
+ * check-in-bbct.vercel.app: Only check-in and display routes allowed
+ * qr-attendance-bbct-v2.vercel.app: Full access including admin panel
+ */
+const domainRouting: Handle = async ({ event, resolve }) => {
+  const hostname = event.url.hostname;
+  const pathname = event.url.pathname;
+
+  // check-in-bbct.vercel.app domain - only allow check-in and display routes
+  if (hostname === 'check-in-bbct.vercel.app') {
+    // Allow check-in routes
+    if (pathname.startsWith('/check-in/')) {
+      return resolve(event);
+    }
+    // Allow display routes
+    if (pathname.startsWith('/display/')) {
+      return resolve(event);
+    }
+    // Allow login page
+    if (pathname.startsWith('/login')) {
+      return resolve(event);
+    }
+    // Allow public assets and root
+    if (pathname === '/' || pathname.startsWith('/static/')) {
+      return resolve(event);
+    }
+    // Reject all other routes (including admin panel)
+    return error(404, 'Not found');
+  }
+
+  // For all other domains/localhost, allow full access
+  return resolve(event);
+};
 
 /**
  * Session validation hook
@@ -66,4 +102,4 @@ const validateSession: Handle = async ({ event, resolve }) => {
   return resolve(event);
 };
 
-export const handle = sequence(validateSession);
+export const handle = sequence(domainRouting, validateSession);

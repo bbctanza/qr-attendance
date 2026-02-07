@@ -15,7 +15,7 @@ export const changelog: ChangelogEntry[] = [
 	{
 		version: '2.1.0',
 		date: 'February 8, 2026',
-		title: 'Enhanced Features & Admin System',
+		title: 'Enhanced Features & User Management System',
 		items: [
 			// Self Check-In & Projector Display
 			'Self check-in feature - Allow attendees to scan their own QR codes without staff assistance',

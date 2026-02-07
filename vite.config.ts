@@ -14,8 +14,8 @@ export default defineConfig({
 			registerType: 'autoUpdate',
 			includeAssets: ['favicon.svg', 'robots.txt'],
 			manifest: {
-				name: 'Scan-in System',
-				short_name: 'Scan-in',
+				name: 'BBCT QR Attendance',
+				short_name: 'BBCT QR',
 				description: 'Attendance Tracking System',
 				theme_color: '#ffffff',
 				background_color: '#ffffff',

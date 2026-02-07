@@ -22,7 +22,7 @@
             event = data;
 
             // Generate QR Code
-            const url = `${window.location.origin}/check-in/${eventId}`;
+            const url = `https://check-in-bbct.vercel.app/check-in/${eventId}`;
             qrCodeDataUrl = await QRCode.toDataURL(url, { 
                 width: 800, 
                 margin: 1,
