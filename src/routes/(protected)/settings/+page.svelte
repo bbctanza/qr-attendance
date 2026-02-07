@@ -153,8 +153,8 @@
                     <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/settings/invite')}> 
                         <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><UserPlus class="h-5 w-5" /></div>
                         <div class="flex-1 text-left min-w-0">
-                            <div class="font-bold text-sm sm:text-base">Invite Users</div>
-                            <div class="text-xs sm:text-sm text-muted-foreground truncate">Add new staff or admins</div>
+                            <div class="font-bold text-sm sm:text-base">Manage Staff</div>
+                            <div class="text-xs text-muted-foreground truncate">Invite & manage user roles</div>
                         </div>
                         <ChevronRight class="text-muted-foreground shrink-0" />
                     </button>
