@@ -59,13 +59,13 @@
             // Global Auth Guard
             const { data: { session } } = await supabase.auth.getSession();
             const path = $page.url.pathname;
-            const publicRoutes = ['/login', '/forgot-password'];
+            const publicRoutes = ['/', '/forgot-password'];
             const isPublicRoute = publicRoutes.includes(path) || path.startsWith('/check-in/');
 
             if (!session && !isPublicRoute) {
-                goto('/login');
-            } else if (session && publicRoutes.includes(path)) {
                 goto('/');
+            } else if (session && publicRoutes.includes(path) && path === '/') {
+                goto('/overview');
             }
 
             // Update session activity on initial load
@@ -87,10 +87,10 @@
                      if (typeof window !== 'undefined') {
                          localStorage.removeItem('currentSessionId');
                      }
-                     if (!isPublic) goto('/login');
+                     if (!isPublic) goto('/');
                      clearInterval(activityInterval);
                  } else if (event === 'SIGNED_IN' || session) {
-                     if (publicRoutes.includes(currentPath)) goto('/');
+                     if (currentPath === '/') goto('/overview');
                  }
             });
         })();
@@ -101,8 +101,12 @@
     });
 
     // Determine if we should show the sidebar
-    // Hide on login, forgot-password, and self check-in pages
-    let showSidebar = $derived(!['/login', '/forgot-password'].includes($page.url.pathname) && !$page.url.pathname.startsWith('/check-in/'));
+    // Hide on login (root), forgot-password, and self check-in pages
+    let showSidebar = $derived(
+        !['/'].includes($page.url.pathname) && 
+        !$page.url.pathname.startsWith('/check-in/') &&
+        browser
+    );
 
     // Force light mode for check-in route
     $effect(() => {
@@ -123,7 +127,7 @@
     // Compute breadcrumb based on current path
     let breadcrumbs = $derived.by(() => {
         const path = $page.url.pathname;
-        if (path === '/') return [{ name: 'Overview' }];
+        if (path === '/overview') return [{ name: 'Overview' }];
         
         // Settings/Options routes
         if (path === '/settings') return [{ name: 'Options' }];
@@ -201,7 +205,7 @@
                     <Breadcrumb>
                         <BreadcrumbList>
                             <BreadcrumbItem class="hidden md:block">
-                                <BreadcrumbLink href="/">{$systemSettings.siteName}</BreadcrumbLink>
+                                <BreadcrumbLink href="/overview">{$systemSettings.siteName}</BreadcrumbLink>
                             </BreadcrumbItem>
                             {#each breadcrumbs as crumb, i}
                                 <BreadcrumbSeparator class="hidden md:block" />

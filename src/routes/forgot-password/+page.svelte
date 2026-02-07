@@ -98,7 +98,7 @@
 				</Button>
 
                 <div class="text-center">
-                    <a href="/login" class="inline-flex items-center text-sm font-medium text-primary hover:text-primary/90 transition-colors">
+                    <a href="/" class="inline-flex items-center text-sm font-medium text-primary hover:text-primary/90 transition-colors">
                         <ArrowLeft class="mr-1 h-4 w-4" />
                         Back to login
                     </a>

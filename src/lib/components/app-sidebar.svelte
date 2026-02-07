@@ -42,7 +42,7 @@
   const items = [
     {
       title: "Overview",
-      url: "/",
+      url: "/overview",
       icon: LayoutDashboard,
     },
     {
@@ -104,7 +104,7 @@
 
   async function handleLogout() {
     await supabase.auth.signOut();
-    goto('/login');
+    goto('/');
   }
 </script>
 

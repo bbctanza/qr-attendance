@@ -132,7 +132,7 @@
 		</div>
 
 		<!-- Scrollable Content (Row 2) -->
-		<div class="relative bg-background overflow-hidden min-h-[150px]">
+		<div class="relative bg-background overflow-hidden min-h-37.5">
 			<div
 				bind:this={scrollContainer}
 				onscroll={handleScroll}
