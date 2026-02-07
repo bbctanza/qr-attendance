@@ -3,12 +3,47 @@ import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vitest/config';
 import { playwright } from '@vitest/browser-playwright';
 import { sveltekit } from '@sveltejs/kit/vite';
+import { SvelteKitPWA } from '@vite-pwa/sveltekit';
 
 export default defineConfig({
-	plugins: [tailwindcss(), sveltekit(), devtoolsJson()],
-    server: {
-        allowedHosts: true
-    },
+	plugins: [
+		tailwindcss(),
+		sveltekit(),
+		devtoolsJson(),
+		SvelteKitPWA({
+			registerType: 'autoUpdate',
+			includeAssets: ['favicon.svg', 'robots.txt'],
+			manifest: {
+				name: 'Scan-in System',
+				short_name: 'Scan-in',
+				description: 'Attendance Tracking System',
+				theme_color: '#ffffff',
+				background_color: '#ffffff',
+				display: 'standalone',
+				icons: [
+					{
+						src: 'pwa-192x192.png',
+						sizes: '192x192',
+						type: 'image/png'
+					},
+					{
+						src: 'pwa-512x512.png',
+						sizes: '512x512',
+						type: 'image/png'
+					},
+					{
+						src: 'pwa-512x512.png',
+						sizes: '512x512',
+						type: 'image/png',
+						purpose: 'any maskable'
+					}
+				]
+			}
+		})
+	],
+	server: {
+		allowedHosts: true
+	},
 	ssr: {
 		noExternal: ['svelte-turnstile']
 	},
