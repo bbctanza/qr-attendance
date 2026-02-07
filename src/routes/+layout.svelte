@@ -59,12 +59,12 @@
             // Global Auth Guard
             const { data: { session } } = await supabase.auth.getSession();
             const path = $page.url.pathname;
-            const publicRoutes = ['/login', '/forgot-password'];
+            const publicRoutes = ['/', '/forgot-password'];
 
             if (!session && !publicRoutes.includes(path)) {
-                goto('/login');
-            } else if (session && publicRoutes.includes(path)) {
                 goto('/');
+            } else if (session && publicRoutes.includes(path) && path === '/') {
+                goto('/overview');
             }
 
             // Update session activity on initial load
@@ -85,10 +85,10 @@
                      if (typeof window !== 'undefined') {
                          localStorage.removeItem('currentSessionId');
                      }
-                     if (!publicRoutes.includes(currentPath)) goto('/login');
+                     if (!publicRoutes.includes(currentPath)) goto('/');
                      clearInterval(activityInterval);
                  } else if (event === 'SIGNED_IN' || session) {
-                     if (publicRoutes.includes(currentPath)) goto('/');
+                     if (currentPath === '/') goto('/overview');
                  }
             });
         })();
@@ -99,13 +99,13 @@
     });
 
     // Determine if we should show the sidebar
-    // Hide on login and forgot-password pages
-    let showSidebar = $derived(!['/login', '/forgot-password'].includes($page.url.pathname));
+    // Hide on login (root) and forgot-password pages
+    let showSidebar = $derived(!['/'].includes($page.url.pathname) && browser);
 
     // Compute breadcrumb based on current path
     let breadcrumbs = $derived.by(() => {
         const path = $page.url.pathname;
-        if (path === '/') return [{ name: 'Overview' }];
+        if (path === '/overview') return [{ name: 'Overview' }];
         
         // Settings/Options routes
         if (path === '/settings') return [{ name: 'Options' }];
@@ -183,7 +183,7 @@
                     <Breadcrumb>
                         <BreadcrumbList>
                             <BreadcrumbItem class="hidden md:block">
-                                <BreadcrumbLink href="/">{$systemSettings.siteName}</BreadcrumbLink>
+                                <BreadcrumbLink href="/overview">{$systemSettings.siteName}</BreadcrumbLink>
                             </BreadcrumbItem>
                             {#each breadcrumbs as crumb, i}
                                 <BreadcrumbSeparator class="hidden md:block" />

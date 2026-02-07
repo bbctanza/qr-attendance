@@ -18,8 +18,8 @@
 <nav data-mobile-nav="true" class={cn("fixed bottom-0 left-0 right-0 z-50 px-4 pb-6 pt-2 bg-background/80 backdrop-blur-xl border-t border-border/10 md:hidden", className)}>
   <div class="flex items-center justify-between max-w-lg mx-auto">
     <button 
-      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
-      onclick={() => goto('/') }
+      class="flex flex-col items-center gap-1 w-16 transition-colors {isActive('/overview') ? 'text-primary' : 'text-muted-foreground-mobile'}" 
+      onclick={() => goto('/overview') }
     >
       <LayoutGrid class="h-6 w-6" />
       <span class="text-[10px] font-medium">Home</span>

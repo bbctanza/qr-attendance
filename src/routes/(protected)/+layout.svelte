@@ -14,7 +14,6 @@
     let { children } = $props();
     let isLoading = $state(true);
     let isChangelogOpen = $state(false);
-    let changelogEntry = $state<any>(null);
 
     onMount(() => {
         let mounted = true;
@@ -22,7 +21,6 @@
         // Check for new version and show changelog if needed
         const shouldShow = changelogStore.checkAndShowChangelog(CURRENT_VERSION);
         if (shouldShow && changelog.length > 0) {
-            changelogEntry = changelog[0];
             isChangelogOpen = true;
         }
 
@@ -36,7 +34,7 @@
                 devTools.clearMockTime();
                 onboardingState.set({ isOpen: false, userEmail: '', userId: '' });
                 engine.stop();
-                goto('/login');
+                goto('/');
             }
         });
 
@@ -44,7 +42,7 @@
         supabase.auth.getSession().then(async ({ data: { session } }) => {
             if (!mounted) return;
             if (!session) {
-                goto('/login');
+                goto('/');
             } else {
                 // Check if user needs onboarding
                 const { data: profile, error } = await supabase
@@ -68,7 +66,7 @@
             }
         }).catch((e) => {
             console.error(e);
-            goto('/login');
+            goto('/');
         });
 
         return () => {
@@ -85,6 +83,6 @@
     </div>
 {:else}
     <OnboardingModal bind:isOpen={$onboardingState.isOpen} userEmail={$onboardingState.userEmail} userId={$onboardingState.userId} />
-    <ChangelogModal bind:open={isChangelogOpen} entry={changelogEntry} />
+    <ChangelogModal bind:open={isChangelogOpen} />
     {@render children()}
 {/if}

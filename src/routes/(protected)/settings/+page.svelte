@@ -63,7 +63,7 @@
         if (error) {
             console.error('Error logging out:', error);
         } else {
-            goto('/login');
+            goto('/');
         }
     }
 </script> 
