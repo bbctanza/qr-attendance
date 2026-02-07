@@ -3,7 +3,7 @@
     import { Input } from "$lib/components/ui/input";
     import { Label } from "$lib/components/ui/label";
     import * as Select from "$lib/components/ui/select";
-    import { ChevronLeft, Mail, ShieldCheck, Lock, Send, CheckCircle2, AlertCircle, Loader2 } from '@lucide/svelte';
+    import { ChevronLeft, Mail, ShieldCheck, Lock, Send, CheckCircle2, AlertCircle, Loader2, Eye, EyeOff } from '@lucide/svelte';
     import { goto } from '$app/navigation';
     import { supabase } from '$lib/supabase';
     import { onMount } from 'svelte';
@@ -13,6 +13,7 @@
     let inviteEmail = $state("");
     let inviteRole = $state("staff");
     let adminPassword = $state("");
+    let showPassword = $state(false);
     let isLoading = $state(false);
     let adminProfile = $state<any>(null);
     let pageLoading = $state(true);
@@ -138,12 +139,26 @@
 
             <div class="space-y-2">
                 <Label for="password">Your Password</Label>
-                <Input 
-                    id="password" 
-                    type="password" 
-                    placeholder="Enter your current password" 
-                    bind:value={adminPassword}
-                />
+                <div class="relative">
+                    <Input 
+                        id="password" 
+                        type={showPassword ? "text" : "password"} 
+                        placeholder="Enter your current password" 
+                        bind:value={adminPassword}
+                        class="pr-10"
+                    />
+                    <button 
+                        type="button"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                        onclick={() => showPassword = !showPassword}
+                    >
+                        {#if showPassword}
+                            <EyeOff class="h-4 w-4" />
+                        {:else}
+                            <Eye class="h-4 w-4" />
+                        {/if}
+                    </button>
+                </div>
                 <p class="text-[10px] text-muted-foreground italic">Required to prevent unauthorized accounts from sending invites.</p>
             </div>
 
