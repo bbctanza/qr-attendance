@@ -6,6 +6,7 @@
     import { Label } from "$lib/components/ui/label";
     import { supabase } from '$lib/supabase';
     import { toast } from 'svelte-sonner';
+    import { getErrorMessage, getErrorTitle } from '$lib/utils';
 
     interface Props {
         userEmail: string;
@@ -156,7 +157,9 @@
 
             if (profileError) {
                 console.error('Error updating profile:', profileError);
-                toast.error('Failed to update profile');
+                const msg = getErrorMessage(profileError);
+                const title = getErrorTitle(profileError);
+                toast.error(`${title}: ${msg}`);
                 isSubmitting = false;
                 return;
             }
@@ -171,7 +174,9 @@
 
         } catch (error) {
             console.error('Unexpected error during onboarding:', error);
-            toast.error('An unexpected error occurred');
+            const msg = getErrorMessage(error);
+            const title = getErrorTitle(error);
+            toast.error(`${title}: ${msg}`);
         } finally {
             isSubmitting = false;
         }

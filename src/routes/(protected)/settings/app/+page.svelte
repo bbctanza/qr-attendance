@@ -9,7 +9,7 @@
     import { Calendar } from "$lib/components/ui/calendar";
     import * as Popover from "$lib/components/ui/popover";
     import { type DateValue, DateFormatter, getLocalTimeZone, parseDate, CalendarDate, today } from "@internationalized/date";
-    import { cn } from "$lib/utils";
+    import { cn, getErrorMessage, getErrorTitle } from "$lib/utils";
 	import { ChevronLeft, Bell, Moon, Eye, Lock, Database, Palette, Type, Save, QrCode, Globe, Wrench, CalendarClock, Trash2, RefreshCw, Construction, Calendar as CalendarIcon, Clock } from "@lucide/svelte";
 	import { toast } from "svelte-sonner";
 	import { goto } from "$app/navigation";
@@ -23,6 +23,9 @@
     let userRole = $state<string | null>(null);
     let mockDateStr = $state("");
     let mockTimeStr = $state("");
+    
+    // Check if user is a guest
+    const isGuest = $derived(userRole === 'guest');
     
     // Date Picker State
     let mockDateValue = $state<DateValue | undefined>();
@@ -191,6 +194,12 @@
 
 
 	async function handleSaveSettings() {
+		// Prevent guests from saving global settings
+		if (isGuest) {
+			toast.error('Guest users cannot modify app settings');
+			return;
+		}
+		
 		isSaving = true;
 		
 		try {
@@ -347,7 +356,9 @@
 			input.value = '';
 		} catch (error) {
 			console.error('Upload error:', error);
-			toast.error('Failed to upload image');
+			const msg = getErrorMessage(error);
+			const title = getErrorTitle(error);
+			toast.error(`${title}: ${msg}`);
 		}
 	}
 
@@ -446,7 +457,9 @@
             }
         } catch(e: any) {
             console.error(e);
-            toast.error("Tool failed: " + e.message, { id: toastId });
+            const msg = getErrorMessage(e);
+            const title = getErrorTitle(e);
+            toast.error(`${title}: ${msg}`, { id: toastId });
         }
     }
 </script>
@@ -463,49 +476,71 @@
 		</div>
 	</div>
 
+	<!-- Guest Restriction Banner -->
+	{#if isGuest}
+		<div class="rounded-lg bg-red-500/10 border border-red-500/20 p-4 flex items-start gap-3">
+			<div class="text-red-600 dark:text-red-400 mt-0.5">
+				<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+			</div>
+			<div class="min-w-0 flex-1">
+				<p class="text-sm font-semibold text-red-700 dark:text-red-300">Guest Access</p>
+				<p class="text-xs text-red-600 dark:text-red-400 mt-1">You have view-only access. Global app settings are restricted and cannot be modified.</p>
+			</div>
+		</div>
+	{/if}
+
 	<!-- Settings Sections Grid -->
 	<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 auto-rows-max">
 		<!-- Branding Section -->
-		<Card class="lg:col-span-1 border-primary/20 bg-primary/5">
-			<CardHeader class="pb-3">
-				<div class="flex items-center gap-2">
-					<Palette class="h-5 w-5 text-primary shrink-0" />
-					<CardTitle class="text-base sm:text-lg">Branding & Appearance</CardTitle>
-				</div>
-			</CardHeader>
-			<CardContent class="space-y-4">
-				<div class="space-y-2">
-					<Label for="siteName" class="text-sm sm:text-base font-medium">System Name</Label>
-					<Input id="siteName" bind:value={settings.siteName} placeholder="Scan-in System" />
-					<p class="text-xs sm:text-sm text-muted-foreground">The name displayed in the browser tab and sidebar.</p>
-				</div>
-
-				<div class="space-y-2">
-					<Label for="primaryColor" class="text-sm sm:text-base font-medium">Primary Color</Label>
-					<div class="flex gap-3 items-center">
-						<ColorPicker
-							bind:hex={settings.primaryColor}
-							label="Pick a color"
-						/>
+		<div class:opacity-50={isGuest} class:pointer-events-none={isGuest}>
+			<Card class="lg:col-span-1 border-primary/20 bg-primary/5">
+				<CardHeader class="pb-3">
+					<div class="flex items-center gap-2">
+						<Palette class="h-5 w-5 text-primary shrink-0" />
+						<CardTitle class="text-base sm:text-lg">Branding & Appearance</CardTitle>
+						{#if isGuest}
+							<span class="ml-auto text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2 py-1 rounded">Restricted</span>
+						{/if}
 					</div>
-					<p class="text-xs sm:text-sm text-muted-foreground">The main color used for buttons, links, and branding.</p>
-				</div>
-			</CardContent>
-		</Card>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					<div class="space-y-2">
+						<Label for="siteName" class="text-sm sm:text-base font-medium">System Name</Label>
+						<Input id="siteName" bind:value={settings.siteName} placeholder="Scan-in System" disabled={isGuest} />
+						<p class="text-xs sm:text-sm text-muted-foreground">The name displayed in the browser tab and sidebar.</p>
+					</div>
+
+					<div class="space-y-2">
+						<Label for="primaryColor" class="text-sm sm:text-base font-medium">Primary Color</Label>
+						<div class="flex gap-3 items-center" class:opacity-50={isGuest} class:pointer-events-none={isGuest}>
+							<ColorPicker
+								bind:hex={settings.primaryColor}
+								label="Pick a color"
+							/>
+						</div>
+						<p class="text-xs sm:text-sm text-muted-foreground">The main color used for buttons, links, and branding.</p>
+					</div>
+				</CardContent>
+			</Card>
+		</div>
 
 		<!-- Localization Section -->
-		<Card class="lg:col-span-1">
-			<CardHeader class="pb-3">
-				<div class="flex items-center gap-2">
-					<Globe class="h-5 w-5 text-primary shrink-0" />
-					<CardTitle class="text-base sm:text-lg">Localization</CardTitle>
-				</div>
-			</CardHeader>
+		<div class:opacity-50={isGuest} class:pointer-events-none={isGuest}>
+			<Card class="lg:col-span-1">
+				<CardHeader class="pb-3">
+					<div class="flex items-center gap-2">
+						<Globe class="h-5 w-5 text-primary shrink-0" />
+						<CardTitle class="text-base sm:text-lg">Localization</CardTitle>
+						{#if isGuest}
+							<span class="ml-auto text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2 py-1 rounded">Restricted</span>
+						{/if}
+					</div>
+				</CardHeader>
 			<CardContent class="space-y-4">
 				<div class="space-y-2">
 					<Label class="text-sm sm:text-base font-medium">System Timezone</Label>
-                    <Select.Root type="single" bind:value={settings.timezone}>
-                        <Select.Trigger class="w-full">
+                    <Select.Root type="single" bind:value={settings.timezone} disabled={isGuest}>
+                        <Select.Trigger class="w-full" disabled={isGuest}>
                             {settings.timezone || "Select Timezone"}
                         </Select.Trigger>
                         <Select.Content class="max-h-75 overflow-y-auto">
@@ -526,8 +561,8 @@
 
 				<div class="space-y-2">
 					<Label class="text-sm sm:text-base font-medium">Time Format</Label>
-					<Select.Root type="single" bind:value={settings.timeFormat}>
-						<Select.Trigger class="w-full">
+					<Select.Root type="single" bind:value={settings.timeFormat} disabled={isGuest}>
+						<Select.Trigger class="w-full" disabled={isGuest}>
 							{settings.timeFormat === '12h' ? '12-Hour Format (2:30 PM)' : '24-Hour Format (14:30)'}
 						</Select.Trigger>
 						<Select.Content>
@@ -542,7 +577,8 @@
                     <span class="font-bold">Note:</span> Changing timezone affects how event times are displayed globally.
                 </div>
 			</CardContent>
-		</Card>
+			</Card>
+		</div>
 
         <!-- Developer Section (Hidden for normal users) -->
         {#if userRole === 'developer'}
@@ -779,12 +815,16 @@
 		</Card>
 
 		<!-- QR Code Details Section -->
-		<Card class="lg:col-span-2">
-			<CardHeader class="pb-3 border-b border-border/10 mb-6">
+		<div class:opacity-50={isGuest} class:pointer-events-none={isGuest} class="lg:col-span-2">
+			<Card class="lg:col-span-2">
+				<CardHeader class="pb-3 border-b border-border/10 mb-6">
                 <div class="flex items-center justify-between">
                     <div class="flex items-center gap-2">
                         <QrCode class="h-5 w-5 text-primary shrink-0" />
                         <CardTitle class="text-base sm:text-lg">QR Card Generation</CardTitle>
+                        {#if isGuest}
+                            <span class="text-xs font-medium text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/50 px-2 py-1 rounded">Restricted</span>
+                        {/if}
                     </div>
                 </div>
 			</CardHeader>
@@ -799,7 +839,7 @@
                                     <span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded">Unsaved</span>
                                 {/if}
                             </div>
-                            <Input id="qrHeader" bind:value={settings.qrHeaderTitle} placeholder="e.g., Your Organization Name" />
+                            <Input id="qrHeader" bind:value={settings.qrHeaderTitle} placeholder="e.g., Your Organization Name" disabled={isGuest} />
                             <p class="text-xs text-muted-foreground">Main title displayed at the top of the QR card.</p>
                         </div>
 
@@ -810,7 +850,7 @@
                                     <span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded">Unsaved</span>
                                 {/if}
                             </div>
-                            <Input id="qrSubheader" bind:value={settings.qrSubheaderTitle} placeholder="e.g., Your tagline or mission" />
+                            <Input id="qrSubheader" bind:value={settings.qrSubheaderTitle} placeholder="e.g., Your tagline or mission" disabled={isGuest} />
                             <p class="text-xs text-muted-foreground">Subtitle or tagline displayed below the main header.</p>
                         </div>
 
@@ -821,7 +861,7 @@
                                     <span class="text-xs font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/50 px-2 py-1 rounded">Unsaved</span>
                                 {/if}
                             </div>
-                            <div class="flex gap-3 items-center">
+                            <div class="flex gap-3 items-center" class:opacity-50={isGuest} class:pointer-events-none={isGuest}>
                                 <ColorPicker
                                     bind:hex={settings.qrCardColor}
                                     label="Pick a color"
@@ -981,7 +1021,8 @@
                     </div>
                 </div>
 			</CardContent>
-		</Card>
+			</Card>
+		</div>
 	</div>
 
 	<!-- Action Buttons -->

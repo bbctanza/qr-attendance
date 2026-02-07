@@ -28,6 +28,7 @@
 	import FullPageLoading from '$lib/components/full-page-loading.svelte';
 	import { eventTypesApi } from '$lib/api/event_types';
 	import { goto } from '$app/navigation';
+	import { showErrorToast, showSuccessToast, showWarningToast } from '$lib/utils/errorHandler';
 	import { CalendarRange, Settings2 } from 'lucide-svelte';
 	import { formatLocalTime, convertToUTC, formatTimeRange, formatTimeColumn } from '$lib/utils/time';
 
@@ -77,8 +78,7 @@
 			.order('start_time', { ascending: true });
 
 		if (typesError) {
-			toast.error('Failed to fetch event types');
-			console.error(typesError);
+		showErrorToast(typesError, 'Failed to Load Event Types');
 			return;
 		}
 
@@ -109,8 +109,7 @@
 			.order('start_datetime', { ascending: true });
 
 		if (customError) {
-			toast.error('Failed to fetch custom events');
-			console.error(customError);
+		showErrorToast(customError, 'Failed to Load Custom Events');
 			return;
 		}
 
@@ -148,20 +147,19 @@
 				.eq('event_type_id', eventType.db_id);
 
 			if (error) {
-				toast.error('Failed to update status');
+				showErrorToast(error, 'Update Failed');
 				return;
 			}
-			toast.success(`"${eventType.name}" has been ${newStatus ? 'activated' : 'deactivated'}`);
+			showSuccessToast(`"${eventType.name}" ${newStatus ? 'activated' : 'deactivated'}`);
 		} else {
 			const customEvent = upcomingCustomEvents.find((e) => e.event_id === id);
 			if (!customEvent) return;
 
 			// Check if trying to deactivate an ongoing event
 			if (customEvent.row_status === 'ongoing' && customEvent.status === 'Active') {
-				toast.error('Cannot deactivate an ongoing event. Delete it instead.');
+				showWarningToast('Cannot Deactivate Ongoing Event', 'Delete the event instead');
 				return;
 			}
-
 			const newStatus = customEvent.status === 'Active' ? 'completed' : 'upcoming';
 			const { error } = await supabase
 				.from('events')
