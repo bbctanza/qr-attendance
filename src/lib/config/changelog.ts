@@ -15,6 +15,47 @@ export const changelog: ChangelogEntry[] = [
 	{
 		version: '2.0.0',
 		date: 'February 7, 2026',
+		title: 'Major Update - Smarter Attendance & Member Management',
+		items: [
+			// Member Management
+			'Edit member details anytime - Update names, info, and assignments without starting over',
+			'Delete members - Cleanly remove members from the system when needed',
+			'Better member organization - Improved member search and filtering',
+			'Export member list - Download all member information to Excel for records and reports',
+
+			// Check-In & Scanning
+			'Faster QR code scanning - Fixed scanner lag issues so it works smoothly every time',
+			'No more reload glitches - Scanner works perfectly without needing to refresh',
+			'Fullscreen scanning mode - Better camera view for faster QR detection',
+			'Grouped check-in entry - Add multiple people at once before checking them in (saves time!)',
+			'Manual check-in improvements - Easier way to mark attendance when QR codes aren\'t available',
+
+			// QR Card Generation
+			'Built-in QR card design - Create professional QR cards without extra software',
+			'Instant generation - Make ID cards right in the app instead of editing elsewhere',
+			'Print-ready cards - Get cards ready to print immediately',
+
+			// New Analytics Page
+			'Attendance statistics - See who\'s attending most and trends over time',
+			'Event performance metrics - Understand which events get the most attendance',
+			'Visual reports - Charts and graphs that are easy to understand at a glance',
+
+			// Design & User Interface
+			'Better mobile app - Easier to use on phones and tablets for on-the-go check-ins',
+			'Improved desktop version - Cleaner layout for office/admin work',
+			'Responsive design - System works great on all screen sizes and devices',
+			'Cleaner modals - Better popups and notification messages',
+
+			// Additional Improvements
+			'Faster overall performance - App loads quicker and responds instantly',
+			'Better error messages - When something goes wrong, we tell you exactly what\'s wrong',
+			'Improved notifications - Real-time updates so you know immediately when someone checks in',
+			'Better data exports - More ways to download and backup your data'
+		]
+	},
+	{
+		version: '1.9.0',
+		date: 'February 1, 2026',
 		title: 'Complete System Rewrite - Migration from React to SvelteKit',
 		items: [
 			// Framework Migration
