@@ -330,71 +330,37 @@ import {
             return;
         }
         
-        // 2. Generate Unique ID (sequential per group when possible, otherwise global numeric suffix)
-        const groupCode = groupObj.group_code;
+        // 2. Generate Unique ID in format: BBCT-{groupId}-{overallSequentialNumber}
+        const groupId = groupObj.group_id;
         let qrId: string | null = null;
         let attempt = 0;
 
         while (attempt < 5) {
-            // 1) Try group-prefixed IDs first
-            const { data: existingGroup, error: groupFetchErr } = await supabase
+            // Find all members and get the highest overall number (third segment)
+            const { data: allMembers, error: fetchErr } = await supabase
                 .from('members')
-                .select('member_id')
-                .ilike('member_id', `${groupCode}-%`);
+                .select('member_id');
 
-            if (groupFetchErr) {
-                console.error(groupFetchErr);
+            if (fetchErr) {
+                console.error(fetchErr);
                 alert('Failed to generate member id');
                 return;
             }
 
             let candidate: string | null = null;
 
-            if ((existingGroup || []).length > 0) {
-                // Extract numeric suffixes for group members
-                let max = -1;
-                (existingGroup || []).forEach((m: any) => {
-                    const re = new RegExp(`^${groupCode}-(\\d+)$`);
-                    const match = (m.member_id || '').match(re);
-                    if (match) {
-                        const num = parseInt(match[1], 10);
-                        if (!isNaN(num) && num > max) max = num;
-                    }
-                });
-
-                const newNum = max + 1;
-                // Keep zero-padded style for group-prefixed ids
-                candidate = `${groupCode}-${String(newNum).padStart(4, '0')}`;
-            } else {
-                // 2) Fallback: find the highest trailing number across all member_ids and increment
-                const { data: allMembers, error: allFetchErr } = await supabase
-                    .from('members')
-                    .select('member_id');
-
-                if (allFetchErr) {
-                    console.error(allFetchErr);
-                    alert('Failed to generate member id');
-                    return;
+            // Extract the highest number from BBCT-{any}-{number} format
+            let maxNumber = 0;
+            (allMembers || []).forEach((m: any) => {
+                const match = (m.member_id || '').match(/^BBCT-\d+-(\d+)$/);
+                if (match) {
+                    const num = parseInt(match[1], 10);
+                    if (!isNaN(num) && num > maxNumber) maxNumber = num;
                 }
+            });
 
-                let max = -1;
-                (allMembers || []).forEach((m: any) => {
-                    const match = (m.member_id || '').match(/(\d+)$/);
-                    if (match) {
-                        const num = parseInt(match[1], 10);
-                        if (!isNaN(num) && num > max) max = num;
-                    }
-                });
-
-                const newNum = max + 1;
-                if (max === -1) {
-                    // No numeric ids found; start at 1
-                    candidate = String(1);
-                } else {
-                    // Use plain numeric id (no group prefix) to follow existing pattern like '522' -> '523'
-                    candidate = String(newNum);
-                }
-            }
+            const nextNumber = maxNumber + 1;
+            candidate = `BBCT-${groupId}-${nextNumber}`;
 
             if (!candidate) {
                 alert('Failed to allocate a member id');
