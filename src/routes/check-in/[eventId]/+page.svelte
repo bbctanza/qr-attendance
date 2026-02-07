@@ -28,6 +28,29 @@
 	let scanner: Html5Qrcode | null = null;
 	let scannerContainerId = 'reader';
 
+	// Audio beep function
+	function playBeep(frequency = 800, duration = 200) {
+		try {
+			const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+			const oscillator = audioContext.createOscillator();
+			const gainNode = audioContext.createGain();
+
+			oscillator.connect(gainNode);
+			gainNode.connect(audioContext.destination);
+
+			oscillator.frequency.value = frequency;
+			oscillator.type = 'sine';
+
+			gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+			gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+
+			oscillator.start(audioContext.currentTime);
+			oscillator.stop(audioContext.currentTime + duration / 1000);
+		} catch (err) {
+			console.error('Beep error:', err);
+		}
+	}
+
 	onMount(async () => {
 		try {
 			// Fetch Event Details
@@ -90,6 +113,7 @@
 	}
 
 	function onScanSuccess(decodedText: string, decodedResult: any) {
+		playBeep(); // Play beep on successful scan
 		stopScanner();
 		memberId = decodedText;
 		handleCheckIn();
@@ -116,16 +140,20 @@
 			}
 
 			if (data && data.success) {
+				playBeep(1000, 150); // Higher pitch beep for success
+				setTimeout(() => playBeep(1000, 150), 150); // Double beep
 				checkInStatus = 'success';
 				statusMessage = data.message;
 				memberId = ''; // Reset input
 			} else {
+				playBeep(400, 300); // Lower pitch beep for error
 				checkInStatus = 'error';
 				statusMessage = data?.message || 'Check-in failed.';
 			}
 
 		} catch (err: any) {
 			console.error(err);
+			playBeep(400, 300); // Error beep
 			checkInStatus = 'error';
 			statusMessage = 'Unable to check in. Please ensure the system SQL update has been run.';
 		} finally {
