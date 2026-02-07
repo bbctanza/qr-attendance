@@ -29,14 +29,11 @@
 	let selectedMonth = $state('');
 	let filterPresent = $state(true);
 	let months = $state<string[]>([]);
-	let monthMap: Record<string, number> = {
-		'JAN': 0, 'FEB': 1, 'MAR': 2, 'APR': 3, 'MAY': 4, 'JUN': 5,
-		'JUL': 6, 'AUG': 7, 'SEP': 8, 'OCT': 9, 'NOV': 10, 'DEC': 11
-	};
 	const monthOrder = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 	let monthPage = $state(0);
 	let monthsPerPage = 4;
 	let isLoading = $state(true);
+	let userDisplayName = $state('System User');
 
 	let visibleMonths = $derived(months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage));
 	let hasPrev = $derived(monthPage > 0);
@@ -44,7 +41,12 @@
 
 	// Filtering
 	let filteredEvents = $derived(
-		events.filter(e => new Date(e.event_date).getMonth() === monthMap[selectedMonth])
+		events.filter(e => {
+			const d = new Date(e.event_date);
+			const m = monthOrder[d.getMonth()];
+			const y = d.getFullYear();
+			return `${m} ${y}` === selectedMonth;
+		})
 	);
 
 	// Attendance calculations
@@ -58,6 +60,22 @@
 		isLoading = true;
 		try {
 			await fetchHistory();
+			
+			// Get current user for PDF exports
+			const { data: { session } } = await supabase.auth.getSession();
+			if (session) {
+				const { data: profile } = await supabase
+					.from('profiles')
+					.select('full_name, email')
+					.eq('id', session.user.id)
+					.single();
+				
+				if (profile) {
+					userDisplayName = profile.full_name || profile.email || 'System User';
+				} else {
+					userDisplayName = session.user.email || 'System User';
+				}
+			}
 		} finally {
 			isLoading = false;
 		}
@@ -89,7 +107,8 @@
 			const { data: presentData } = await supabase
 				.from('attendance_present')
 				.select('member_id, scan_datetime, members(first_name, last_name, groups(name))')
-				.eq('event_id', ev.event_id);
+				.eq('event_id', ev.event_id)
+				.order('scan_datetime', { ascending: false });
 
 			const attendees = await Promise.all((presentData || []).map(async (p: any) => ({
 				member_id: p.member_id,
@@ -129,16 +148,23 @@
 		eventsWithDetails.forEach(event => {
 			const date = new Date(event.event_date);
 			const monthIndex = date.getMonth();
+			const year = date.getFullYear();
 			const monthStr = monthOrder[monthIndex];
-			uniqueMonths.add(monthStr);
+			uniqueMonths.add(`${monthStr} ${year}`);
 		});
 		
-		// Sort months chronologically
-		const sortedMonths = Array.from(uniqueMonths).sort((a, b) => monthOrder.indexOf(a) - monthOrder.indexOf(b));
+		// Sort months chronologically (Latest first)
+		const sortedMonths = Array.from(uniqueMonths).sort((a, b) => {
+			const [mA, yA] = a.split(' ');
+			const [mB, yB] = b.split(' ');
+			const yearDiff = parseInt(yB) - parseInt(yA);
+			if (yearDiff !== 0) return yearDiff;
+			return monthOrder.indexOf(mB) - monthOrder.indexOf(mA);
+		});
 		months = sortedMonths;
-		// Set selected month to the latest month (last in sorted array)
+		// Set selected month to the latest month (first in sorted array)
 		if (sortedMonths.length > 0) {
-			selectedMonth = sortedMonths[sortedMonths.length - 1];
+			selectedMonth = sortedMonths[0];
 		}
 		monthPage = 0; // Reset pagination
 	}
@@ -224,7 +250,8 @@
           totalPresent: totalAttendees,
           totalAbsent: totalExpected - totalAttendees,
           attendanceRate: attendanceRate
-        }
+        },
+        generatedBy: userDisplayName
       });
     } catch (err) {
       console.error('PDF export error:', err);
@@ -301,7 +328,8 @@
           totalPresent: totalAttendees,
           totalAbsent: totalExpected - totalAttendees,
           attendanceRate: attendanceRate
-        }
+        },
+        generatedBy: userDisplayName
       });
     } catch (err) {
       console.error('PDF export error:', err);
@@ -407,7 +435,8 @@
           totalPresent: evPresent,
           totalAbsent: evAbsent,
           attendanceRate: evRate
-        }
+        },
+        generatedBy: userDisplayName
       });
     } catch (err) {
       console.error('PDF export error:', err);
