@@ -3,7 +3,7 @@
 	import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
-	import { QrCode, Users, UserCheck, UserX, Calendar, ArrowUpRight, Plus, UserPlus, CheckCircle2, XCircle } from '@lucide/svelte';
+	import { QrCode, Users, UserCheck, UserX, Calendar, ArrowUpRight, Plus, UserPlus, CheckCircle2, XCircle, Maximize } from '@lucide/svelte';
 	import { automation } from '$lib/logic/automation';
 	import { onMount, onDestroy } from 'svelte';
     import { goto } from '$app/navigation';
@@ -11,10 +11,27 @@
     import { supabase } from '$lib/supabase';
     import FullPageLoading from '$lib/components/full-page-loading.svelte';
 	import { formatTimeRange } from '$lib/utils/time';
+    import QRCode from 'qrcode';
+    import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '$lib/components/ui/dialog';
 
     // State
     let isLoading = $state(true);
     let liveEvent = $state<any>(null);
+
+    // Projector Modal State
+    let showProjectorModal = $state(false);
+    let qrCodeDataUrl = $state('');
+
+    async function openProjector() {
+        if (!liveEvent) return;
+        try {
+            const url = `${window.location.origin}/check-in/${liveEvent.id}`;
+            qrCodeDataUrl = await QRCode.toDataURL(url, { width: 400, margin: 2 });
+            showProjectorModal = true;
+        } catch (err) {
+            console.error('Failed to generate QR', err);
+        }
+    }
 
     let statsData = $state({
         total: 0,
@@ -167,13 +184,23 @@
 
             <Separator class="bg-border/20" />
 
-            <Button 
-                onclick={() => goto('/scan')}
-                class="w-full h-auto py-4 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold active:scale-[0.98] transition-all shadow-lg shadow-primary/10"
-            >
-                <QrCode class="mr-2 h-5 w-5" />
-                Scan Attendees
-            </Button>
+            <div class="flex flex-col gap-3">
+                <Button 
+                    onclick={() => goto('/scan')}
+                    class="w-full h-auto py-4 rounded-2xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold active:scale-[0.98] transition-all shadow-lg shadow-primary/10"
+                >
+                    <QrCode class="mr-2 h-5 w-5" />
+                    Scan Attendees
+                </Button>
+                <Button 
+                    variant="outline"
+                    onclick={openProjector}
+                    class="w-full h-auto py-4 rounded-2xl font-bold active:scale-[0.98] transition-all border-border/60 hover:bg-muted/50"
+                >
+                    <Maximize class="mr-2 h-5 w-5" />
+                    Project QR Code
+                </Button>
+            </div>
         {:else}
              <div class="flex flex-col items-center justify-center space-y-4 text-center py-6">
                 <div class="p-3 bg-muted/20 rounded-full">
@@ -292,10 +319,14 @@
                 </CardDescription>
             </CardHeader>
             <CardContent>
-                <div class="mt-4">
+                <div class="mt-4 flex flex-col md:flex-row gap-3">
                     <Button size="lg" class="w-full md:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-lg shadow-primary/20 font-bold" onclick={() => goto('/scan')}>
                         <QrCode class="mr-2 h-5 w-5" />
                         Scan Attendees
+                    </Button>
+                    <Button size="lg" variant="outline" class="w-full md:w-auto font-bold border-border/60" onclick={openProjector}>
+                        <Maximize class="mr-2 h-5 w-5" />
+                        Project QR Code
                     </Button>
                 </div>
             </CardContent>
@@ -444,5 +475,23 @@
         </div>
     </div>
 </div>
-{/if}
 
+    <Dialog bind:open={showProjectorModal}>
+        <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+                <DialogTitle>Self Check-in QR Code</DialogTitle>
+                <DialogDescription>
+                    Project this code on the screen. Attendees can scan it to mark their own attendance.
+                </DialogDescription>
+            </DialogHeader>
+            <div class="flex flex-col items-center justify-center p-6 space-y-4">
+                {#if qrCodeDataUrl}
+                    <!-- svelte-ignore a11y_img_redundant_alt -->
+                    <img src={qrCodeDataUrl} alt="Check-in QR Code" class="w-64 h-64 border rounded-lg shadow-sm" />
+                {/if}
+                <p class="text-sm text-muted-foreground text-center">
+                    Scan to check in to <strong>{liveEvent?.title}</strong>
+                </p>
+            </div>
+        </DialogContent>
+    </Dialog>
