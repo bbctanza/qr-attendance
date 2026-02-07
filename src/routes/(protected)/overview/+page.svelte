@@ -494,4 +494,4 @@
                 </p>
             </div>
         </DialogContent>
-    </Dialog>
+    </Dialog>{/if}

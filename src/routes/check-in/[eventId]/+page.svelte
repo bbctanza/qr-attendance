@@ -173,7 +173,7 @@
 					{:else}
 						<!-- Scanner Section -->
 						{#if isScanning}
-							<div class="relative bg-black rounded-xl overflow-hidden border shadow-inner aspect-[4/5] sm:aspect-square">
+							<div class="relative bg-black rounded-xl overflow-hidden border shadow-inner aspect-4/5 sm:aspect-square">
 								<div id={scannerContainerId} class="w-full h-full"></div>
 								<Button 
 									variant="destructive" 

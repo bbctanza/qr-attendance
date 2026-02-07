@@ -33,6 +33,7 @@ export interface EventType {
   start_time: string; // Time string HH:MM:SS
   end_time: string;
   is_active: boolean;
+  metadata: Json;
   created_at?: string;
 }
 
@@ -47,6 +48,7 @@ export interface AttendanceEvent {
   end_datetime: string; // ISO timestamp
   status: EventStatus;
   is_custom: boolean;
+  is_recurring: boolean;
   description: string | null;
   metadata: Json;
   created_at?: string;
