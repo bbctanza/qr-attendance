@@ -60,8 +60,9 @@
             const { data: { session } } = await supabase.auth.getSession();
             const path = $page.url.pathname;
             const publicRoutes = ['/login', '/forgot-password'];
+            const isPublicRoute = publicRoutes.includes(path) || path.startsWith('/check-in/');
 
-            if (!session && !publicRoutes.includes(path)) {
+            if (!session && !isPublicRoute) {
                 goto('/login');
             } else if (session && publicRoutes.includes(path)) {
                 goto('/');
@@ -80,12 +81,13 @@
             // Listen for auth state changes
             supabase.auth.onAuthStateChange((event, session) => {
                  const currentPath = window.location.pathname; // $page might be stale in callback
+                 const isPublic = publicRoutes.includes(currentPath) || currentPath.startsWith('/check-in/');
                  if (event === 'SIGNED_OUT') {
                      // Clear session ID on logout
                      if (typeof window !== 'undefined') {
                          localStorage.removeItem('currentSessionId');
                      }
-                     if (!publicRoutes.includes(currentPath)) goto('/login');
+                     if (!isPublic) goto('/login');
                      clearInterval(activityInterval);
                  } else if (event === 'SIGNED_IN' || session) {
                      if (publicRoutes.includes(currentPath)) goto('/');
@@ -99,8 +101,24 @@
     });
 
     // Determine if we should show the sidebar
-    // Hide on login and forgot-password pages
-    let showSidebar = $derived(!['/login', '/forgot-password'].includes($page.url.pathname));
+    // Hide on login, forgot-password, and self check-in pages
+    let showSidebar = $derived(!['/login', '/forgot-password'].includes($page.url.pathname) && !$page.url.pathname.startsWith('/check-in/'));
+
+    // Force light mode for check-in route
+    $effect(() => {
+        if ($page.url.pathname.startsWith('/check-in/')) {
+            document.documentElement.classList.remove('dark');
+        } else {
+            // Restore theme for other routes
+            const savedTheme = localStorage.getItem('theme');
+            const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            if (savedTheme === 'dark' || (!savedTheme && systemDark)) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        }
+    });
 
     // Compute breadcrumb based on current path
     let breadcrumbs = $derived.by(() => {

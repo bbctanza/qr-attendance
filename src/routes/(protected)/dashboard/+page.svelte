@@ -18,7 +18,8 @@
 		Calendar,
 		ArrowUpRight,
 		Plus,
-		UserPlus
+		UserPlus,
+		Maximize
 	} from '@lucide/svelte';
 	import { automation } from '$lib/logic/automation';
 	import { onMount, onDestroy } from 'svelte';
@@ -28,6 +29,8 @@
 	import { formatTimeRange } from '$lib/utils/time';
 	import type { AttendanceEvent } from '$lib/types';
 	import { devTools } from '$lib/stores/dev';
+	import QRCode from 'qrcode';
+	import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '$lib/components/ui/dialog';
 
 	// State
 	let liveEvent = $state<any>(null);
@@ -38,6 +41,21 @@
 	});
 	let recentEvents = $state<any[]>([]);
 	let isLoading = $state(true);
+
+	// Projector Modal State
+	let showProjectorModal = $state(false);
+	let qrCodeDataUrl = $state('');
+
+	async function openProjector() {
+		if (!liveEvent) return;
+		try {
+			const url = `${window.location.origin}/check-in/${liveEvent.id}`;
+			qrCodeDataUrl = await QRCode.toDataURL(url, { width: 400, margin: 2 });
+			showProjectorModal = true;
+		} catch (err) {
+			console.error('Failed to generate QR', err);
+		}
+	}
 
 	// Start automation on mount (client-side only logic for now)
 	onMount(() => {
@@ -213,7 +231,7 @@
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
-					<div class="mt-4">
+					<div class="mt-4 flex flex-col gap-3 md:flex-row">
 						<Button
 							size="lg"
 							class="w-full bg-primary font-bold text-primary-foreground shadow-lg shadow-primary/20 hover:bg-primary/90 md:w-auto"
@@ -221,6 +239,15 @@
 						>
 							<QrCode class="mr-2 h-5 w-5" />
 							Scan Attendees
+						</Button>
+						<Button
+							size="lg"
+							variant="outline"
+							class="w-full font-bold shadow-sm md:w-auto"
+							onclick={openProjector}
+						>
+							<Maximize class="mr-2 h-5 w-5" />
+							Project QR Code
 						</Button>
 					</div>
 				</CardContent>
@@ -372,4 +399,24 @@
 			</div>
 		</div>
 	</div>
+
+	<Dialog bind:open={showProjectorModal}>
+		<DialogContent class="sm:max-w-md">
+			<DialogHeader>
+				<DialogTitle>Self Check-in QR Code</DialogTitle>
+				<DialogDescription>
+					Project this code on the screen. Attendees can scan it to mark their own attendance.
+				</DialogDescription>
+			</DialogHeader>
+			<div class="flex flex-col items-center justify-center p-6 space-y-4">
+				{#if qrCodeDataUrl}
+					<!-- svelte-ignore a11y_img_redundant_alt -->
+					<img src={qrCodeDataUrl} alt="Check-in QR Code" class="w-64 h-64 border rounded-lg shadow-sm" />
+				{/if}
+				<p class="text-sm text-muted-foreground text-center">
+					Scan to check in to <strong>{liveEvent?.title}</strong>
+				</p>
+			</div>
+		</DialogContent>
+	</Dialog>
 {/if}
