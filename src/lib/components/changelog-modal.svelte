@@ -3,34 +3,23 @@
 	import {
 		AlertDialog,
 		AlertDialogAction,
-		AlertDialogCancel,
 		AlertDialogContent,
 		AlertDialogDescription,
 		AlertDialogHeader,
 		AlertDialogTitle,
 	} from '$lib/components/ui/alert-dialog';
-<<<<<<< HEAD
-	import ScrollArea from '$lib/components/ui/scroll/scroll-area.svelte';
 	import { X, ChevronDown } from 'lucide-svelte';
 	import { systemSettings } from '$lib/stores/settings';
-	import type { ChangelogEntry } from '$lib/config/changelog';
-=======
-	import { ChevronDown } from 'lucide-svelte';
 	import { changelog } from '$lib/config/changelog';
->>>>>>> upstream/main
 
 	interface Props {
 		open?: boolean;
 	}
 
-<<<<<<< HEAD
-	let { open = $bindable(false), entry }: Props = $props();
-	let showScrollHint = $state(false);
-	let scrollContainer: HTMLDivElement | undefined;
-=======
 	let { open = $bindable(false) }: Props = $props();
 	let currentIndex = $state(0);
->>>>>>> upstream/main
+	let showScrollHint = $state(false);
+	let scrollContainer: HTMLDivElement | undefined;
 
 	const currentEntry = $derived(changelog[currentIndex]);
 	const isFirst = $derived(currentIndex === 0);
@@ -39,12 +28,22 @@
 	function handleNext() {
 		if (!isLast) {
 			currentIndex++;
+			// Reset scroll position and check scroll hint
+			if (scrollContainer) {
+				scrollContainer.scrollTop = 0;
+				checkScrollHint();
+			}
 		}
 	}
 
 	function handlePrevious() {
 		if (!isFirst) {
 			currentIndex--;
+			// Reset scroll position and check scroll hint
+			if (scrollContainer) {
+				scrollContainer.scrollTop = 0;
+				checkScrollHint();
+			}
 		}
 	}
 
@@ -52,37 +51,79 @@
 		open = false;
 	}
 
-	function handleScroll(e: Event) {
+	function handleDontShowAgain() {
+		if (currentEntry) {
+			if (typeof window !== 'undefined') {
+				localStorage.setItem('lastSeenVersion', currentEntry.version);
+			}
+		}
+		open = false;
+	}
+
+	function handleScroll() {
 		if (!scrollContainer) return;
-		const target = e.target as HTMLDivElement;
-		const isNearBottom = target.scrollHeight - target.scrollTop - target.clientHeight < 10;
-		showScrollHint = !isNearBottom && target.scrollTop === 0;
+		const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+		
+		const isNearBottom = scrollHeight - scrollTop - clientHeight < 20;
+		const hasSignificantOverflow = scrollHeight > clientHeight + 10;
+		
+		// Hide hint if we scrolled down or reached bottom
+		if (scrollTop > 10 || isNearBottom) {
+			showScrollHint = false;
+		} else if (hasSignificantOverflow) {
+			showScrollHint = true;
+		}
 	}
 
 	function checkScrollHint() {
 		if (!scrollContainer) return;
-		const hasOverflow = scrollContainer.scrollHeight > scrollContainer.clientHeight;
-		showScrollHint = hasOverflow && scrollContainer.scrollTop === 0;
+		const { scrollHeight, clientHeight } = scrollContainer;
+		const hasSignificantOverflow = scrollHeight > clientHeight + 10;
+		const isAtTop = scrollContainer.scrollTop < 10;
+		showScrollHint = hasSignificantOverflow && isAtTop;
 	}
+
+	function onOpenChange(isOpen: boolean) {
+		if (isOpen) {
+			currentIndex = 0;
+			// Multiple checks as layout stabilizes
+			setTimeout(checkScrollHint, 100);
+			setTimeout(checkScrollHint, 400);
+		}
+	}
+
+	// Watch for entry changes and open state
+	$effect(() => {
+		if (open && scrollContainer) {
+			setTimeout(checkScrollHint, 50);
+			setTimeout(checkScrollHint, 200);
+		}
+	});
+
+	$effect(() => {
+		if (currentEntry && scrollContainer) {
+			scrollContainer.scrollTop = 0;
+			setTimeout(checkScrollHint, 100);
+		}
+	});
 </script>
 
-<<<<<<< HEAD
-<AlertDialog bind:open>
-	<AlertDialogContent class="w-[95vw] max-w-2xl min-h-auto max-h-[90vh] sm:max-h-[85vh] rounded-xl sm:rounded-lg flex flex-col p-0">
-		<!-- Fixed Header -->
-		<div class="shrink-0 px-4 sm:px-6 pt-4 sm:pt-6 border-b">
+<AlertDialog bind:open {onOpenChange}>
+	<AlertDialogContent class="w-[95vw] max-w-2xl h-auto max-h-[90vh] sm:max-h-[85vh] rounded-xl sm:rounded-lg grid grid-rows-[auto_1fr_auto] p-0 overflow-hidden shadow-2xl border-none pointer-events-auto">
+		<!-- Fixed Header (Row 1) -->
+		<div class="px-5 sm:px-6 pt-5 pb-4 border-b bg-background z-30">
 			<div class="flex flex-row items-start justify-between gap-4">
 				<div class="flex-1 min-w-0 text-left">
-					<AlertDialogTitle class="text-lg sm:text-2xl wrap-break-words">
-						{entry?.title || 'What\'s New'}
+					<AlertDialogTitle class="text-lg sm:text-2xl font-bold tracking-tight wrap-break-word">
+						{currentEntry.title}
 					</AlertDialogTitle>
-					<AlertDialogDescription class="mt-2 text-xs sm:text-sm">
-						Version {entry?.version} • {entry?.date}
+					<AlertDialogDescription class="mt-1 text-xs sm:text-sm font-medium opacity-70">
+						Version {currentEntry.version} • {currentEntry.date}
 					</AlertDialogDescription>
 				</div>
 				<button
 					onclick={handleClose}
-					class="shrink-0 p-1 -mt-1 text-muted-foreground hover:text-foreground transition-colors"
+					class="shrink-0 p-1.5 -mt-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-full transition-all"
 					aria-label="Close"
 				>
 					<X class="h-5 w-5 sm:h-6 sm:w-6" />
@@ -90,48 +131,74 @@
 			</div>
 		</div>
 
-		<!-- Scrollable Content -->
-		<div class="flex-1 min-h-0 relative overflow-hidden">
+		<!-- Scrollable Content (Row 2) -->
+		<div class="relative bg-background overflow-hidden min-h-[150px]">
 			<div
 				bind:this={scrollContainer}
 				onscroll={handleScroll}
-				onload={checkScrollHint}
-				class="relative overflow-auto h-full scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent"
+				class="h-full w-full overflow-y-auto overflow-x-hidden scroll-container overscroll-contain"
+				style="scrollbar-gutter: stable;"
 			>
-				<div class="px-4 sm:px-6 py-4 sm:py-4">
-					<div class="space-y-2 sm:space-y-3">
-						{#if entry?.items}
-							{#each entry.items as item}
-								<div class="flex gap-2 sm:gap-3">
-									<div class="mt-1.5 h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 rounded-full bg-primary"></div>
-									<p class="text-xs sm:text-sm leading-relaxed text-foreground">{item}</p>
-								</div>
-							{/each}
-						{/if}
+				<div class="px-5 sm:px-8 py-4 sm:py-6 pb-20">
+					<div class="space-y-3 sm:space-y-4">
+						{#each currentEntry.items as item}
+							<div class="flex gap-3 sm:gap-4 items-start group">
+								<div class="mt-2 h-1.5 w-1.5 sm:h-2 sm:w-2 shrink-0 rounded-full bg-primary ring-2 ring-primary/10 group-hover:scale-110 transition-transform"></div>
+								<p class="text-xs sm:text-base leading-relaxed text-foreground/90 font-medium">{item}</p>
+							</div>
+						{/each}
 					</div>
 				</div>
 			</div>
-
-			<!-- Scroll Hint Indicator -->
+				
+			<!-- Scroll Hint Indicator - Overlay -->
 			{#if showScrollHint}
-				<div class="absolute bottom-0 left-0 right-0 flex items-center justify-center pointer-events-none bg-linear-to-t from-background via-background/80 to-transparent pt-8 pb-4">
-					<div class="flex flex-col items-center gap-1 animate-bounce">
-						<span class="text-xs font-medium" style="color: {$systemSettings.primaryColor}">Scroll for more</span>
-						<ChevronDown class="h-4 w-4" style="color: {$systemSettings.primaryColor}" />
+				<div class="absolute bottom-0 left-0 right-0 h-24 bg-linear-to-t from-background via-background/95 to-transparent pointer-events-none z-20 flex flex-col items-center justify-end pb-4 transition-opacity duration-500">
+					<div class="flex flex-col items-center gap-1.5 animate-bounce">
+						<span class="text-[9px] sm:text-[10px] font-black uppercase tracking-[0.2em]" style="color: {$systemSettings.primaryColor}">Scroll for more</span>
+						<ChevronDown class="h-4 w-4 sm:h-5 sm:w-5" style="color: {$systemSettings.primaryColor}" />
 					</div>
 				</div>
 			{/if}
 		</div>
 
-		<!-- Fixed Footer -->
-		<div class="shrink-0 px-4 sm:px-6 pb-4 sm:pb-6 pt-4 border-t">
-			<div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 justify-end">
-				<Button variant="outline" onclick={handleDontShowAgain} class="text-xs sm:text-sm w-full sm:w-auto">
-					Don't Show Again
-				</Button>
-				<Button onclick={handleClose} class="text-xs sm:text-sm w-full sm:w-auto">
-					Continue
-				</Button>
+		<!-- Fixed Footer (Row 3) -->
+		<div class="px-5 sm:px-6 py-4 border-t bg-background z-30">
+			<div class="flex flex-col-reverse sm:flex-row gap-2 sm:gap-3 justify-between items-stretch sm:items-center">
+				<div class="flex gap-2">
+					<Button
+						variant="outline"
+						onclick={handlePrevious}
+						disabled={isFirst}
+						class="text-xs sm:text-sm flex-1 sm:flex-none"
+					>
+						Previous
+					</Button>
+					<Button
+						variant="outline"
+						onclick={handleNext}
+						disabled={isLast}
+						class="text-xs sm:text-sm flex-1 sm:flex-none gap-2"
+					>
+						Next
+						<ChevronDown class="h-4 w-4 rotate-90" />
+					</Button>
+				</div>
+				<div class="flex gap-2">
+					<Button
+						variant="outline"
+						onclick={handleDontShowAgain}
+						class="text-xs sm:text-sm flex-1 sm:flex-none"
+					>
+						Don't Show Again
+					</Button>
+					<Button
+						onclick={handleClose}
+						class="text-xs sm:text-sm flex-1 sm:flex-none"
+					>
+						Continue
+					</Button>
+				</div>
 			</div>
 		</div>
 	</AlertDialogContent>
@@ -153,19 +220,33 @@
 		}
 	}
 
-	/* Scrollbar styling */
-	:global(.scrollbar-thin::-webkit-scrollbar) {
-		width: 8px;
-		height: 8px;
+	/* Scrollbar styling for the scroll container */
+	:global(.scroll-container::-webkit-scrollbar) {
+		width: 10px;
 	}
 
-	:global(.scrollbar-thumb-muted::-webkit-scrollbar-thumb) {
-		background-color: rgba(0, 0, 0, 0.08);
-		border-radius: 8px;
+	:global(.scroll-container::-webkit-scrollbar-thumb) {
+		background-color: rgba(0, 0, 0, 0.2);
+		border-radius: 10px;
+		border: 2px solid transparent;
+		background-clip: content-box;
 	}
 
-	:global(.scrollbar-track-transparent::-webkit-scrollbar-track) {
+	:global(.scroll-container::-webkit-scrollbar-track) {
 		background: transparent;
+	}
+
+	:global(.dark .scroll-container::-webkit-scrollbar-thumb) {
+		background-color: rgba(255, 255, 255, 0.25);
+	}
+
+	:global(.scroll-container) {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+	}
+
+	:global(.dark .scroll-container) {
+		scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
 	}
 
 	:global(.animate-bounce) {
@@ -182,54 +263,3 @@
 		}
 	}
 </style>
-=======
-<AlertDialog bind:open onOpenChange={() => (currentIndex = 0)}>
-	<AlertDialogContent class="max-w-2xl max-h-[80vh] overflow-y-auto">
-		<AlertDialogHeader>
-			<div>
-				<AlertDialogTitle class="text-2xl">{currentEntry.title}</AlertDialogTitle>
-				<p class="text-sm text-muted-foreground mt-2">
-					Version {currentEntry.version} • {currentEntry.date}
-				</p>
-			</div>
-		</AlertDialogHeader>
-
-		<AlertDialogDescription class="space-y-4">
-			<ul class="space-y-3">
-				{#each currentEntry.items as item}
-					<li class="flex gap-3 text-foreground">
-						<span class="text-primary mt-1">•</span>
-						<span class="text-sm leading-relaxed">{item}</span>
-					</li>
-				{/each}
-			</ul>
-		</AlertDialogDescription>
-
-		<div class="flex gap-3 justify-between pt-4 border-t border-border/20">
-			<div class="flex gap-2">
-				<Button
-					variant="outline"
-					onclick={handlePrevious}
-					disabled={isFirst}
-					class="gap-2"
-				>
-					Previous
-				</Button>
-				<Button
-					variant="outline"
-					onclick={handleNext}
-					disabled={isLast}
-					class="gap-2"
-				>
-					Next
-					<ChevronDown class="h-4 w-4 rotate-90" />
-				</Button>
-			</div>
-			<AlertDialogAction onclick={handleClose}>
-				Continue
-			</AlertDialogAction>
-		</div>
-	</AlertDialogContent>
-</AlertDialog>
-     
->>>>>>> upstream/main

@@ -1,42 +1,71 @@
-# sv
+# Scan-In System (v2.0.0)
 
-Everything you need to build a Svelte project, powered by [`sv`](https://github.com/sveltejs/cli).
+A comprehensive attendance and event management system migrated from React to **SvelteKit 2.0** and **Svelte 5**. This system provides a robust solution for tracking member attendance at various events with automated workflows and real-time synchronization via Supabase.
 
-## Creating a project
+## 🚀 Key Features
 
-If you're seeing this, you've probably already done this step. Congrats!
+### Core Attendance Tracking
+- **Scan-In Flow**: Rapid member check-in using a centralized scanning interface.
+- **Manual Attendance**: Staff can manually record attendance for sessions if needed.
+- **Real-time Status**: Live updates on who is currently checked in.
+- **History Tracking**: Detailed history of all attendance records across different events and sessions.
 
-```sh
-# create a new project
-npx sv create my-app
-```
+### Event Management
+- **Automated Workflows**: Smart system for opening, closing, and archiving events based on schedules.
+- **Categorization**: Support for different event types (Regular, Special, etc.).
+- **Asia/Manila Persistence**: All event times are handled within the appropriate timezone context.
 
-To recreate this project with the same configuration:
+### Member Management
+- **Profile Database**: Centralized storage for member information.
+- **Analytics**: Visualization of attendance trends and member engagement (Upcoming).
+- **Exporting**: Export attendance data and member lists to various formats.
 
-```sh
-# recreate this project
-npx sv create --template minimal --types ts --add prettier eslint vitest="usages:unit,component" playwright tailwindcss="plugins:typography,forms" devtools-json --install npm scan-in-system
-```
+### Security & RBAC
+- **Multi-Role Support**: 
+  - `developer`: Full system access.
+  - `admin`: Full administrative access.
+  - `staff`: Operational access for managing events and members.
+  - `guest`: Read-only access with restricted configuration capabilities.
+- **Global Settings Lock**: Guests are restricted from modifying critical system settings (branding, localization, QR config).
 
-## Developing
+## 🛠 Tech Stack
 
-Once you've created a project and installed dependencies with `npm install` (or `pnpm install` or `yarn`), start a development server:
+- **Framework**: [SvelteKit](https://kit.svelte.dev/) (v2) with **Svelte 5 Runes**.
+- **Database/Auth**: [Supabase](https://supabase.com/).
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/) & [Shadcn Svelte](https://shadcn-svelte.com/).
+- **State Management**: Svelte Stores and native Runes (`$state`, `$derived`, `$effect`).
+- **Icons**: Lucide Svelte.
 
-```sh
-npm run dev
+## 📦 Getting Started
 
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
+### Prerequisites
+- Node.js (Latest LTS)
+- Supabase Account & Project
 
-## Building
+### Installation
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Set up environment variables in `.env`:
+   ```
+   PUBLIC_SUPABASE_URL=your_url
+   PUBLIC_SUPABASE_ANON_KEY=your_key
+   ```
+4. Run the development server:
+   ```bash
+   npm run dev
+   ```
 
-To create a production version of your app:
+## 🏗 Project Structure
 
-```sh
-npm run build
-```
+- `/src/lib/api`: Supabase interaction modules.
+- `/src/lib/components`: Shared UI components (rebuilt from React).
+- `/src/lib/logic`: Core business logic and automation flows.
+- `/src/lib/stores`: Svelte stores for configuration and state.
+- `/src/routes/(protected)`: Main application routes behind authentication.
 
-You can preview the production build with `npm run preview`.
+## 📜 Changelog
 
-> To deploy your app, you may need to install an [adapter](https://svelte.dev/docs/kit/adapters) for your target environment.
+Detailed version history is available within the application's **Changelog Modal**. Recent updates include the complete migration from React to Svelte and the implementation of Guest Role restrictions in App Settings.
