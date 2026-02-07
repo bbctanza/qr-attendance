@@ -9,9 +9,52 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.0.0';
+export const CURRENT_VERSION = '2.1.0';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.1.0',
+		date: 'February 8, 2026',
+		title: 'Enhanced Features & Admin System',
+		items: [
+			// Self Check-In & Projector Display
+			'Self check-in feature - Allow attendees to scan their own QR codes without staff assistance',
+			'Projector display mode - Show QR codes on screen for group-based check-in scenarios',
+			'Secure QR code scanning - Added Supabase secure functions for safe self-check-in',
+
+			// Admin & User Management
+			'User invitation system - Send invites to team members with role assignment',
+			'User role management - Update user roles and permissions after account creation',
+			'User deletion functionality - Remove users from the system when needed',
+			'Password visibility toggle - Show/hide password input for better UX',
+			'Improved admin verification - Enhanced security checks in invitation service',
+
+			// Event Management Enhancements
+			'Event metadata - Store additional event information and configuration',
+			'Recurring events - Support for recurring event patterns',
+			'Enhanced event type system - More flexible event configuration options',
+
+			// Overview & Analytics
+			'Overview page - New dashboard showing live event statistics',
+			'Recent history display - Quick access to latest attendance records',
+			'Event performance insights - See real-time stats during check-in',
+
+			// Notifications & Data Persistence
+			'Persistent notifications - Notification history saved to localStorage',
+			'Better notification display - Improved toast and modal notifications',
+
+			// UI & Design Improvements
+			'Background image support - Customizable background for better aesthetics',
+			'Footer refactoring - Improved footer layout and structure',
+			'Theme handling - Better management of light/dark theme preferences',
+			'Error page - User-friendly 404 error page with countdown redirect',
+			'Dialog improvements - Fixed dialog closing syntax issues',
+
+			// Member ID System
+			'Updated member ID format - Now uses BBCT-{groupCode}-{sequentialNumber} pattern',
+			'Better member identification - Clearer member tracking across groups'
+		]
+	},
 	{
 		version: '2.0.0',
 		date: 'February 7, 2026',
