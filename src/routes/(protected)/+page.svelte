@@ -103,8 +103,9 @@
 
             if (historyEvents) {
                 recentEvents = await Promise.all(historyEvents.map(async (ev) => {
+                    // Use attendance_present for COMPLETED events as source of truth
                     const { count: evCount } = await supabase
-                        .from('attendance_scans')
+                        .from('attendance_present')
                         .select('*', { count: 'exact', head: true })
                         .eq('event_id', ev.event_id);
                     

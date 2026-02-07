@@ -63,6 +63,11 @@ import {
     let isMobileView = $state(typeof window !== 'undefined' ? window.innerWidth < 768 : false);
     let qrCodeDataUrl = $state<string>("");
     let isLoading = $state(true);
+    let stats = $state({
+        total: 0,
+        activeCount: 0,
+        growthPercentage: 0
+    });
     let formData = $state({
         lastName: "",
         firstName: "",
@@ -162,10 +167,53 @@ import {
         try {
             await fetchGroups();
             await fetchMembers();
+            await fetchStats();
         } finally {
             isLoading = false;
         }
     });
+
+    async function fetchStats() {
+        try {
+            // 1. Growth calculation (last 30 days)
+            const thirtyDaysAgo = new Date();
+            thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+            
+            // Total now
+            const total = members.length;
+            
+            // Total 30 days ago (members created before 30 days ago)
+            const { count: lastMonthTotal } = await supabase
+                .from('members')
+                .select('*', { count: 'exact', head: true })
+                .lt('created_at', thirtyDaysAgo.toISOString());
+            
+            const prevTotal = lastMonthTotal || 0;
+            let growth = 0;
+            if (prevTotal > 0) {
+                growth = Math.round(((total - prevTotal) / prevTotal) * 100);
+            } else if (total > 0) {
+                growth = 100;
+            }
+
+            // 2. Active members based on attendance_present (last 30 days)
+            // Get unique member_ids who attended ANY event in the last 30 days
+            const { data: activeData } = await supabase
+                .from('attendance_present')
+                .select('member_id')
+                .gt('scan_datetime', thirtyDaysAgo.toISOString());
+            
+            const uniqueActiveIds = new Set(activeData?.map(d => d.member_id) || []);
+            
+            stats = {
+                total,
+                activeCount: uniqueActiveIds.size,
+                growthPercentage: growth
+            };
+        } catch (err) {
+            console.error("Error fetching stats:", err);
+        }
+    }
 
     async function fetchGroups() {
         const { data, error } = await supabase.from('groups').select('*');
@@ -262,8 +310,9 @@ import {
 
     // Statistics for web
     let statistics = $derived({
-        total: members.length,
-        active: members.filter(m => m.status === "Active").length,
+        total: stats.total,
+        active: stats.activeCount,
+        growth: stats.growthPercentage,
         byGroup: groupOptions.map(g => ({
             name: g,
             count: members.filter(m => m.group === g).length
@@ -845,14 +894,80 @@ import {
         <div>
             <span class="text-[10px] font-black tracking-[0.15em] text-muted-foreground/60 uppercase">Total Members</span>
             <div class="flex items-baseline gap-2 mt-1">
-                <span class="text-4xl font-black tracking-tight">{members.length}</span>
-                <span class="text-[13px] font-bold" style="color: var(--stat-accent)">+12 this week</span>
+                <span class="text-4xl font-black tracking-tight">{statistics.total}</span>
+                <span class="text-[13px] font-bold {statistics.growth >= 0 ? 'text-primary' : 'text-destructive'}">
+                    {statistics.growth >= 0 ? '+' : ''}{statistics.growth}%
+                </span>
             </div>
         </div>
-        <button class="flex items-center gap-2 bg-card/40 border border-border/10 px-5 py-3 rounded-2xl text-sm font-bold text-muted-foreground/80 active:scale-95 transition-all">
-            <Filter size={18} />
-            <span>Filter</span>
-        </button>
+        <div class="flex items-center gap-2">
+            <DropdownMenu>
+                <DropdownMenuTrigger>
+                    {#snippet child({ props })}
+                        <button 
+                            {...props}
+                            class="flex items-center justify-center bg-card/40 border border-border/10 w-12 h-12 rounded-2xl text-muted-foreground/80 active:scale-95 transition-all"
+                            aria-label="Export options"
+                        >
+                            <FileDown size={20} />
+                        </button>
+                    {/snippet}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-48 rounded-2xl p-2 shadow-xl border-border/40">
+                    <DropdownMenuLabel class="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-2 py-1.5">Export Members</DropdownMenuLabel>
+                    <DropdownMenuItem onclick={() => exportMembersCSVHandler()} class="rounded-xl px-2 py-2.5 font-bold text-sm">
+                        <FileDown class="mr-2 h-4 w-4 opacity-60" />
+                        CSV Spreadsheets
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onclick={() => exportMembersPDFHandler()} class="rounded-xl px-2 py-2.5 font-bold text-sm">
+                        <FileDown class="mr-2 h-4 w-4 opacity-60" />
+                        PDF Document
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onclick={() => exportMembersQRZipHandler()} class="rounded-xl px-2 py-2.5 font-bold text-sm">
+                        <QrCode class="mr-2 h-4 w-4 opacity-60" />
+                        QR Tags (ZIP)
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger>
+                    {#snippet child({ props })}
+                        <button 
+                            {...props}
+                            class="flex items-center justify-center bg-card/40 border border-border/10 w-12 h-12 rounded-2xl text-muted-foreground/80 active:scale-95 transition-all"
+                            aria-label="Filter"
+                        >
+                            <Filter size={18} />
+                        </button>
+                    {/snippet}
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-56 rounded-2xl p-2 shadow-xl border-border/40">
+                    <DropdownMenuLabel class="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 px-2 py-1.5">Filter Groups</DropdownMenuLabel>
+                    <DropdownMenuSeparator class="bg-border/50" />
+                    {#each groupOptions as group}
+                        <DropdownMenuCheckboxItem
+                            checked={selectedGroups.has(group)}
+                            onCheckedChange={(checked) => {
+                                if (checked) selectedGroups.add(group);
+                                else selectedGroups.delete(group);
+                                selectedGroups = new Set(selectedGroups);
+                            }}
+                            class="rounded-xl px-2 py-2.5 font-bold text-sm"
+                        >
+                            {group}
+                        </DropdownMenuCheckboxItem>
+                    {/each}
+                    <DropdownMenuSeparator class="bg-border/50" />
+                    <DropdownMenuItem 
+                        onclick={() => selectedGroups = new Set(groupOptions)}
+                        class="rounded-xl px-2 py-2.5 font-bold text-sm text-primary"
+                    >
+                        Show All
+                    </DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+        </div>
     </div>
 
     <!-- Grouped List -->
@@ -974,7 +1089,9 @@ import {
                     <div>
                         <p class="text-sm text-muted-foreground font-medium">Total Members</p>
                         <p class="text-3xl font-bold mt-2">{statistics.total}</p>
-                        <p class="text-xs text-green-600 mt-2">+12% from last month</p>
+                        <p class="text-xs {statistics.growth >= 0 ? 'text-green-600' : 'text-destructive'} mt-2">
+                            {statistics.growth >= 0 ? '+' : ''}{statistics.growth}% from last month
+                        </p>
                     </div>
                     <div class="p-3 bg-primary/10 rounded-lg">
                         <Users class="h-6 w-6 text-primary" />
@@ -989,7 +1106,9 @@ import {
                     <div>
                         <p class="text-sm text-muted-foreground font-medium">Active Members</p>
                         <p class="text-3xl font-bold mt-2">{statistics.active}</p>
-                        <p class="text-xs text-green-600 mt-2">{Math.round((statistics.active / statistics.total) * 100)}% active</p>
+                        <p class="text-xs text-green-600 mt-2">
+                            {statistics.total > 0 ? Math.round((statistics.active / statistics.total) * 100) : 0}% active
+                        </p>
                     </div>
                     <div class="p-3 bg-green-500/10 rounded-lg">
                         <TrendingUp class="h-6 w-6 text-green-600" />

@@ -1,41 +1,58 @@
 import { writable, derived } from 'svelte/store';
 import type { AppNotification } from '$lib/types';
+import { toast } from 'svelte-sonner';
 
 function createNotificationStore() {
-    // Mock initial data
-    const initialNotifications: AppNotification[] = [
-        {
-            id: '1',
-            title: 'Welcome!',
-            message: 'Welcome to the Scan-In System.',
-            timestamp: new Date().toISOString(),
-            read: false,
-            type: 'info'
-        },
-        {
-            id: '2',
-            title: 'System Update',
-            message: 'The system was updated successfully.',
-            timestamp: new Date(Date.now() - 86400000).toISOString(), // 1 day ago
-            read: true,
-            type: 'success'
+    // Start with empty, will persist or fetch if needed
+    let initialNotifications: AppNotification[] = [];
+    
+    // Load from localStorage if available
+    if (typeof window !== 'undefined') {
+        const saved = localStorage.getItem('app_notifications');
+        if (saved) {
+            try {
+                initialNotifications = JSON.parse(saved);
+            } catch (e) {
+                console.error('Failed to parse notifications', e);
+            }
         }
-    ];
+    }
 
     const { subscribe, update, set } = writable<AppNotification[]>(initialNotifications);
+
+    // Sync to localStorage whenever it changes
+    if (typeof window !== 'undefined') {
+        subscribe(val => {
+            localStorage.setItem('app_notifications', JSON.stringify(val));
+        });
+    }
 
     return {
         subscribe,
         add: (notification: Omit<AppNotification, 'id' | 'timestamp' | 'read'>) => {
+            const id = crypto.randomUUID();
+            const timestamp = new Date().toISOString();
+            
             update(n => [
                 {
                     ...notification,
-                    id: crypto.randomUUID(),
-                    timestamp: new Date().toISOString(),
+                    id,
+                    timestamp,
                     read: false
                 } as AppNotification,
                 ...n
             ]);
+
+            // Integrated with toast
+            if (notification.type === 'success') {
+                toast.success(notification.title, { description: notification.message });
+            } else if (notification.type === 'error') {
+                toast.error(notification.title, { description: notification.message });
+            } else if (notification.type === 'warning') {
+                toast.warning(notification.title, { description: notification.message });
+            } else {
+                toast.info(notification.title, { description: notification.message });
+            }
         },
         markAsRead: (id: string) => {
             update(n => n.map(item => 
