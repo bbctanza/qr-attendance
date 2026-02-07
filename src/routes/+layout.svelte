@@ -28,6 +28,7 @@
     import { supabase } from '$lib/supabase';
     import { goto } from '$app/navigation';
     import { updateCurrentSessionActivity, getCurrentSessionId } from '$lib/utils/sessions';
+    import { pwaInfo } from 'virtual:pwa-info';
 
     // Initialize theme synchronously from localStorage before render
     if (browser) {
@@ -44,6 +45,11 @@
     let { children } = $props();
 
     onMount(() => {
+        // Register service worker if available
+        if ('serviceWorker' in navigator && pwaInfo) {
+            navigator.serviceWorker.register('/sw.js', { scope: '/' });
+        }
+
         let activityInterval: ReturnType<typeof setInterval>;
 
         (async () => {
@@ -159,6 +165,7 @@
 </script>
 
 <svelte:head>
+    {@html pwaInfo?.webManifest.linkTag}
     <link rel="icon" href="/favicon.svg?v={Date.now()}" />
     <title>{$systemSettings.siteName}</title>
 </svelte:head>
