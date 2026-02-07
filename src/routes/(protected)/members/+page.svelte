@@ -330,8 +330,8 @@ import {
             return;
         }
         
-        // 2. Generate Unique ID in format: BBCT-{groupId}-{overallSequentialNumber}
-        const groupId = groupObj.group_id;
+        // 2. Generate Unique ID in format: BBCT-{groupCode}-{overallSequentialNumber}
+        const groupCode = groupObj.group_code;
         let qrId: string | null = null;
         let attempt = 0;
 
@@ -360,7 +360,7 @@ import {
             });
 
             const nextNumber = maxNumber + 1;
-            candidate = `BBCT-${groupId}-${nextNumber}`;
+            candidate = `BBCT-${groupCode}-${nextNumber}`;
 
             if (!candidate) {
                 alert('Failed to allocate a member id');
