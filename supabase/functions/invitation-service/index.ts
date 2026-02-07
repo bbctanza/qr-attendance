@@ -104,9 +104,19 @@ Deno.serve(async (req) => {
     }
 
     if (action === 'update-role') {
-      if (!userId || !newRole) throw new Error('User ID and new role are required.')
+      if (!userId || !newRole || !password) throw new Error('User ID, new role, and your password are required.')
       if (newRole === 'developer') throw new Error('Cannot assign developer role via this panel.')
 
+      // 1. Double check inviter password for role change (security)
+      const authClient = createClient(supabaseUrl, anonKey)
+      const { error: passCheckError } = await authClient.auth.signInWithPassword({
+        email: inviter.email!,
+        password: password,
+      })
+
+      if (passCheckError) throw new Error('Identity verification failed: Incorrect password.')
+
+      // 2. Update role in profiles
       const { error: updateError } = await supabaseAdmin
         .from('profiles')
         .update({ role: newRole })

@@ -26,7 +26,9 @@
     let staffUsers = $state<any[]>([]);
     let isFetchingUsers = $state(false);
     let isDeleteDialogOpen = $state(false);
+    let isRoleUpdateOpen = $state(false);
     let userToDelete = $state<any>(null);
+    let roleUpdateData = $state<{userId: string, newRole: string} | null>(null);
 
     const roles = [
         { value: "admin", label: "Administrator" },
@@ -85,34 +87,48 @@
     });
 
     async function handleUpdateRole(userId: string, newRole: string) {
+        adminPassword = ""; // Clear for modal
+        roleUpdateData = { userId, newRole };
+        isRoleUpdateOpen = true;
+    }
+
+    async function confirmRoleUpdate() {
+        if (!roleUpdateData || !adminPassword) {
+            toast.error("Password is required");
+            return;
+        }
+        
         try {
             const { error } = await supabase.functions.invoke('invitation-service', {
                 body: { 
                     action: 'update-role',
-                    userId,
-                    newRole
+                    userId: roleUpdateData.userId,
+                    newRole: roleUpdateData.newRole,
+                    password: adminPassword
                 }
             });
             if (error) throw error;
-            toast.success("Role updated");
+            toast.success("Role updated successfully");
             await fetchUsers();
+            isRoleUpdateOpen = false;
         } catch (e: any) {
             toast.error(e.message || "Failed to update role");
+        } finally {
+            roleUpdateData = null;
         }
     }
 
     async function handleDeleteUser(userId: string) {
-        if (!adminPassword) {
-            toast.error("Enter your password in the security section to confirm deletion");
-            return;
-        }
-
+        adminPassword = ""; // Clear for modal
         userToDelete = staffUsers.find(u => u.id === userId);
         isDeleteDialogOpen = true;
     }
 
     async function confirmDelete() {
-        if (!userToDelete) return;
+        if (!userToDelete || !adminPassword) {
+            toast.error("Password is required");
+            return;
+        }
 
         try {
             const { error } = await supabase.functions.invoke('invitation-service', {
@@ -125,11 +141,11 @@
             if (error) throw error;
             toast.success("User removed from system");
             await fetchUsers();
+            isDeleteDialogOpen = false;
         } catch (e: any) {
             toast.error(e.message || "Failed to delete user");
         } finally {
             userToDelete = null;
-            isDeleteDialogOpen = false;
         }
     }
 
@@ -348,32 +364,6 @@
                         {/each}
                     {/if}
                 </div>
-
-                <!-- Footer Security Verification for Deletion -->
-                <div class="p-4 bg-muted/10 border-t border-border/30 flex flex-col gap-3">
-                    <Label class="text-[10px] uppercase font-bold text-muted-foreground tracking-widest flex items-center gap-1.5">
-                        <Lock class="h-3 w-3" /> Auth Required for Deletion
-                    </Label>
-                    <div class="relative">
-                        <Input 
-                            type={showPassword ? "text" : "password"} 
-                            placeholder="Confirm password to delete users" 
-                            bind:value={adminPassword}
-                            class="h-10 text-xs pr-10 rounded-xl"
-                        />
-                         <button 
-                            type="button"
-                            class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-                            onclick={() => showPassword = !showPassword}
-                        >
-                            {#if showPassword}
-                                <EyeOff class="h-3 w-3" />
-                            {:else}
-                                <Eye class="h-3 w-3" />
-                            {/if}
-                        </button>
-                    </div>
-                </div>
             </div>
         {/if}
     </div>
@@ -386,9 +376,34 @@
             <AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
             <AlertDialog.Description>
                 This will permanently delete <span class="font-bold text-foreground">{userToDelete?.full_name || userToDelete?.email || 'this user'}</span>. 
-                This action cannot be undone and all associated data will be removed.
+                Enter your password to confirm this action.
             </AlertDialog.Description>
         </AlertDialog.Header>
+        
+        <div class="py-4 space-y-2">
+            <Label for="del-password">Your Password</Label>
+            <div class="relative">
+                <Input 
+                    id="del-password"
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Confirm your password" 
+                    bind:value={adminPassword}
+                    class="pr-10 rounded-xl"
+                />
+                <button 
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    onclick={() => showPassword = !showPassword}
+                >
+                    {#if showPassword}
+                        <EyeOff class="h-4 w-4" />
+                    {:else}
+                        <Eye class="h-4 w-4" />
+                    {/if}
+                </button>
+            </div>
+        </div>
+
         <AlertDialog.Footer>
             <AlertDialog.Cancel class="rounded-xl">Cancel</AlertDialog.Cancel>
             <AlertDialog.Action 
@@ -396,6 +411,52 @@
                 class="bg-destructive text-destructive-foreground hover:bg-destructive/90 rounded-xl"
             >
                 Permanently Delete
+            </AlertDialog.Action>
+        </AlertDialog.Footer>
+    </AlertDialog.Content>
+</AlertDialog.Root>
+
+<AlertDialog.Root bind:open={isRoleUpdateOpen}>
+    <AlertDialog.Content class="rounded-2xl">
+        <AlertDialog.Header>
+            <AlertDialog.Title>Confirm Role Change</AlertDialog.Title>
+            <AlertDialog.Description>
+                Are you sure you want to change this user's role to <span class="font-bold text-foreground uppercase">{roleUpdateData?.newRole}</span>? 
+                Enter your password to confirm.
+            </AlertDialog.Description>
+        </AlertDialog.Header>
+
+        <div class="py-4 space-y-2">
+            <Label for="role-password">Your Password</Label>
+            <div class="relative">
+                <Input 
+                    id="role-password"
+                    type={showPassword ? "text" : "password"} 
+                    placeholder="Confirm your password" 
+                    bind:value={adminPassword}
+                    class="pr-10 rounded-xl"
+                />
+                <button 
+                    type="button"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                    onclick={() => showPassword = !showPassword}
+                >
+                    {#if showPassword}
+                        <EyeOff class="h-4 w-4" />
+                    {:else}
+                        <Eye class="h-4 w-4" />
+                    {/if}
+                </button>
+            </div>
+        </div>
+
+        <AlertDialog.Footer>
+            <AlertDialog.Cancel class="rounded-xl">Cancel</AlertDialog.Cancel>
+            <AlertDialog.Action 
+                onclick={confirmRoleUpdate}
+                class="bg-primary text-primary-foreground hover:bg-primary/90 rounded-xl"
+            >
+                Confirm Change
             </AlertDialog.Action>
         </AlertDialog.Footer>
     </AlertDialog.Content>
