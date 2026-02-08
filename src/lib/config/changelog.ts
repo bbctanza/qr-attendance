@@ -9,9 +9,77 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.1.0';
+export const CURRENT_VERSION = '2.1.6';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.1.6',
+		date: 'February 8, 2026',
+		title: 'Attendance Page Redesign & Layout Improvements',
+		items: [
+			// Attendance Page Refactor
+			'Migrated all check-ins to dedicated page - Moved from modal to /attendance/all-scans page',
+			'Search functionality - Filter check-ins by name or role in real-time',
+			'View all scans - Shows all check-ins from current event without limit',
+			'Improved navigation - "VIEW ALL" button navigates to dedicated page',
+
+			// Desktop Layout Improvements
+			'Flexbox desktop layout - Changed from grid to flex for better space utilization',
+			'Full-width content area - Left side now properly expands to fill available space',
+			'Fixed sidebar - Right sidebar maintains 384px fixed width',
+			'Enhanced spacing - Increased gap and padding throughout for better visual breathing room',
+
+			// Scrolling Enhancements
+			'Shadcn ScrollArea for both sides - Consistent scrolling experience across desktop view',
+			'Fixed card containers - Cards scroll internally instead of entire page',
+			'Better visual hierarchy - Separated scrollable areas maintain their content properly',
+
+			// Bug Fixes
+			'Fixed layout structure - Removed broken navbar hiding code with duplicate components',
+			'Corrected div nesting - Fixed malformed div structure causing breadcrumb issues',
+			'Removed unused UI store - Cleaned up isModalOpen store no longer needed',
+		]
+	},
+	{
+		version: '2.1.5',
+		date: 'February 8, 2026',
+		title: 'Domain Separation, Mobile Fixes & UX Improvements',
+		items: [
+			// Domain & Security
+			'Separate domains for security - Check-in domain (check-in-bbct.vercel.app) with admin panel hidden',
+			'Admin panel obfuscation - Students cannot access admin routes on check-in domain, returns 404',
+			'Smart root path redirection - Automatically redirects to latest event or shows waiting message',
+			'Domain-based routing - Separate QR attendance admin (qr-attendance-bbct-v2.vercel.app) from student check-in',
+
+			// PWA & Branding
+			'Updated PWA name - Changed from "Scan-in System" to "BBCT QR Attendance"',
+			'Consistent branding - PWA manifest updated across all deployments',
+
+			// QR Code & Scanning Enhancements
+			'Confirmation beep on scan - Audio feedback when QR codes are successfully scanned',
+			'Double beep for success - Higher pitch double beep confirms successful check-in',
+			'Error beep indicator - Lower pitch beep indicates check-in failure',
+			'Unmirrored camera display - Camera view no longer mirrored to reduce student confusion',
+			'Firefox compatibility - Fixed camera access errors in Firefox Mobile browser',
+			'Fallback camera constraints - Multiple constraint options for better browser compatibility',
+
+			// Mobile Improvements
+			'Fixed dialog button clicks - Resolved unresponsive buttons in modals on mobile devices',
+			'Larger touch targets - Increased button size for easier tapping on phones',
+			'Better mobile UX - Improved form responsiveness across all screen sizes',
+
+			// User Interface Additions
+			'Check-in instructions modal - Added "How to Check In?" button with step-by-step guide',
+			'All check-ins viewer - View all members checked in without navigating away (modal instead of page)',
+			'Fixed header in modal - Header stays visible while scrolling through check-ins',
+			'Close button in modal - Added X button for quick modal dismissal',
+
+			// Attendance Page Improvements
+			'Complete check-in list - Modal now shows every checked-in member, not just recent 5',
+			'Member count display - Shows total count of checked-in members in modal',
+			'Scrollable list with fixed header - Better layout for viewing many check-ins'
+		]
+	},
 	{
 		version: '2.1.0',
 		date: 'February 8, 2026',

@@ -8,7 +8,6 @@
     import { Avatar, AvatarImage, AvatarFallback } from "$lib/components/ui/avatar";
     import { Card, CardHeader, CardContent, CardFooter, CardTitle, CardDescription } from "$lib/components/ui/card";
     import * as Chart from "$lib/components/ui/chart/index.js";
-    import * as Dialog from "$lib/components/ui/dialog";
     import { ArcChart, Text } from "layerchart";
     import { formatTimeRange, formatLocalTime } from '$lib/utils/time';
     import {
@@ -24,14 +23,8 @@
         PopoverContent,
         PopoverTrigger,
     } from "$lib/components/ui/popover";
-    import {
-        Drawer,
-        DrawerContent,
-        DrawerHeader,
-        DrawerTitle,
-        DrawerTrigger,
-        DrawerClose,
-    } from "$lib/components/ui/drawer";
+    import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerTrigger, DrawerClose } from "$lib/components/ui/drawer";
+    import { ScrollArea } from "$lib/components/ui/scroll";
     import { onMount } from 'svelte';
     import { supabase } from '$lib/supabase';
     import { goto } from "$app/navigation";
@@ -45,7 +38,6 @@
     let stats = $state({ present: 0, expected: 0 });
     let drawerOpen = $state(false);
     let query = $state("");
-    let showAllScansModal = $state(false);
 
     onMount(async () => {
         isLoading = true;
@@ -124,8 +116,7 @@
         const { data } = await supabase
             .from('attendance_scans')
             .select('*, members(*)')
-            .order('scan_datetime', { ascending: false })
-            .limit(5);
+            .order('scan_datetime', { ascending: false });
         
         if (data) {
             recentScans = await Promise.all(data.map(async (s) => ({
@@ -319,7 +310,7 @@
                 variant="ghost" 
                 size="sm"
                 class="text-xs text-(--color-primary) font-bold flex items-center gap-1 h-auto p-0"
-                onclick={() => showAllScansModal = true}
+                onclick={() => goto('/attendance/all-scans')}
             >
                 VIEW ALL
                 <ArrowRight class="h-3 w-3" />
@@ -353,9 +344,10 @@
     </div>
 
     <!-- Desktop View -->
-    <div class="hidden md:grid grid-cols-3 gap-6 p-6 lg:p-8">
-        <!-- Left / Main (span 2) -->
-        <div class="col-span-2 space-y-6">
+    <div class="hidden md:flex gap-8 p-8 lg:p-10 h-[calc(100vh-120px)]">
+        <!-- Left / Main -->
+        <ScrollArea className="flex-1 h-full">
+            <div class="space-y-8 pr-6">
             {#if currentEvent}
                 <Card>
                     <CardContent class="p-6">
@@ -534,11 +526,11 @@
                     </Card>
                 {/each}
             </div>
-        </div>
+        </ScrollArea>
 
         <!-- Right / Sidebar -->
-        <aside class="col-span-1 flex flex-col h-full gap-6">
-            <Card class="flex-1 flex flex-col h-full">
+        <aside class="w-96 flex flex-col h-full gap-6 overflow-hidden shrink-0">
+            <Card class="flex-1 flex flex-col h-full overflow-hidden max-h-[calc(100vh-150px)]">
                 <CardHeader class="flex flex-row items-center justify-between space-y-0">
                     <div>
                         <CardTitle class="flex items-center gap-2">
@@ -548,28 +540,30 @@
                         <CardDescription>Latest check-ins</CardDescription>
                     </div>
                 </CardHeader>
-                <CardContent class="space-y-3 overflow-auto flex-1 p-4">
-                    {#if recentScans.length > 0}
-                        {#each recentScans as scan}
-                            <div class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                                <Avatar class="h-10 w-10 border border-border/50">
-                                    <AvatarImage src={scan.avatar} alt={scan.name} />
-                                    <AvatarFallback>{scan.name.charAt(0)}</AvatarFallback>
-                                </Avatar>
-                                <div class="flex-1 min-w-0">
-                                    <div class="font-bold text-sm truncate uppercase tracking-tight">{scan.name}</div>
-                                    <div class="text-[10px] text-muted-foreground uppercase">{scan.role}</div>
+                <ScrollArea className="flex-1">
+                    <div class="space-y-3 p-4">
+                        {#if recentScans.length > 0}
+                            {#each recentScans as scan}
+                                <div class="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                                    <Avatar class="h-10 w-10 border border-border/50">
+                                        <AvatarImage src={scan.avatar} alt={scan.name} />
+                                        <AvatarFallback>{scan.name.charAt(0)}</AvatarFallback>
+                                    </Avatar>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="font-bold text-sm truncate uppercase tracking-tight">{scan.name}</div>
+                                        <div class="text-[10px] text-muted-foreground uppercase">{scan.role}</div>
+                                    </div>
+                                    <div class="text-[10px] font-bold text-muted-foreground">{scan.time}</div>
                                 </div>
-                                <div class="text-[10px] font-bold text-muted-foreground">{scan.time}</div>
+                            {/each}
+                        {:else}
+                            <div class="flex flex-col items-center justify-center p-12 opacity-20 italic text-sm h-full">
+                                <ScanLine class="h-12 w-12 mb-2" />
+                                No scans yet
                             </div>
-                        {/each}
-                    {:else}
-                        <div class="flex flex-col items-center justify-center p-12 opacity-20 italic text-sm h-full">
-                            <ScanLine class="h-12 w-12 mb-2" />
-                            No scans yet
-                        </div>
-                    {/if}
-                </CardContent>
+                        {/if}
+                    </div>
+                </ScrollArea>
                 <CardFooter class="p-4 border-t">
                     <Button class="w-full h-12 rounded-xl bg-primary text-primary-foreground font-bold shadow-lg shadow-primary/20" onclick={() => goto('/scan')}>
                         <QrCode class="h-4 w-4 mr-2" />
@@ -580,59 +574,3 @@
         </aside>
     </div>
 {/if}
-
-<!-- All Scans Modal -->
-<Dialog.Root bind:open={showAllScansModal}>
-	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" />
-		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[80vh] overflow-y-auto pointer-events-auto">
-			<Dialog.Header>
-				<Dialog.Title class="text-lg sm:text-xl font-semibold flex items-center gap-2">
-					<ScanLine class="h-5 w-5" />
-					All Recent Scans
-				</Dialog.Title>
-				<Dialog.Description class="text-xs sm:text-sm text-muted-foreground">
-					Complete list of all recent check-ins from the current event
-				</Dialog.Description>
-			</Dialog.Header>
-			
-			<div class="space-y-2 max-h-[60vh] overflow-y-auto">
-				{#if recentScans && recentScans.length > 0}
-					{#each recentScans as scan (scan.id)}
-						<div class="p-3 sm:p-4 rounded-lg bg-background border border-border/40 flex items-center justify-between hover:bg-muted/50 transition-colors">
-							<div class="flex items-center gap-3 min-w-0">
-								<Avatar class="h-10 w-10 rounded-full flex-shrink-0">
-									<AvatarImage src={scan.avatar} alt={scan.name} />
-									<AvatarFallback>{scan.name?.charAt(0) || '?'}</AvatarFallback>
-								</Avatar>
-								<div class="min-w-0">
-									<div class="font-semibold sm:text-sm truncate">{scan.name}</div>
-									<div class="text-xs text-muted-foreground">{scan.role}</div>
-								</div>
-							</div>
-							<div class="text-xs sm:text-sm text-muted-foreground flex items-center gap-2 flex-shrink-0 ml-2">
-								<span>{scan.time}</span>
-								<span class="h-2 w-2 rounded-full bg-green-500 flex-shrink-0"></span>
-							</div>
-						</div>
-					{/each}
-				{:else}
-					<div class="flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-						<ScanLine class="h-12 w-12 mb-2 opacity-50" />
-						<p class="text-sm">No recent scans found.</p>
-					</div>
-				{/if}
-			</div>
-
-			<Dialog.Header class="flex-row justify-end gap-2 space-y-0">
-				<Button 
-					variant="outline" 
-					onclick={() => showAllScansModal = false}
-					class="w-full sm:w-auto"
-				>
-					Close
-				</Button>
-			</Dialog.Header>
-		</Dialog.Content>
-	</Dialog.Portal>
-</Dialog.Root>

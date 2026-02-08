@@ -227,7 +227,9 @@
             </header>
 
             <!-- Custom Mobile Header -->
-            <MobileHeader title={breadcrumbs[breadcrumbs.length - 1].name} />
+            {#if breadcrumbs && breadcrumbs.length > 0}
+                <MobileHeader title={breadcrumbs[breadcrumbs.length - 1].name} />
+            {/if}
 
             <main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
                 {@render children()}
