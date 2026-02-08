@@ -27,10 +27,49 @@ const domainRouting: Handle = async ({ event, resolve }) => {
     if (pathname.startsWith('/login')) {
       return resolve(event);
     }
-    // Allow public assets and root
-    if (pathname === '/' || pathname.startsWith('/static/')) {
+    // Allow public assets
+    if (pathname.startsWith('/static/')) {
       return resolve(event);
     }
+    
+    // Handle root path - redirect to latest event or show waiting page
+    if (pathname === '/') {
+      try {
+        // Get the latest/current event
+        const now = new Date();
+        const { data: currentEvent } = await supabase
+          .from('events')
+          .select('event_id, event_name, status')
+          .eq('status', 'live')
+          .single();
+
+        if (currentEvent) {
+          // Redirect to the live event's check-in page
+          return redirect(302, `/check-in/${currentEvent.event_id}`);
+        }
+
+        // If no live event, try to get the most recent event
+        const { data: recentEvent } = await supabase
+          .from('events')
+          .select('event_id, event_name, status')
+          .order('event_date', { ascending: false })
+          .limit(1)
+          .single();
+
+        if (recentEvent) {
+          // Redirect to the most recent event's check-in page
+          return redirect(302, `/check-in/${recentEvent.event_id}`);
+        }
+
+        // No event found - show waiting page
+        return error(503, 'No events available. Please wait for an event to be scheduled.');
+      } catch (err) {
+        console.error('Error fetching event:', err);
+        // Fallback if database query fails
+        return error(503, 'Service temporarily unavailable. Please wait for another event.');
+      }
+    }
+
     // Reject all other routes (including admin panel)
     return error(404, 'Not found');
   }
