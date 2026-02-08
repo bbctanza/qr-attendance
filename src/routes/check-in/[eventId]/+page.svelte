@@ -84,20 +84,38 @@
 		setTimeout(async () => {
 			try {
 				scanner = new Html5Qrcode(scannerContainerId);
-				await scanner.start(
-					{ facingMode: 'environment' },
-					{
-						fps: 10,
-						qrbox: { width: 250, height: 250 }
-					},
-					onScanSuccess,
-					(errorMessage) => {
-						// Parse error, ignore common ones
-					}
-				);
+				
+				// Try with facingMode first (works on most devices)
+				try {
+					await scanner.start(
+						{ facingMode: 'environment' },
+						{
+							fps: 10,
+							qrbox: { width: 250, height: 250 }
+						},
+						onScanSuccess,
+						(errorMessage) => {
+							// Parse error, ignore common ones
+						}
+					);
+				} catch (cameraErr: any) {
+					// If facingMode fails (common in Firefox), try without constraints
+					console.warn('Camera with facingMode failed, trying without constraints:', cameraErr);
+					await scanner.start(
+						{},
+						{
+							fps: 10,
+							qrbox: { width: 250, height: 250 }
+						},
+						onScanSuccess,
+						(errorMessage) => {
+							// Parse error, ignore common ones
+						}
+					);
+				}
 			} catch (err) {
 				console.error('Failed to start scanner', err);
-				toast.error('Could not start camera. Please ensure permissions are granted.');
+				toast.error('Could not start camera. Please ensure:\n1. Camera permission is granted\n2. Camera is not in use by another app\n3. You\'re using HTTPS or localhost');
 				isScanning = false;
 			}
 		}, 100);
