@@ -193,8 +193,8 @@
 
 <Dialog.Root bind:open={showTurnstileModal}>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm" />
-		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto">
+		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" />
+		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto pointer-events-auto">
 			<Dialog.Header>
 				<Dialog.Title class="text-lg sm:text-xl font-semibold">Security Verification</Dialog.Title>
 				<Dialog.Description class="text-xs sm:text-sm text-muted-foreground">

@@ -249,7 +249,7 @@
 											class="text-center text-lg h-12"
 										/>
 									</div>
-									<Button type="submit" disabled={!memberId || checkingIn}>
+									<Button type="submit" size="lg" class="w-full py-3" disabled={!memberId || checkingIn}>
 										{checkingIn ? 'Checking in...' : 'Check In'}
 									</Button>
 								</form>
