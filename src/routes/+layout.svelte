@@ -107,6 +107,8 @@
     // Hide on login (root), forgot-password, display pages, and self check-in pages
     let showSidebar = $derived(
         !['/'].includes($page.url.pathname) && 
+        !$page.url.pathname.startsWith('/login') &&
+        !$page.url.pathname.startsWith('/forgot-password') &&
         !$page.url.pathname.startsWith('/check-in/') &&
         !$page.url.pathname.startsWith('/display/') &&
         browser

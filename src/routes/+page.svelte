@@ -72,7 +72,15 @@
 	}
 </script>
 
-<div class="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground font-sans">
+<div 
+	class="flex min-h-screen flex-col items-center justify-center p-4 text-foreground font-sans relative"
+	style="background-image: url('/Background.png'); background-size: cover; background-position: center; background-attachment: fixed;"
+>
+	<!-- Overlay for better readability -->
+	<div class="absolute inset-0 bg-white/60"></div>
+	
+	<!-- Content container -->
+	<div class="relative z-10">
 	<div class="flex w-full max-w-100 flex-col items-center space-y-6">
 		
 		<!-- Logo Section -->
@@ -189,6 +197,8 @@
 			<p class="text-[10px] italic">"1 Corinthians 14:40 Let all things be done decently and in order."</p>
 		</div>
 	</div>
+	</div>
+	<!-- End content container -->
 </div>
 
 <Dialog.Root bind:open={showTurnstileModal}>
