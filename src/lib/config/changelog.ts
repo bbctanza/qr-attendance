@@ -34,6 +34,12 @@ export const changelog: ChangelogEntry[] = [
 			'Fixed card containers - Cards scroll internally instead of entire page',
 			'Better visual hierarchy - Separated scrollable areas maintain their content properly',
 
+			// Attendance History Improvements
+			'Search within event cards - Filter members by name or care group',
+			'Real-time member filtering - Instant search results while viewing event details',
+			'Result counter - Shows filtered count vs total members',
+			'Care group display - Added care group information to member lists',
+
 			// Bug Fixes
 			'Fixed layout structure - Removed broken navbar hiding code with duplicate components',
 			'Corrected div nesting - Fixed malformed div structure causing breadcrumb issues',

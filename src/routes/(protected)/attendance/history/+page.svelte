@@ -2,9 +2,10 @@
 	import { onMount } from 'svelte';
 	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
 	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
-	import { ChevronRight, ChevronDown, ChevronLeft, QrCode, Download, MoreVertical } from '@lucide/svelte';
+	import { ChevronRight, ChevronDown, ChevronLeft, QrCode, Download, MoreVertical, Search } from '@lucide/svelte';
 	import { attendanceApi } from '$lib/api/attendance';
 	import { eventsApi } from '$lib/api/events';
 	import { supabase } from '$lib/supabase';
@@ -29,6 +30,7 @@
 	let selectedMonth = $state('');
 	let filterPresent = $state(true);
 	let months = $state<string[]>([]);
+	let eventSearchQueries = $state<Record<number, string>>({}); // Search query per event
 	const monthOrder = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 	let monthPage = $state(0);
 	let monthsPerPage = 4;
@@ -38,6 +40,16 @@
 	let visibleMonths = $derived(months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage));
 	let hasPrev = $derived(monthPage > 0);
 	let hasNext = $derived((monthPage + 1) * monthsPerPage < months.length);
+
+	// Helper function to filter members by search query
+	function filterMembers(members: any[] | undefined, query: string | undefined) {
+		if (!members || !query || !query.trim()) return members || [];
+		const lowerQuery = query.toLowerCase();
+		return members.filter(m => 
+			`${m.first_name} ${m.last_name}`.toLowerCase().includes(lowerQuery) ||
+			m.care_group?.toLowerCase().includes(lowerQuery)
+		);
+	}
 
 	// Filtering
 	let filteredEvents = $derived(
@@ -558,59 +570,86 @@
   <div class="space-y-4">
       {#each filteredEvents as ev}
         <div class="rounded-2xl border border-border/20 bg-card overflow-hidden">
-          <div class="flex items-center justify-between p-4 md:p-6">
-          <div class="flex items-center gap-3 flex-1">
-            <div class="w-1.5 h-10 rounded-l-full bg-primary/60"></div>
-            <div>
-              <div class="font-bold uppercase">{ev.event_name}</div>
-              <div class="text-sm text-muted-foreground mt-1">{new Date(ev.event_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+          <div class="flex flex-col gap-3 p-4 md:p-6">
+            <!-- Event Header -->
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3 flex-1">
+                <div class="w-1.5 h-10 rounded-l-full bg-primary/60"></div>
+                <div>
+                  <div class="font-bold uppercase">{ev.event_name}</div>
+                  <div class="text-sm text-muted-foreground mt-1">{new Date(ev.event_date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 md:gap-3">
+                <div class="text-sm font-medium bg-muted px-3 py-1 rounded-md">{filterPresent ? (ev.attendees?.length || 0) : (ev.absent?.length || 0)}</div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger>
+                    {#snippet child({ props })}
+                      <button 
+                        class="h-8 w-8 rounded-full bg-card/10 hover:bg-card/20 flex items-center justify-center transition-colors"
+                        title="Export options"
+                        {...props}
+                      >
+                        <Download class="h-4 w-4" />
+                      </button>
+                    {/snippet}
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem onclick={() => handleExportEventCSV(ev)}>
+                      <Download class="mr-2 h-4 w-4" />
+                      <span>CSV</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onclick={() => handleExportEventPDF(ev)}>
+                      <Download class="mr-2 h-4 w-4" />
+                      <span>PDF</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+                <button class="h-8 w-8 rounded-full bg-card/10 flex items-center justify-center" onclick={() => toggleEvent(ev.event_id)}>
+                  {#if openEventId === ev.event_id}
+                    <ChevronDown />
+                  {:else}
+                    <ChevronRight />
+                  {/if}
+                </button>
+              </div>
             </div>
-          </div>
-          <div class="flex items-center gap-2 md:gap-3">
-            <div class="text-sm font-medium bg-muted px-3 py-1 rounded-md">{filterPresent ? (ev.attendees?.length || 0) : (ev.absent?.length || 0)}</div>
-            <DropdownMenu>
-              <DropdownMenuTrigger>
-                {#snippet child({ props })}
-                  <button 
-                    class="h-8 w-8 rounded-full bg-card/10 hover:bg-card/20 flex items-center justify-center transition-colors"
-                    title="Export options"
-                    {...props}
-                  >
-                    <Download class="h-4 w-4" />
-                  </button>
-                {/snippet}
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onclick={() => handleExportEventCSV(ev)}>
-                  <Download class="mr-2 h-4 w-4" />
-                  <span>CSV</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem onclick={() => handleExportEventPDF(ev)}>
-                  <Download class="mr-2 h-4 w-4" />
-                  <span>PDF</span>
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <button class="h-8 w-8 rounded-full bg-card/10 flex items-center justify-center" onclick={() => toggleEvent(ev.event_id)}>
-              {#if openEventId === ev.event_id}
-                <ChevronDown />
-              {:else}
-                <ChevronRight />
+
+            <!-- Search Bar (visible for both mobile and web) -->
+            {#if openEventId === ev.event_id}
+              <div class="relative">
+                <Search class="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  type="text"
+                  placeholder="Search by name or group..."
+                  class="pl-10"
+                  value={eventSearchQueries[ev.event_id] || ''}
+                  oninput={(e) => eventSearchQueries[ev.event_id] = (e.target as HTMLInputElement).value}
+                />
+              </div>
+              {#if eventSearchQueries[ev.event_id]}
+                <div class="text-xs text-muted-foreground">
+                  {#if filterPresent}
+                    {filterMembers(ev.attendees, eventSearchQueries[ev.event_id]).length} of {ev.attendees?.length || 0} present
+                  {:else}
+                    {filterMembers(ev.absent, eventSearchQueries[ev.event_id]).length} of {ev.absent?.length || 0} absent
+                  {/if}
+                </div>
               {/if}
-            </button>
+            {/if}
           </div>
-        </div>
 
         {#if openEventId === ev.event_id}
           <div class="border-t border-border/20 p-3 md:p-4">
             <div class="grid gap-3">
               {#if filterPresent}
-                {#each ev.attendees || [] as a}
+                {#each filterMembers(ev.attendees, eventSearchQueries[ev.event_id]) as a (a.member_id)}
                   <div class="flex items-center justify-between p-2 md:p-3">
                     <div class="flex items-center gap-3">
                       <Avatar class="h-10 w-10"><AvatarFallback>{a.first_name[0]}{a.last_name[0]}</AvatarFallback></Avatar>
                       <div>
                         <div class="font-medium">{a.first_name} {a.last_name}</div>
+                        <div class="text-xs text-muted-foreground">{a.care_group}</div>
                       </div>
                     </div>
                     <div class="flex items-center gap-3">
@@ -618,13 +657,17 @@
                     </div>
                   </div>
                 {/each}
+                {#if !filterMembers(ev.attendees, eventSearchQueries[ev.event_id]).length}
+                  <div class="text-center text-muted-foreground text-sm py-4">No members found</div>
+                {/if}
               {:else}
-                {#each ev.absent || [] as a}
+                {#each filterMembers(ev.absent, eventSearchQueries[ev.event_id]) as a (a.member_id)}
                   <div class="flex items-center justify-between p-2 md:p-3">
                     <div class="flex items-center gap-3">
                       <Avatar class="h-10 w-10"><AvatarFallback>{a.first_name[0]}{a.last_name[0]}</AvatarFallback></Avatar>
                       <div>
                         <div class="font-medium">{a.first_name} {a.last_name}</div>
+                        <div class="text-xs text-muted-foreground">{a.care_group}</div>
                       </div>
                     </div>
                     <div class="flex items-center gap-3">
@@ -632,6 +675,9 @@
                     </div>
                   </div>
                 {/each}
+                {#if !filterMembers(ev.absent, eventSearchQueries[ev.event_id]).length}
+                  <div class="text-center text-muted-foreground text-sm py-4">No members found</div>
+                {/if}
               {/if}
             </div>
           </div>

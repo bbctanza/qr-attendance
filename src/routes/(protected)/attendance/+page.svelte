@@ -526,6 +526,7 @@
                     </Card>
                 {/each}
             </div>
+            </div>
         </ScrollArea>
 
         <!-- Right / Sidebar -->
