@@ -85,37 +85,62 @@
 			try {
 				scanner = new Html5Qrcode(scannerContainerId);
 				
-				// Try with facingMode first (works on most devices)
-				try {
-					await scanner.start(
-						{ facingMode: 'environment' },
-						{
-							fps: 10,
-							qrbox: { width: 250, height: 250 }
-						},
-						onScanSuccess,
-						(errorMessage) => {
-							// Parse error, ignore common ones
-						}
-					);
-				} catch (cameraErr: any) {
-					// If facingMode fails (common in Firefox), try without constraints
-					console.warn('Camera with facingMode failed, trying without constraints:', cameraErr);
-					await scanner.start(
-						{},
-						{
-							fps: 10,
-							qrbox: { width: 250, height: 250 }
-						},
-						onScanSuccess,
-						(errorMessage) => {
-							// Parse error, ignore common ones
-						}
-					);
+				// Try different constraint combinations to handle various browsers
+				const constraintOptions = [
+					// Option 1: Rear camera (primary for mobile)
+					{ facingMode: 'environment' },
+					// Option 2: No facingMode constraints (Firefox fallback)
+					{ audio: false, video: { width: { ideal: 1280 }, height: { ideal: 720 } } },
+					// Option 3: Minimal constraints (most compatible)
+					{ audio: false, video: true },
+					// Option 4: Absolute minimal (last resort)
+					{}
+				];
+
+				let success = false;
+				for (const constraints of constraintOptions) {
+					try {
+						console.log('Trying camera with constraints:', constraints);
+						await scanner.start(
+							constraints,
+							{
+								fps: 10,
+								qrbox: { width: 250, height: 250 }
+							},
+							onScanSuccess,
+							(errorMessage) => {
+								// Suppress individual scan errors
+							}
+						);
+						success = true;
+						console.log('Camera started successfully with constraints:', constraints);
+						break;
+					} catch (constraintErr: any) {
+						console.warn('Constraints failed, trying next option:', constraintErr.message);
+						// Continue to next constraint option
+					}
 				}
-			} catch (err) {
-				console.error('Failed to start scanner', err);
-				toast.error('Could not start camera. Please ensure:\n1. Camera permission is granted\n2. Camera is not in use by another app\n3. You\'re using HTTPS or localhost');
+
+				if (!success) {
+					throw new Error('All camera constraint options failed');
+				}
+			} catch (err: any) {
+				console.error('Failed to start scanner:', err);
+				let errorMsg = 'Could not start camera. ';
+				
+				if (err.message?.includes('NotAllowedError') || err.name === 'NotAllowedError') {
+					errorMsg = 'Camera permission denied. Please enable camera access in your browser settings.';
+				} else if (err.message?.includes('NotFoundError') || err.name === 'NotFoundError') {
+					errorMsg = 'No camera found. Please ensure your device has a camera.';
+				} else if (err.message?.includes('NotSupportedError') || err.name === 'NotSupportedError') {
+					errorMsg = 'Your browser does not support camera access. Please use a modern browser like Chrome or Safari.';
+				} else if (err.message?.includes('AbortError') || err.name === 'AbortError') {
+					errorMsg = 'Camera access was aborted. Please refresh the page and try again.';
+				} else {
+					errorMsg += 'Ensure:\n1. Camera permission is granted\n2. Camera is not in use elsewhere\n3. Using HTTPS or localhost\n4. Browser supports camera access';
+				}
+				
+				toast.error(errorMsg);
 				isScanning = false;
 			}
 		}, 100);
@@ -320,6 +345,7 @@
 		width: auto !important;
 		height: auto !important;
 		object-fit: cover !important;
+		transform: scaleX(-1) !important;
 	}
 
 	/* Hide default library UI */
@@ -335,5 +361,9 @@
 		display: flex !important;
 		justify-content: center !important;
 		align-items: center !important;
+	}
+
+	:global(#reader canvas) {
+		transform: scaleX(-1) !important;
 	}
 </style>
