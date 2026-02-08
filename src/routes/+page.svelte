@@ -79,8 +79,8 @@
 </script>
 
 <div 
-	class="flex min-h-screen flex-col items-center justify-center p-4 text-foreground font-sans relative"
-	style="background-image: url('/Background.png'); background-size: cover; background-position: center; background-attachment: fixed;"
+	class="flex min-h-screen flex-col items-center justify-center p-4 text-foreground font-sans relative light"
+	style="background-image: url('/Background.png'); background-size: cover; background-position: center; background-attachment: fixed; --background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695); --card: oklch(1 0 0); --card-foreground: oklch(0.129 0.042 264.695); --border: oklch(84.651% 0.01125 256.831); --secondary: oklch(0.968 0.007 247.896); --secondary-foreground: oklch(0.208 0.042 265.755); --muted-foreground: oklch(0.554 0.046 257.417); --input: oklch(0.929 0.013 255.508);"
 >
 	<!-- Overlay for better readability -->
 	<div class="absolute inset-0 bg-white/60"></div>
@@ -127,6 +127,7 @@
 							bind:value={email}
 							disabled={isLoading}
 							class="pl-10 bg-secondary/50 border-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
+							onkeydown={(e) => e.key === 'Enter' && startLogin()}
 						/>
 					</div>
 				</div>
@@ -144,6 +145,7 @@
 							bind:value={password}
 							disabled={isLoading}
 							class="pl-10 pr-10 bg-secondary/50 border-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
+							onkeydown={(e) => e.key === 'Enter' && startLogin()}
 						/>
 						<div class="absolute inset-y-0 right-0 flex items-center pr-3">
 							<button
@@ -209,8 +211,8 @@
 
 <Dialog.Root bind:open={showTurnstileModal}>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" />
-		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto pointer-events-auto">
+		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" style="--background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695);" />
+		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto pointer-events-auto" style="--background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695); --card: oklch(1 0 0); --card-foreground: oklch(0.129 0.042 264.695); --border: oklch(84.651% 0.01125 256.831); --muted-foreground: oklch(0.554 0.046 257.417);">
 			<Dialog.Header>
 				<Dialog.Title class="text-lg sm:text-xl font-semibold">Security Verification</Dialog.Title>
 				<Dialog.Description class="text-xs sm:text-sm text-muted-foreground">
