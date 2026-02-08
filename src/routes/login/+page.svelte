@@ -83,7 +83,7 @@
 	style="background-image: url('/Background.png'); background-size: cover; background-position: center; background-attachment: fixed;"
 >
 	<!-- Overlay for better readability -->
-	<div class="absolute inset-0 bg-white/60"></div>
+	<div class="absolute inset-0 bg-white"></div>
 	
 	<!-- Content container -->
 	<div class="relative z-10">
@@ -195,12 +195,6 @@
 				</Button>
 			</div>
 
-		</div>
-
-		<!-- Footer outside the card -->
-		<div class="flex flex-col items-center space-y-1 text-center text-muted-foreground">
-			<p class="text-xs font-medium">Bible Baptist Church Tanza © 2026</p>
-			<p class="text-[10px] italic">"1 Corinthians 14:40 Let all things be done decently and in order."</p>
 		</div>
 	</div>
 	</div>

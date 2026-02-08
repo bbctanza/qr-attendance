@@ -5,6 +5,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { QrCode, Mail, Loader2, ArrowLeft } from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
+	import { onMount } from 'svelte';
 
 	// State
 	let email = $state('');
@@ -37,6 +38,12 @@
 			isLoading = false;
 		}
 	}
+
+	onMount(() => {
+		// Force light mode on forgot password page
+		document.documentElement.classList.remove('dark');
+	});
+
 </script>
 
 <div 
