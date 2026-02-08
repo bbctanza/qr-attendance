@@ -7,6 +7,7 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
+	import * as Dialog from '$lib/components/ui/dialog';
 	import { Loader2, Camera, CheckCircle2, XCircle, Search, QrCode } from 'lucide-svelte';
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { toast } from 'svelte-sonner';
@@ -22,6 +23,9 @@
 	let checkingIn = $state(false);
 	let checkInStatus = $state<'idle' | 'success' | 'error' | 'already_checked_in'>('idle');
 	let statusMessage = $state('');
+
+	// Modal State
+	let showInstructions = $state(false);
 
 	// Scanner State
 	let isScanning = $state(false);
@@ -310,7 +314,14 @@
 						{/if}
 					{/if}
 				</CardContent>
-				<CardFooter class="flex flex-col items-center justify-center text-center gap-1 pb-6">
+				<CardFooter class="flex flex-col items-center justify-center text-center gap-3 pb-6">
+					<Button 
+						variant="outline" 
+						class="w-full"
+						onclick={() => showInstructions = true}
+					>
+						How to Check In?
+					</Button>
 					<div class="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
 						Bible Baptist Church Tanza
 					</div>
@@ -322,6 +333,94 @@
 		{/if}
 	</div>
 </div>
+
+<!-- Instructions Modal -->
+<Dialog.Root bind:open={showInstructions}>
+	<Dialog.Portal>
+		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" />
+		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto pointer-events-auto">
+			<Dialog.Header>
+				<Dialog.Title class="text-lg sm:text-xl font-semibold">How to Check In</Dialog.Title>
+				<Dialog.Description class="text-xs sm:text-sm text-muted-foreground">
+					Follow these simple steps to check in for the event
+				</Dialog.Description>
+			</Dialog.Header>
+			<div class="space-y-4">
+				<div class="flex gap-3">
+					<div class="flex-shrink-0 flex items-start">
+						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+							1
+						</div>
+					</div>
+					<div>
+						<h4 class="font-semibold text-sm">Scan Your ID Badge</h4>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
+							Tap the "Scan Your ID Badge" button to activate the camera and scan your QR code badge.
+						</p>
+					</div>
+				</div>
+
+				<div class="flex gap-3">
+					<div class="flex-shrink-0 flex items-start">
+						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+							2
+						</div>
+					</div>
+					<div>
+						<h4 class="font-semibold text-sm">Position Your Badge</h4>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
+							Hold your ID badge in front of the camera until it scans successfully. You'll hear a beep when it's detected.
+						</p>
+					</div>
+				</div>
+
+				<div class="flex gap-3">
+					<div class="flex-shrink-0 flex items-start">
+						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+							3
+						</div>
+					</div>
+					<div>
+						<h4 class="font-semibold text-sm">Manual Entry (Optional)</h4>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
+							If scanning doesn't work, you can manually enter your Member ID in the input field and tap "Check In".
+						</p>
+					</div>
+				</div>
+
+				<div class="flex gap-3">
+					<div class="flex-shrink-0 flex items-start">
+						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+							4
+						</div>
+					</div>
+					<div>
+						<h4 class="font-semibold text-sm">Confirmation</h4>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
+							Once checked in successfully, you'll see a green confirmation message. You can then scan another badge or exit.
+						</p>
+					</div>
+				</div>
+
+				<div class="rounded-lg bg-primary/10 border border-primary/20 p-3 mt-4">
+					<p class="text-xs sm:text-sm font-medium text-primary">
+						💡 Tip: Make sure the lighting is good and hold your badge steady for faster scanning.
+					</p>
+				</div>
+			</div>
+
+			<Dialog.Header class="flex-row justify-end gap-2 space-y-0">
+				<Button 
+					variant="outline" 
+					onclick={() => showInstructions = false}
+					class="w-full"
+				>
+					Got it!
+				</Button>
+			</Dialog.Header>
+		</Dialog.Content>
+	</Dialog.Portal>
+</Dialog.Root>
 
 <style>
 	/* Fix html5-qrcode video responsiveness */
