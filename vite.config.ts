@@ -12,30 +12,40 @@ export default defineConfig({
 		devtoolsJson(),
 		SvelteKitPWA({
 			registerType: 'autoUpdate',
-			includeAssets: ['favicon.svg', 'robots.txt'],
+			includeAssets: ['favicon.png', 'favicon.svg', 'robots.txt'],
 			manifest: {
 				name: 'BBCT QR Attendance',
 				short_name: 'BBCT QR',
 				description: 'Attendance Tracking System',
-				theme_color: '#ffffff',
+				theme_color: '#22c55e',
 				background_color: '#ffffff',
 				display: 'standalone',
+				start_url: '/',
+				scope: '/',
 				icons: [
 					{
-						src: 'favicon.svg',
-						sizes: 'any',
-						type: 'image/svg+xml',
-						purpose: 'any maskable'
-					},
-					{
-						src: 'favicon.svg',
+						src: 'favicon.png',
 						sizes: '192x192',
-						type: 'image/svg+xml'
+						type: 'image/png',
+						purpose: 'any'
 					},
 					{
-						src: 'favicon.svg',
+						src: 'favicon.png',
 						sizes: '512x512',
-						type: 'image/svg+xml'
+						type: 'image/png',
+						purpose: 'any'
+					},
+					{
+						src: 'favicon.png',
+						sizes: '192x192',
+						type: 'image/png',
+						purpose: 'maskable'
+					},
+					{
+						src: 'favicon.png',
+						sizes: '512x512',
+						type: 'image/png',
+						purpose: 'maskable'
 					}
 				]
 			}
