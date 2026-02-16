@@ -50,7 +50,7 @@
 
 			<div class="space-y-1 pt-2 border-t border-border/50">
 				<p class="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Bible Baptist Church Tanza © 2026</p>
-				<p class="text-xs italic text-muted-foreground">"1 Corinthians 14:40 Let all things be done decently and in order."</p>
+				<p class="text-xs italic text-muted-foreground">"John 12:32 A Place Where Christ is Lifted Up"</p>
 			</div>
 
 			<div class="space-y-2">

@@ -58,14 +58,14 @@
             // Global Auth Guard
             const { data: { session } } = await supabase.auth.getSession();
             const path = $page.url.pathname;
-            const publicRoutes = ['/', '/forgot-password'];
+            const publicRoutes = ['/', '/login', '/forgot-password'];
             const isPublicRoute = publicRoutes.includes(path) || 
                                 path.startsWith('/check-in/') || 
                                 path.startsWith('/display/');
 
             if (!session && !isPublicRoute) {
-                goto('/');
-            } else if (session && publicRoutes.includes(path) && path === '/') {
+                goto('/login');
+            } else if (session && publicRoutes.includes(path) && (path === '/' || path === '/login')) {
                 goto('/overview');
             }
 
@@ -90,10 +90,10 @@
                      if (typeof window !== 'undefined') {
                          localStorage.removeItem('currentSessionId');
                      }
-                     if (!isPublic) goto('/');
+                     if (!isPublic) goto('/login');
                      clearInterval(activityInterval);
                  } else if (event === 'SIGNED_IN' || session) {
-                     if (currentPath === '/') goto('/overview');
+                     if (currentPath === '/' || currentPath === '/login') goto('/overview');
                  }
             });
         })();
