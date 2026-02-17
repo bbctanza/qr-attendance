@@ -95,6 +95,7 @@
 	let groupForm: any = $state({ name: '', description: '', members: 0, color: '#3B82F6' });
 	let showDeleteDialog = $state(false);
 	let groupToDelete: number | null = $state(null);
+	let isDeletingGroup = $state(false);
 
 	onMount(async () => {
 		isLoading = true;
@@ -263,23 +264,32 @@
 	}
 
 	async function confirmDeleteGroup() {
-		if (groupToDelete === null) return;
+		if (groupToDelete === null || isDeletingGroup) return;
 
 		const id = groupToDelete;
 		console.log('Deleting group:', id);
-		const { error } = await supabase.from('groups').delete().eq('group_id', id);
+		
+		isDeletingGroup = true;
+		try {
+			const { error } = await supabase.from('groups').delete().eq('group_id', id);
 
-		if (error) {
+			if (error) {
+				console.error('Delete error:', error);
+				toast.error(error.message || 'Failed to delete group');
+				return;
+			}
+
+			await fetchGroups();
+			toast.success('Group deleted');
+		} catch (error: any) {
 			console.error('Delete error:', error);
-			toast.error(error.message || 'Failed to delete group');
+			const msg = error?.message || 'Unknown error';
+			toast.error(`Failed to delete group: ${msg}`);
+		} finally {
+			isDeletingGroup = false;
 			showDeleteDialog = false;
-			return;
+			groupToDelete = null;
 		}
-
-		await fetchGroups();
-		toast.success('Group deleted');
-		showDeleteDialog = false;
-		groupToDelete = null;
 	}
 
 	// Media query listener for responsive drawer/dialog
@@ -552,12 +562,20 @@
 			</AlertDialogDescription>
 		</AlertDialogHeader>
 		<div class="flex justify-end gap-3">
-			<AlertDialogCancel>Cancel</AlertDialogCancel>
+			<AlertDialogCancel disabled={isDeletingGroup}>Cancel</AlertDialogCancel>
 			<AlertDialogAction
 				class="bg-destructive hover:bg-destructive/90"
+				disabled={isDeletingGroup}
 				onclick={confirmDeleteGroup}
 			>
-				Delete
+				{#if isDeletingGroup}
+					<div class="flex items-center gap-2">
+						<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+						<span>Deleting...</span>
+					</div>
+				{:else}
+					Delete
+				{/if}
 			</AlertDialogAction>
 		</div>
 	</AlertDialogContent>

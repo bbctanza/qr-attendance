@@ -24,6 +24,7 @@
 	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Select from '$lib/components/ui/select';
 	import { supabase } from '$lib/supabase';
+	import { auditedEventsApi, auditedEventTypesApi } from '$lib/api/auditedApi';
 	import { onMount } from 'svelte';
 	import FullPageLoading from '$lib/components/full-page-loading.svelte';
 	import { eventTypesApi } from '$lib/api/event_types';
@@ -141,12 +142,9 @@
 			if (!eventType) return;
 
 			const newStatus = !eventType.is_active;
-			const { error } = await supabase
-				.from('event_types')
-				.update({ is_active: newStatus })
-				.eq('event_type_id', eventType.db_id);
-
-			if (error) {
+			try {
+				await auditedEventTypesApi.update(eventType.db_id, { is_active: newStatus });
+			} catch (error) {
 				showErrorToast(error, 'Update Failed');
 				return;
 			}
@@ -161,12 +159,9 @@
 				return;
 			}
 			const newStatus = customEvent.status === 'Active' ? 'completed' : 'upcoming';
-			const { error } = await supabase
-				.from('events')
-				.update({ status: newStatus })
-				.eq('event_id', customEvent.db_id);
-
-			if (error) {
+			try {
+				await auditedEventsApi.updateEventStatus(customEvent.db_id, newStatus);
+			} catch (error) {
 				toast.error('Failed to update status');
 				return;
 			}
@@ -180,6 +175,8 @@
 
 	let isEditing = $state(false);
 	let editingId: string | null = $state(null);
+	let isDeletingEvent = $state(false);
+	let isAddingEvent = $state(false);
 
 	function editEvent(id: string) {
 		// Find in recurring event types or custom events
@@ -227,6 +224,7 @@
 	}
 
 	async function deleteEvent(id: string) {
+		if (isDeletingEvent) return;
 		const isRecurringTemplate = id.startsWith('type-');
 
 		if (isRecurringTemplate) {
@@ -235,18 +233,18 @@
 
 			if (!confirm(`Delete recurring template: "${eventType.name}"? This will stop future events from being generated.`)) return;
 
-			const { error } = await supabase
-				.from('event_types')
-				.delete()
-				.eq('event_type_id', eventType.db_id);
-
-			if (error) {
-				toast.error('Failed to delete template');
+			isDeletingEvent = true;
+			try {
+				await auditedEventTypesApi.delete(eventType.db_id);
+				toast.success('Recurring template deleted');
+				await fetchData();
+			} catch (error: any) {
 				console.error(error);
-				return;
+				const msg = error?.message || 'Unknown error';
+				toast.error(`Failed to delete template: ${msg}`);
+			} finally {
+				isDeletingEvent = false;
 			}
-			toast.success('Recurring template deleted');
-			fetchData();
 			return;
 		}
 
@@ -278,27 +276,29 @@
 
 		if (!confirm(`Delete this custom event: "${customEvent.name}"?`)) return;
 
-		// Delete associated attendance scans first (though we checked count is 0, just in case)
-		const { error: scansError } = await supabase
-			.from('attendance_scans')
-			.delete()
-			.eq('event_id', customEvent.db_id);
+		isDeletingEvent = true;
+		try {
+			// Delete associated attendance scans first (though we checked count is 0, just in case)
+			const { error: scansError } = await supabase
+				.from('attendance_scans')
+				.delete()
+				.eq('event_id', customEvent.db_id);
 
-		if (scansError) {
-			console.error('Error deleting attendance scans:', scansError);
-		}
+			if (scansError) {
+				console.error('Error deleting attendance scans:', scansError);
+			}
 
-		// Delete the event
-		const { error } = await supabase.from('events').delete().eq('event_id', customEvent.db_id);
-
-		if (error) {
-			toast.error('Failed to delete event');
+			// Delete the event
+			await auditedEventsApi.deleteEvent(Number(customEvent.db_id));
+			toast.success('Event deleted successfully');
+			await fetchData();
+		} catch (error: any) {
 			console.error(error);
-			return;
+			const msg = error?.message || 'Unknown error';
+			toast.error(`Failed to delete event: ${msg}`);
+		} finally {
+			isDeletingEvent = false;
 		}
-
-		toast.success('Event deleted successfully');
-		fetchData();
 	}
 
 	async function toggleRecurringActive(id: string) {
@@ -369,6 +369,8 @@
 	}
 
 	async function addNewEvent() {
+		if (isAddingEvent) return;
+		
 		if (!newEvent.name.trim()) {
 			toast.error('Please enter event name');
 			return;
@@ -384,29 +386,31 @@
 			return;
 		}
 
-		const scheduleLabel =
-			newEvent.type === 'recurring'
-				? newEvent.schedule === 'weekly'
-					? newEvent.days.join(', ')
-					: `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`
-				: 'One-time';
-
-		// Use current date for recurring events placeholder
-		const baseDate =
-			newEvent.type === 'recurring' ? new Date().toISOString().split('T')[0] : newEvent.date;
-
-		const metadata = {
-			schedule: scheduleLabel,
-			location: newEvent.location.trim(),
-			start_time: newEvent.startTime.trim(),
-			end_time: newEvent.endTime.trim(),
-			ui_schedule_type: newEvent.schedule,
-			days: newEvent.days,
-			monthlyOrdinal: newEvent.monthlyOrdinal,
-			monthlyWeekday: newEvent.monthlyWeekday
-		};
-
+		isAddingEvent = true;
+		
 		try {
+			const scheduleLabel =
+				newEvent.type === 'recurring'
+					? newEvent.schedule === 'weekly'
+						? newEvent.days.join(', ')
+						: `${newEvent.monthlyOrdinal} ${newEvent.monthlyWeekday}`
+					: 'One-time';
+
+			// Use current date for recurring events placeholder
+			const baseDate =
+				newEvent.type === 'recurring' ? new Date().toISOString().split('T')[0] : newEvent.date;
+
+			const metadata = {
+				schedule: scheduleLabel,
+				location: newEvent.location.trim(),
+				start_time: newEvent.startTime.trim(),
+				end_time: newEvent.endTime.trim(),
+				ui_schedule_type: newEvent.schedule,
+				days: newEvent.days,
+				monthlyOrdinal: newEvent.monthlyOrdinal,
+				monthlyWeekday: newEvent.monthlyWeekday
+			};
+
 			if (newEvent.type === 'recurring' && newEvent.schedule === 'weekly') {
 				// Recurring Weekly - We might hit event_types
 				const dayMap: Record<string, number> = {
@@ -502,17 +506,12 @@
 					metadata
 				};
 
-				let error;
 				if (isEditing && editingId?.startsWith('instance-')) {
-					({ error } = await supabase
-						.from('events')
-						.update(payload)
-						.eq('event_id', editingId.split('-')[1]));
+					await auditedEventsApi.updateEvent(Number(editingId.split('-')[1]), payload);
 				} else {
-					({ error } = await supabase.from('events').insert([payload]));
+					await auditedEventsApi.createEvent(payload);
 				}
 
-				if (error) throw error;
 				toast.success(isEditing ? 'Event updated' : 'Event added');
 			}
 
@@ -521,7 +520,10 @@
 			location.reload();
 		} catch (err: any) {
 			console.error('Save Event Error:', err);
-			toast.error(`Error saving event: ${err.message || err.details || 'Unknown error'}`);
+			const msg = err?.message || err?.details || 'Unknown error';
+			toast.error(`Error saving event: ${msg}`);
+		} finally {
+			isAddingEvent = false;
 		}
 	}
 </script>
@@ -760,9 +762,16 @@
 							class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
 							onclick={() => (showAddEventDialog = false)}>Cancel</Button
 						>
-						<Button class="w-full" onclick={addNewEvent}
-							>{isEditing ? 'Update Event' : 'Save Event'}</Button
-						>
+						<Button class="w-full" onclick={addNewEvent} disabled={isAddingEvent}>
+							{#if isAddingEvent}
+								<div class="flex items-center gap-2">
+									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									<span>Saving...</span>
+								</div>
+							{:else}
+								{isEditing ? 'Update Event' : 'Save Event'}
+							{/if}
+						</Button>
 					</DrawerFooter>
 				</DrawerContent>
 			</Drawer>
@@ -980,9 +989,16 @@
 							class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 md:w-auto"
 							onclick={() => (showAddEventDialog = false)}>Cancel</Button
 						>
-						<Button class="w-full md:w-auto" onclick={addNewEvent}
-							>{isEditing ? 'Update Event' : 'Save Event'}</Button
-						>
+						<Button class="w-full md:w-auto" onclick={addNewEvent} disabled={isAddingEvent}>
+							{#if isAddingEvent}
+								<div class="flex items-center gap-2">
+									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									<span>Saving...</span>
+								</div>
+							{:else}
+								{isEditing ? 'Update Event' : 'Save Event'}
+							{/if}
+						</Button>
 					</SheetFooter>
 				</SheetContent>
 			</Sheet>
@@ -1053,9 +1069,14 @@
 											variant="ghost"
 											size="sm"
 											class="h-9 w-9 p-0"
+											disabled={isDeletingEvent}
 											onclick={() => deleteEvent(event.event_id)}
 										>
-											<Trash2 class="h-4 w-4" />
+											{#if isDeletingEvent}
+												<div class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"></div>
+											{:else}
+												<Trash2 class="h-4 w-4" />
+											{/if}
 										</Button>
 									</div>
 								</div>
@@ -1117,9 +1138,14 @@
 											variant="ghost"
 											size="sm"
 											class="h-9 w-9 p-0"
+											disabled={isDeletingEvent}
 											onclick={() => deleteEvent(event.event_id)}
 										>
-											<Trash2 class="h-4 w-4" />
+											{#if isDeletingEvent}
+												<div class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"></div>
+											{:else}
+												<Trash2 class="h-4 w-4" />
+											{/if}
 										</Button>
 									</div>
 								</div>

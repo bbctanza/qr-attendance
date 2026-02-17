@@ -36,6 +36,8 @@
     import { systemSettings } from "$lib/stores/settings";
     import { onMount } from "svelte";
     import { supabase } from "$lib/supabase";
+    import { auditedMembersApi } from '$lib/api/auditedApi';
+    import { ensureAvatarDownloadParam } from '$lib/utils/avatarUrl';
     import FullPageLoading from "$lib/components/full-page-loading.svelte";
 import { toast } from 'svelte-sonner';
 import { exportMembersToCSV, exportMembersToPDF, exportMembersQRPDF, type MemberExportRecord } from '$lib/utils/membersExport';
@@ -118,6 +120,10 @@ import {
     let memberToDelete: string | null = $state(null);
     let memberToDeleteName: string | null = $state(null);
 
+    // Add member submission state (to prevent duplicates)
+    let isSubmittingMember = $state(false);
+    let isDeletingMember = $state(false);
+
     function openDeleteDialog(member: any) {
         memberToDelete = member.id;
         memberToDeleteName = member.name;
@@ -125,24 +131,26 @@ import {
     }
 
     async function confirmDeleteMember() {
-        if (!memberToDelete) return;
+        if (!memberToDelete || isDeletingMember) return;
         const id = memberToDelete;
         const name = memberToDeleteName || id;
 
-        const { error } = await supabase.from('members').delete().eq('member_id', id);
-        if (error) {
+        isDeletingMember = true;
+        try {
+            await auditedMembersApi.delete(id);
+            await fetchMembers();
+            toast.success(`Deleted ${name}`);
+        } catch (error) {
             console.error('Delete error:', error);
             const msg = getErrorMessage(error);
             const title = getErrorTitle(error);
             toast.error(`${title}: ${msg}`);
+        } finally {
+            isDeletingMember = false;
             showDeleteDialog = false;
             memberToDelete = null;
             memberToDeleteName = null;
-            return;
         }
-
-        await fetchMembers();
-        toast.success(`Deleted ${name}`);
         showDeleteDialog = false;
         memberToDelete = null;
         memberToDeleteName = null;
@@ -366,104 +374,119 @@ import {
     };
 
     async function handleAddMember() {
+        // Prevent duplicate submissions
+        if (isSubmittingMember) {
+            toast.error('Please wait while the member is being added...');
+            return;
+        }
+
         // Validate form
         if (!formData.lastName || !formData.firstName || !formData.group) {
-            alert("Please fill in all required fields");
+            toast.error('Please fill in all required fields');
             return;
         }
 
         // 1. Get Group Info
         const groupObj = groupsMap[formData.group];
         if (!groupObj) {
-            alert("Invalid Group");
+            toast.error('Invalid group selected');
             return;
         }
+
+        isSubmittingMember = true;
+        const toastId = toast.loading('Adding member...');
         
-        // 2. Generate Unique ID in format: BBCT-{groupCode}-{overallSequentialNumber}
-        const groupCode = groupObj.group_code;
-        let qrId: string | null = null;
-        let attempt = 0;
+        try {
+            // 2. Generate Unique ID in format: BBCT-{groupCode}-{overallSequentialNumber}
+            const groupCode = groupObj.group_code;
+            let qrId: string | null = null;
+            let attempt = 0;
 
-        while (attempt < 5) {
-            // Find all members and get the highest overall number (third segment)
-            const { data: allMembers, error: fetchErr } = await supabase
-                .from('members')
-                .select('member_id');
+            while (attempt < 5) {
+                // Find all members and get the highest overall number (third segment)
+                const { data: allMembers, error: fetchErr } = await supabase
+                    .from('members')
+                    .select('member_id');
 
-            if (fetchErr) {
-                console.error(fetchErr);
-                alert('Failed to generate member id');
-                return;
-            }
-
-            let candidate: string | null = null;
-
-            // Extract the highest number from BBCT-{any}-{number} format
-            let maxNumber = 0;
-            (allMembers || []).forEach((m: any) => {
-                const match = (m.member_id || '').match(/^BBCT-\d+-(\d+)$/);
-                if (match) {
-                    const num = parseInt(match[1], 10);
-                    if (!isNaN(num) && num > maxNumber) maxNumber = num;
+                if (fetchErr) {
+                    throw new Error('Failed to generate member ID: ' + (fetchErr.message || 'Unknown error'));
                 }
-            });
 
-            const nextNumber = maxNumber + 1;
-            candidate = `BBCT-${groupCode}-${nextNumber}`;
+                let candidate: string | null = null;
 
-            if (!candidate) {
-                alert('Failed to allocate a member id');
-                return;
-            }
+                // Extract the highest number from BBCT-{any}-{number} format
+                let maxNumber = 0;
+                (allMembers || []).forEach((m: any) => {
+                    const match = (m.member_id || '').match(/^BBCT-\d+-(\d+)$/);
+                    if (match) {
+                        const num = parseInt(match[1], 10);
+                        if (!isNaN(num) && num > maxNumber) maxNumber = num;
+                    }
+                });
 
-            // Try insert
-            const { error: insertErr } = await supabase.from('members').insert({
-                member_id: candidate,
-                first_name: formData.firstName,
-                last_name: formData.lastName,
-                middle_name: formData.middleInitial,
-                group_id: groupObj.group_id,
-                metadata: {
-                    role: 'Member',
-                    status: 'Active',
-                    email: ''
+                const nextNumber = maxNumber + 1;
+                candidate = `BBCT-${groupCode}-${nextNumber}`;
+
+                if (!candidate) {
+                    throw new Error('Failed to allocate a member ID');
                 }
-            });
 
-            if (!insertErr) {
-                qrId = candidate;
-                break;
+                // Try audited insert
+                try {
+                    await auditedMembersApi.upsert({
+                        member_id: candidate,
+                        first_name: formData.firstName,
+                        last_name: formData.lastName,
+                        middle_name: formData.middleInitial,
+                        group_id: groupObj.group_id,
+                        metadata: {
+                            role: 'Member',
+                            status: 'Active',
+                            email: ''
+                        }
+                    });
+                    qrId = candidate;
+                    break;
+                } catch (insertErr: any) {
+                    // On duplicate, increment attempt and retry
+                    const msg = insertErr.message || '';
+                    if (insertErr.code === '23505' || /duplicate/.test(msg)) {
+                        attempt++;
+                        continue;
+                    } else {
+                        // Re-throw non-duplicate errors
+                        throw insertErr;
+                    }
+                }
             }
 
-            // On duplicate, increment attempt and retry
-            const msg = (insertErr as any).message || '';
-            if ((insertErr as any).code === '23505' || /duplicate/.test(msg)) {
-                attempt++;
-                continue;
-            } else {
-                console.error(insertErr);
-                alert('Failed to add member');
-                return;
+            if (!qrId) {
+                throw new Error('Failed to allocate a unique member ID after multiple attempts');
             }
+
+            // 4. Refresh List
+            await fetchMembers();
+
+            // Success message
+            toast.success(`Member ${formData.firstName} ${formData.lastName} added successfully`, { id: toastId });
+
+            // Reset form and close modal/drawer
+            formData = {
+                lastName: "",
+                firstName: "",
+                middleInitial: "",
+                group: ""
+            };
+            showAddMemberModal = false;
+            showAddMemberDrawer = false;
+
+        } catch (error: any) {
+            console.error('Error adding member:', error);
+            const errorMsg = error?.message || 'Unknown error occurred';
+            toast.error(`Failed to add member: ${errorMsg}`, { id: toastId });
+        } finally {
+            isSubmittingMember = false;
         }
-
-        if (!qrId) {
-            alert('Failed to allocate a unique member id; please try again');
-            return;
-        }
-
-        // 4. Refresh List
-        await fetchMembers();
-
-        // Reset form and close modal/drawer
-        formData = {
-            lastName: "",
-            firstName: "",
-            middleInitial: "",
-            group: ""
-        };
-        showAddMemberModal = false;
-        showAddMemberDrawer = false;
     }
 
     function handleMiddleInitialChange(e: Event) {
@@ -579,17 +602,15 @@ import {
 
         const groupObj = groupsMap[formData.group];
         
-        const { error } = await supabase
-            .from('members')
-            .update({
+        try {
+            await auditedMembersApi.upsert({
+                member_id: selectedMemberForEdit.id,
                 first_name: formData.firstName,
                 last_name: formData.lastName,
                 middle_name: formData.middleInitial,
                 group_id: groupObj?.group_id
-            })
-            .eq('member_id', selectedMemberForEdit.id);
-
-        if (error) {
+            });
+        } catch (error) {
             console.error(error);
             alert("Failed to update member");
             return;
@@ -1001,7 +1022,7 @@ import {
                             <div class="flex items-center gap-4 flex-1">
                                 <div class="relative">
                                     {#if member.avatar}
-                                        <img src={member.avatar} alt={member.name} class="w-12 h-12 rounded-2xl object-cover" />
+                                        <img src={ensureAvatarDownloadParam(member.avatar)} alt={member.name} class="w-12 h-12 rounded-2xl object-cover" />
                                     {:else}
                                         <div class="w-12 h-12 rounded-2xl bg-linear-to-br from-primary/10 to-primary/30 flex items-center justify-center text-primary font-bold text-lg border border-primary/20">
                                             {getInitials(member.name)}
@@ -1246,7 +1267,7 @@ import {
                                 </Table.Cell>
                                 <Table.Cell>
                                     <Avatar class="h-8 w-8">
-                                        <AvatarImage src={member.avatar} alt={member.name} />
+                                        <AvatarImage src={ensureAvatarDownloadParam(member.avatar)} alt={member.name} />
                                         <AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback>
                                     </Avatar>
                                 </Table.Cell>
@@ -1310,7 +1331,7 @@ import {
                         <CardContent class="p-6">
                             <div class="flex items-start justify-between mb-4">
                                 <Avatar class="h-12 w-12">
-                                    <AvatarImage src={member.avatar} alt={member.name} />
+                                    <AvatarImage src={ensureAvatarDownloadParam(member.avatar)} alt={member.name} />
                                     <AvatarFallback>{getInitials(member.name)}</AvatarFallback>
                                 </Avatar>
                                 <div class="flex gap-1">
@@ -1442,8 +1463,16 @@ import {
                             size="lg"
                             class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
                             onclick={handleAddMember}
+                            disabled={isSubmittingMember}
                         >
-                            SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                            {#if isSubmittingMember}
+                                <span class="flex items-center gap-2">
+                                    <div class="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
+                                    Adding...
+                                </span>
+                            {:else}
+                                SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                            {/if}
                         </Button>
                     </div>
                 </div>
@@ -1544,8 +1573,16 @@ import {
                             size="lg"
                             class="flex-1 bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-base"
                             onclick={handleAddMember}
+                            disabled={isSubmittingMember}
                         >
-                            SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                            {#if isSubmittingMember}
+                                <span class="flex items-center gap-2">
+                                    <div class="h-4 w-4 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin"></div>
+                                    Adding...
+                                </span>
+                            {:else}
+                                SAVE MEMBER <ChevronRight size={18} class="ml-2" />
+                            {/if}
                         </Button>
                     </div>
                 </div>
@@ -1958,8 +1995,21 @@ import {
             </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction class="bg-destructive hover:bg-destructive/90" onclick={confirmDeleteMember}>Delete</AlertDialogAction>
+            <AlertDialogCancel disabled={isDeletingMember}>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+                class="bg-destructive hover:bg-destructive/90" 
+                disabled={isDeletingMember}
+                onclick={confirmDeleteMember}
+            >
+                {#if isDeletingMember}
+                    <div class="flex items-center gap-2">
+                        <div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                        <span>Deleting...</span>
+                    </div>
+                {:else}
+                    Delete
+                {/if}
+            </AlertDialogAction>
         </AlertDialogFooter>
     </AlertDialogContent>
 </AlertDialog>

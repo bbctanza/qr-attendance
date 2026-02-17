@@ -9,6 +9,7 @@
     import { Badge } from "$lib/components/ui/badge";
     import { goto } from '$app/navigation';
     import { supabase } from '$lib/supabase';
+    import { logAuditChange } from '$lib/utils/auditLogger';
     import { onMount } from 'svelte';
     import { toast } from 'svelte-sonner';
     import FullPageLoading from '$lib/components/full-page-loading.svelte';
@@ -99,6 +100,13 @@
         }
         
         try {
+            // Get the user profile before the update for audit logging
+            const { data: userBefore } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', roleUpdateData.userId)
+                .single();
+
             const { error } = await supabase.functions.invoke('invitation-service', {
                 body: { 
                     action: 'update-role',
@@ -108,6 +116,24 @@
                 }
             });
             if (error) throw error;
+
+            // Get current session for audit logging
+            const { data: { session } } = await supabase.auth.getSession();
+
+            // Log the role change
+            await logAuditChange(
+                {
+                    entityType: 'user',
+                    entityId: roleUpdateData.userId,
+                    action: 'update',
+                    before: userBefore ? { role: userBefore.role } : undefined,
+                    after: { role: roleUpdateData.newRole },
+                    reason: `Role changed from ${userBefore?.role} to ${roleUpdateData.newRole}`,
+                    tags: ['staff-management', 'role-change']
+                },
+                session
+            );
+
             toast.success("Role updated successfully");
             await fetchUsers();
             isRoleUpdateOpen = false;
@@ -131,6 +157,11 @@
         }
 
         try {
+            // Store user data before deletion for audit logging
+            const userEmail = userToDelete.email;
+            const userRole = userToDelete.role;
+            const userId = userToDelete.id;
+
             const { error } = await supabase.functions.invoke('invitation-service', {
                 body: { 
                     action: 'delete-user',
@@ -139,6 +170,23 @@
                 }
             });
             if (error) throw error;
+
+            // Get current session for audit logging
+            const { data: { session } } = await supabase.auth.getSession();
+
+            // Log the user deletion
+            await logAuditChange(
+                {
+                    entityType: 'user',
+                    entityId: userId,
+                    action: 'delete',
+                    before: { email: userEmail, role: userRole },
+                    reason: `User ${userEmail} (${userRole}) removed from system`,
+                    tags: ['user-deletion', 'staff-management']
+                },
+                session
+            );
+
             toast.success("User removed from system");
             await fetchUsers();
             isDeleteDialogOpen = false;
@@ -169,6 +217,22 @@
 
             if (error) throw error;
             if (data?.error) throw new Error(data.error);
+
+            // Get current session for audit logging
+            const { data: { session } } = await supabase.auth.getSession();
+
+            // Log the invitation
+            await logAuditChange(
+                {
+                    entityType: 'user',
+                    entityId: inviteEmail, // Use email as identifier for new invites
+                    action: 'create',
+                    after: { email: inviteEmail, role: inviteRole },
+                    reason: `Invitation sent to ${inviteEmail} with ${inviteRole} role`,
+                    tags: ['invite', 'staff-management']
+                },
+                session
+            );
 
             toast.success("Invitation sent successfully!");
             inviteEmail = "";

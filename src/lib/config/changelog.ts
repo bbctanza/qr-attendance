@@ -9,9 +9,122 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.1.7';
+export const CURRENT_VERSION = '2.2.1';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.2.1',
+		date: 'February 18, 2026',
+		title: 'Audit Logs UI Refinement, Restore Functionality, and Avatar Fixes',
+		items: [
+			// Audit Log Modal & Dialog Improvements
+			'Proper modal overlay - Fixed Dialog structure with Portal/Overlay for correct modal rendering',
+			'Modal close button - Added X button to close modal from top-right corner',
+			'Human-readable details - Converted technical fields to: By/Role/When/From IP/Browser',
+			'Responsive layout - Details displayed in 2-column grid for better readability',
+			'Visual enhancements - Improved spacing and typography throughout the audit logs page',
+
+			// Undo/Restore Button & Logic
+			'Always-visible undo button - Button visible with tooltip explaining why it\'s disabled',
+			'Proper state tracking - Correctly tracks restrictUndoToAdmin and requireUndoApproval conditions',
+			'Professional dialogs - Replaced browser confirm() with shadcn AlertDialog',
+			'Error handling - Comprehensive error messages with toast notifications',
+			'User feedback - Success/error toasts show clear status and reasons',
+
+			// Restore & Recovery Logic
+			'DELETE action restoration - Captures full entity state when deleted (stored in change_diff)',
+			'UPDATE action reversal - Restores to previous values using change_diff before values',
+			'CREATE log fallback - Falls back to CREATE logs if UPDATE logs not found for deleted items',
+			'Extended search window - Searches 50 previous logs for source data (was 10)',
+			'Smart reconstruction - Intelligently selects best source log for restoration',
+
+			// Audit Logging Enhancements
+			'Restore action logged - Every undo/restore is itself logged with tags [restore, undo-{action}]',
+			'Invite logging - User invitations logged with role and email',
+			'Staff role changes logged - Role changes tracked with before/after values',
+			'User deletion logged - User removals logged with email and role',
+			'Staff management tags - All staff operations tagged [staff-management] for filtering',
+
+			// Avatar System Improvements
+			'Public URL generation - New avatars use public Supabase URLs instead of signed tokens',
+			'No token expiration - Avatars never expire or require token validation',
+			'ORB bypass - Eliminates Opaque Response Blocking errors from signed URLs',
+			'Signed URL conversion - Old expired signed URLs auto-converted to public URLs',
+			'Automatic fallback - Avatar utility handles both public and signed URL formats',
+
+			// Bug Fixes
+			'Fixed 400 Bad Request - Avatar loading errors from malformed signed URLs resolved',
+			'Fixed InvalidJWT errors - Expired tokens no longer prevent avatar display',
+			'Fixed ERR_BLOCKED_BY_ORB - Cross-origin image loading now works without token issues',
+		]
+	},
+	{
+		version: '2.2.0',
+		date: 'February 17, 2026',
+		title: 'Complete Audit Trail System with Point-in-Time Recovery',
+		items: [
+			// Audit Trail Core System
+			'Comprehensive audit logging - Track all changes to members, events, users, and settings',
+			'Detailed change tracking - Records before/after state for every modification',
+			'User accountability - See who made changes, when, and from where (IP address, User Agent)',
+			'Change reasons - Optional reason field for manual documentation of why changes were made',
+			'Bulk operation tracking - Logs import operations with item count and type',
+
+			// Point-in-Time Recovery
+			'Full entity snapshots - Automatic snapshots created for critical operations',
+			'Complete restore functionality - Restore any entity to any previous state',
+			'Version history - View complete timeline of changes to an entity',
+			'Before/after preview - See exactly what will change before restoring',
+			'Restore audit trail - Restoration actions are logged themselves for compliance',
+
+			// Admin Audit Log Viewer
+			'Comprehensive audit dashboard - View all system changes in one place',
+			'Multi-filter search - Filter by entity type, action, user, date range, and keywords',
+			'Detail view with diffs - See exactly what changed field-by-field',
+			'CSV export - Export audit logs for external compliance and analysis',
+			'Real-time statistics - Storage usage, logging status, GDPR mode status',
+
+			// Undo/Restore Permissions (Dev Configurable)
+			'Staff can undo by default - Team members can undo their own actions',
+			'Admin-only undo mode - Dev setting to restrict undo to admins only',
+			'Undo approval flow - Optional approval requirement for restore actions (dev setting)',
+			'Flexible permissions - Easy toggle in dev menu without code changes',
+
+			// GDPR Compliance (Modular)
+			'GDPR mode toggle - Modular compliance that can be enabled/disabled in dev menu',
+			'User data export - Export all personal data for GDPR right to access',
+			'Anonymization function - Mark user data as deleted without permanent removal',
+			'Soft deletion with grace period - 30-day recovery window before permanent delete',
+			'Compliance-ready audit logs - Pre-built functions for data privacy requirements',
+
+			// Performance & Free Tier Optimization
+			'Smart batch processing - Queues audit entries, reduces free tier writes by ~90%',
+			'Configurable batching - Enables/disables batching via dev settings',
+			'Minimal storage footprint - ~300 bytes per audit entry, supports 130+ years on free tier',
+			'Async queue processing - Non-blocking audit logging doesn\'t slow down operations',
+			'Fallback to realtime - Automatic fallback if batching fails',
+
+			// Dev Settings & Monitoring
+			'Audit settings in dev menu - Toggle audit trail, GDPR mode, undo restrictions',
+			'Queue statistics monitoring - View current queue size and status',
+			'Log retention settings - Configurable retention period (default: 90 days)',
+			'Auditing toggle - Disable/enable audit trail for testing',
+			'Batch configuration - Fine-tune batch size and interval',
+
+			// Database & API
+			'Optimized SQL schema - Indexes for fast queries, RLS for security',
+			'Three-table design - audit_logs, audit_snapshots, audit_batches for separation of concerns',
+			'Helper SQL functions - Archive old logs, anonymize users, get version numbers',
+			'Server-side actions - Restore operations run securely server-side',
+			'Full RLS policies - Row-level security restricts access to admins only',
+
+			// Integration & API
+			'Audited API layer - auditedMembersApi, auditedEventsApi with automatic logging',
+			'Backward compatible - Original APIs remain unchanged, new audited layer as alternative',
+			'Tag-based filtering - Logs include tags for bulk operations, auto-system, manual, etc',
+			'Session context - Captures user ID, email, role, IP, user agent automatically',
+		]
+	},
 	{
 		version: '2.1.7',
 		date: 'February 17, 2026',

@@ -10,42 +10,19 @@
     import * as Popover from "$lib/components/ui/popover";
     import { type DateValue, DateFormatter, getLocalTimeZone, parseDate, CalendarDate, today } from "@internationalized/date";
     import { cn, getErrorMessage, getErrorTitle } from "$lib/utils";
-	import { ChevronLeft, Bell, Moon, Eye, Lock, Database, Palette, Type, Save, QrCode, Globe, Wrench, CalendarClock, Trash2, RefreshCw, Construction, Calendar as CalendarIcon, Clock } from "@lucide/svelte";
+	import { ChevronLeft, Bell, Eye, Lock, Database, Palette, Type, Save, QrCode, Globe } from "@lucide/svelte";
 	import { toast } from "svelte-sonner";
 	import { goto } from "$app/navigation";
 	import { mode } from "mode-watcher";
 	import { systemSettings, loadSettings } from "$lib/stores/settings";
-    import { devTools } from "$lib/stores/dev";
 	import { supabase } from "$lib/supabase";
 	import ColorPicker from 'svelte-awesome-color-picker';
     import { fly } from 'svelte/transition';
 
     let userRole = $state<string | null>(null);
-    let mockDateStr = $state("");
-    let mockTimeStr = $state("");
     
     // Check if user is a guest
     const isGuest = $derived(userRole === 'guest');
-    
-    // Date Picker State
-    let mockDateValue = $state<DateValue | undefined>();
-    const df = new DateFormatter("en-US", {
-        dateStyle: "medium"
-    });
-
-    // Sync from store
-    $effect(() => {
-        if ($devTools.isMockTimeActive && $devTools.mockTime) {
-            const d = $devTools.mockTime;
-            // Format YYYY-MM-DD and HH:MM
-            const isoDate = d.toISOString().split('T')[0];
-            mockDateStr = isoDate;
-            mockTimeStr = d.toTimeString().slice(0, 5);
-             try {
-                mockDateValue = parseDate(isoDate);
-            } catch (e) { }
-        }
-    });
 
 	// Settings state
 	let settings = $state({
@@ -404,32 +381,7 @@
 		}
 	}
 
-    // Dev Tools Handlers
-    function applyMockTime() {
-        // use bound values if direct inputs, or sync from Date Picker
-        if (mockDateValue) {
-            mockDateStr = mockDateValue.toString();
-        }
-
-        if (!mockDateStr && !mockTimeStr) {
-            devTools.clearMockTime();
-            toast.success("Mock time cleared. Using real time.");
-            return;
-        }
-        
-        // combine
-        const datePart = mockDateStr || new Date().toISOString().split('T')[0];
-        const timePart = mockTimeStr || "00:00";
-        const combined = new Date(`${datePart}T${timePart}`);
-        
-        if (isNaN(combined.getTime())) {
-            toast.error("Invalid date/time format");
-            return;
-        }
-        
-        devTools.setMockTime(combined);
-        toast.success(`Mock time set to ${combined.toLocaleString()}`);
-    }
+    // Dev Tools - Moved to /settings/dev
 
     async function runDevTool(tool: 'fix_past' | 'process_all' | 'clear_history') {
         if (!confirm("Are you sure? This is a developer action.")) return;
@@ -578,101 +530,7 @@
 			</Card>
 		</div>
 
-        <!-- Developer Section (Hidden for normal users) -->
-        {#if userRole === 'developer'}
-        <Card class="lg:col-span-2 border-orange-500/30 bg-orange-500/5">
-            <CardHeader class="pb-3 border-b border-orange-500/10 mb-4">
-                <div class="flex items-center gap-2">
-                    <Construction class="h-5 w-5 text-orange-600 dark:text-orange-400 shrink-0" />
-                    <CardTitle class="text-base sm:text-lg text-orange-700 dark:text-orange-300">Developer Tools</CardTitle>
-                </div>
-            </CardHeader>
-            <CardContent class="space-y-6">
-                
-                <!-- Mock Time -->
-                <div class="space-y-3">
-                    <div class="flex items-center gap-2 text-sm font-bold text-foreground/80">
-                        <CalendarClock class="w-4 h-4" /> Mock Date & Time
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                        <div class="space-y-1 flex flex-col">
-                            <Label class="text-xs text-muted-foreground mb-1">Mock Date</Label>
-                            <Popover.Root>
-                                <Popover.Trigger>
-                                    {#snippet child({ props })}
-                                        <Button
-                                            variant="outline"
-                                            class={cn(
-                                                "w-full justify-start text-left font-normal",
-                                                !mockDateValue && "text-muted-foreground"
-                                            )}
-                                            {...props}
-                                        >
-                                            <CalendarIcon class="mr-2 h-4 w-4" />
-                                            {mockDateValue ? df.format(mockDateValue.toDate(getLocalTimeZone())) : "Pick a date"}
-                                        </Button>
-                                    {/snippet}
-                                </Popover.Trigger>
-                                <Popover.Content class="w-auto p-0" align="start">
-                                    <Calendar type="single" bind:value={mockDateValue} initialFocus />
-                                </Popover.Content>
-                            </Popover.Root>
-                        </div>
-                        <div class="space-y-1">
-                            <Label class="text-xs text-muted-foreground">Mock Time</Label>
-                            <div class="relative">
-                                <Input type="time" bind:value={mockTimeStr} class="bg-card pl-10" />
-                                <Clock class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-                            </div>
-                        </div>
-                        <div class="flex items-end gap-2">
-                            <Button size="sm" class="flex-1 bg-green-600 hover:bg-green-700 text-white" onclick={applyMockTime}>Apply</Button>
-                            <Button size="sm" variant="outline" onclick={() => { mockDateStr=""; mockDateValue=undefined; mockTimeStr=""; applyMockTime(); }}>Reset</Button>
-                        </div>
-                    </div>
-                    <p class="text-[11px] text-muted-foreground">If set, the app will simulate this time for client-side logic (e.g. scanner validation). Does not affect server time.</p>
-                </div>
-
-                <div class="h-px bg-orange-500/10 w-full"></div>
-
-                <!-- DB Tools -->
-                 <div class="space-y-3">
-                    <div class="flex items-center gap-2 text-sm font-bold text-foreground/80">
-                        <Wrench class="w-4 h-4" /> Database Testing Tools
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                        <Button 
-                            variant="default" 
-                            class="bg-orange-600 hover:bg-orange-700 text-white border-none h-auto py-3 flex flex-col gap-1 items-start"
-                            onclick={() => runDevTool('fix_past')}
-                        >
-                            <div class="flex items-center gap-2 font-bold"><Wrench class="w-4 h-4" /> Fix Past Events</div>
-                            <span class="text-[10px] opacity-80 font-normal text-left">Update past events to "completed" and process attendance.</span>
-                        </Button>
-
-                        <Button 
-                            variant="default" 
-                            class="bg-blue-600 hover:bg-blue-700 text-white border-none h-auto py-3 flex flex-col gap-1 items-start"
-                            onclick={() => runDevTool('process_all')}
-                        >
-                            <div class="flex items-center gap-2 font-bold"><RefreshCw class="w-4 h-4" /> Process All Events</div>
-                             <span class="text-[10px] opacity-80 font-normal text-left">Force re-process attendance for all completed events.</span>
-                        </Button>
-
-                        <Button 
-                            variant="default" 
-                            class="bg-red-600 hover:bg-red-700 text-white border-none h-auto py-3 flex flex-col gap-1 items-start"
-                            onclick={() => runDevTool('clear_history')}
-                        >
-                            <div class="flex items-center gap-2 font-bold"><Trash2 class="w-4 h-4" /> Clear History</div>
-                             <span class="text-[10px] opacity-80 font-normal text-left">Permanently delete all attendance history.</span>
-                        </Button>
-                    </div>
-                 </div>
-
-            </CardContent>
-        </Card>
-        {/if}
+        <!-- Developer Section (Removed - Now at /settings/dev) -->
 
 		<!-- Notifications Section -->
 		<Card class="lg:col-span-1">

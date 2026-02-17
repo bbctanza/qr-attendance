@@ -10,6 +10,8 @@
 	import { goto } from "$app/navigation";
 	import { toast } from "svelte-sonner";
 	import { supabase } from "$lib/supabase";
+	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
+	import { ensureAvatarDownloadParam } from "$lib/utils/avatarUrl";
 	import { onMount } from "svelte";
 	import FullPageLoading from "$lib/components/full-page-loading.svelte";
 	import { getUserSessions, deleteSession, deleteAllOtherSessions, formatLastActive, type UserSession } from "$lib/utils/sessions";
@@ -154,16 +156,9 @@
 					throw new Error('Upload returned no data');
 				}
 
-				// Get signed URL (valid for 1 hour)
-				const { data: urlData } = await supabase.storage
-					.from('user-profile')
-					.createSignedUrl(fileName, 3600);
-
-				if (!urlData?.signedUrl) {
-					throw new Error('Could not generate signed URL');
-				}
-
-				profile.avatar = urlData.signedUrl;
+				// Use public URL directly (user avatars are not sensitive)
+				// This avoids ORB issues and token expiration
+				profile.avatar = `${PUBLIC_SUPABASE_URL}/storage/v1/object/public/user-profile/${fileName}`;
 				
 				// Don't save immediately - let user click Save button
 				toast.success('Avatar uploaded. Click Save to confirm changes');
@@ -353,7 +348,7 @@
 				<div class="flex items-center gap-4">
 					<Avatar class="h-20 w-20">
 						{#if profile.avatar}
-							<AvatarImage src={profile.avatar} alt={profile.name} />
+							<AvatarImage src={ensureAvatarDownloadParam(profile.avatar)} alt={profile.name} />
 						{/if}
 						<AvatarFallback class="text-lg">{(profile.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
 					</Avatar>
@@ -553,7 +548,7 @@
 					<div class="flex items-center gap-6">
 						<Avatar class="h-24 w-24">
 							{#if profile.avatar}
-								<AvatarImage src={profile.avatar} alt={profile.name} />
+								<AvatarImage src={ensureAvatarDownloadParam(profile.avatar)} alt={profile.name} />
 							{/if}
 							<AvatarFallback class="text-xl">{(profile.name || "U").charAt(0).toUpperCase()}</AvatarFallback>
 						</Avatar>

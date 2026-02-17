@@ -111,6 +111,34 @@ export const eventsApi = {
 	},
 
 	/**
+	 * Delete an event
+	 */
+	async deleteEvent(eventId: number) {
+		const { error } = await supabase
+			.from('events')
+			.delete()
+			.eq('event_id', eventId);
+
+		if (error) throw error;
+		return true;
+	},
+
+	/**
+	 * Update an event
+	 */
+	async updateEvent(eventId: number, eventData: Partial<AttendanceEvent>) {
+		const { data, error } = await supabase
+			.from('events')
+			.update(eventData)
+			.eq('event_id', eventId)
+			.select()
+			.single();
+
+		if (error) throw error;
+		return data as AttendanceEvent;
+	},
+
+	/**
 	 * Trigger the database stored procedure to archive attendance.
 	 */
 	async processEventAttendance(eventId: number) {
