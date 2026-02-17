@@ -9,9 +9,35 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.1.6';
+export const CURRENT_VERSION = '2.1.7';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.1.7',
+		date: 'February 17, 2026',
+		title: 'XSS Security Hardening & Code Quality Improvements',
+		items: [
+			// Security - XSS Prevention
+			'Security utility library - Created centralized module for input sanitization and XSS prevention',
+			'HTML entity escaping - Prevents DOM-based XSS attacks via escapeHtml() function',
+			'Pattern-based filtering - Removes dangerous patterns (javascript:, on*, data:, vbscript:) via sanitizeText()',
+			'Whitelist-based ID validation - Only allows alphanumeric, hyphens, underscores via sanitizeId()',
+			'Error message sanitization - Prevents information disclosure via sanitizeErrorMessage()',
+			'Email format validation - Validates email before API submission via isValidEmail()',
+
+			// Security Integration
+			'QR code input sanitization - Applied to check-in page to prevent malicious QR code injection',
+			'RPC message sanitization - Validates server responses before display to prevent message injection',
+			'Error message hardening - Auth errors sanitized to prevent stack trace exposure',
+			'Length limiting - Enforces reasonable limits to prevent buffer overflow/DoS attacks',
+
+			// Code Quality
+			'Updated Tailwind CSS classes - Changed flex-shrink-0 to shrink-0 for consistency',
+			'TypeScript safety - Fixed type safety issues with proper Record<string, unknown> casting',
+			'Code cleanup - Removed unnecessary escape characters from regex patterns',
+			'Improved error handling - Better type checking for error objects'
+		]
+	},
 	{
 		version: '2.1.6',
 		date: 'February 8, 2026',

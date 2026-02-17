@@ -12,6 +12,7 @@
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { createSession, setCurrentSessionId } from '$lib/utils/sessions';
 	import { onMount } from 'svelte';
+	import { sanitizeErrorMessage, isValidEmail } from '$lib/utils/security';
 
 	// State
 	let email = $state('');
@@ -27,6 +28,12 @@
 		errorMessage = '';
 		if (!email || !password) {
 			errorMessage = 'Please enter both email and password.';
+			return;
+		}
+		
+		// Validate email format
+		if (!isValidEmail(email)) {
+			errorMessage = 'Please enter a valid email address.';
 			return;
 		}
 		
@@ -48,7 +55,8 @@
 			});
 
 			if (error) {
-				errorMessage = error.message;
+				// Sanitize error message to prevent information disclosure
+				errorMessage = sanitizeErrorMessage(error);
 			} else {
 				// Login successful - create session
 				const session = await createSession();
@@ -62,7 +70,8 @@
 				goto('/overview');
 			}
 		} catch (e) {
-			errorMessage = 'An unexpected error occurred.';
+			// Sanitize exception message
+			errorMessage = sanitizeErrorMessage(e);
 		} finally {
 			isLoading = false;
 		}

@@ -177,7 +177,7 @@
 								/>
 								<button
 									type="button"
-									on:click={togglePasswordVisibility}
+									onclick={togglePasswordVisibility}
 									class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
 									disabled={isLoading}
 								>
@@ -210,7 +210,7 @@
 								/>
 								<button
 									type="button"
-									on:click={toggleConfirmPasswordVisibility}
+									onclick={toggleConfirmPasswordVisibility}
 									class="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground transition-colors"
 									disabled={isLoading}
 								>

@@ -13,6 +13,7 @@
 	import { toast } from 'svelte-sonner';
 	import type { AttendanceEvent } from '$lib/types';
 	import { goto } from '$app/navigation';
+	import { sanitizeText, sanitizeErrorMessage, sanitizeId } from '$lib/utils/security';
 
 	const eventId = $page.params.eventId;
 	let event = $state<AttendanceEvent | null>(null);
@@ -162,7 +163,8 @@
 	function onScanSuccess(decodedText: string, decodedResult: any) {
 		playBeep(); // Play beep on successful scan
 		stopScanner();
-		memberId = decodedText;
+		// Sanitize scanned data to prevent injection attacks
+		memberId = sanitizeId(decodedText);
 		handleCheckIn();
 	}
 
@@ -174,9 +176,17 @@
 		statusMessage = '';
 
 		try {
+			// Sanitize memberId to prevent injection attacks
+			const sanitizedMemberId = sanitizeId(memberId);
+			if (!sanitizedMemberId) {
+				statusMessage = 'Invalid member ID format.';
+				checkInStatus = 'error';
+				return;
+			}
+
 			// Use RPC function for security (prevents searching members table directly)
 			const { data, error: rpcErr } = await supabase.rpc('self_check_in', {
-				p_member_id: memberId,
+				p_member_id: sanitizedMemberId,
 				p_event_id: event.event_id
 			});
 
@@ -190,19 +200,22 @@
 				playBeep(1000, 150); // Higher pitch beep for success
 				setTimeout(() => playBeep(1000, 150), 150); // Double beep
 				checkInStatus = 'success';
-				statusMessage = data.message;
+				// Sanitize the success message from RPC
+				statusMessage = sanitizeText(data.message, 200);
 				memberId = ''; // Reset input
 			} else {
 				playBeep(400, 300); // Lower pitch beep for error
 				checkInStatus = 'error';
-				statusMessage = data?.message || 'Check-in failed.';
+				// Sanitize the error message from RPC
+				statusMessage = sanitizeText(data?.message || 'Check-in failed.', 200);
 			}
 
 		} catch (err: any) {
 			console.error(err);
 			playBeep(400, 300); // Error beep
 			checkInStatus = 'error';
-			statusMessage = 'Unable to check in. Please ensure the system SQL update has been run.';
+			// Sanitize error message to prevent information disclosure
+			statusMessage = sanitizeErrorMessage(err);
 		} finally {
 			checkingIn = false;
 		}
@@ -347,7 +360,7 @@
 			</Dialog.Header>
 			<div class="space-y-4">
 				<div class="flex gap-3">
-					<div class="flex-shrink-0 flex items-start">
+					<div class="shrink-0 flex items-start">
 						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
 							1
 						</div>
@@ -361,7 +374,7 @@
 				</div>
 
 				<div class="flex gap-3">
-					<div class="flex-shrink-0 flex items-start">
+					<div class="shrink-0 flex items-start">
 						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
 							2
 						</div>
@@ -375,7 +388,7 @@
 				</div>
 
 				<div class="flex gap-3">
-					<div class="flex-shrink-0 flex items-start">
+					<div class="shrink-0 flex items-start">
 						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
 							3
 						</div>
@@ -389,7 +402,7 @@
 				</div>
 
 				<div class="flex gap-3">
-					<div class="flex-shrink-0 flex items-start">
+					<div class="shrink-0 flex items-start">
 						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
 							4
 						</div>
