@@ -4,7 +4,7 @@
  */
 
 import { supabase } from '$lib/supabase';
-import { logAuditChange, getSnapshotAtVersion, type EntityType } from '$lib/utils/auditLogger';
+import { logAuditChange, type EntityType } from '$lib/utils/auditLogger';
 import { fail } from '@sveltejs/kit';
 import type { RequestEvent } from '@sveltejs/kit';
 
