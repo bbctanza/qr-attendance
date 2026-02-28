@@ -203,7 +203,8 @@
 				date: '',
 				startTime: raw.start_time.slice(0, 5),
 				endTime: raw.end_time.slice(0, 5),
-				location: raw.metadata?.location || ''
+				location: raw.metadata?.location || '',
+				record_absents: raw.metadata?.record_absents !== false
 			};
 		} else {
 			newEvent = {
@@ -216,7 +217,8 @@
 				date: e.event_date || '',
 				startTime: e.start_time || '',
 				endTime: e.end_time || '',
-				location: e.location || ''
+				location: e.location || '',
+				record_absents: e.metadata?.record_absents !== false
 			};
 		}
 
@@ -332,7 +334,8 @@
 		date: '', // for one-time/custom
 		startTime: '',
 		endTime: '',
-		location: ''
+		location: '',
+		record_absents: true // Toggle for recording absents
 	});
 
 	// Auto-update schedule when type changes
@@ -357,7 +360,8 @@
 			date: '',
 			startTime: '',
 			endTime: '',
-			location: ''
+			location: '',
+			record_absents: true
 		};
 		showAddEventDialog = true;
 	}
@@ -408,7 +412,8 @@
 				ui_schedule_type: newEvent.schedule,
 				days: newEvent.days,
 				monthlyOrdinal: newEvent.monthlyOrdinal,
-				monthlyWeekday: newEvent.monthlyWeekday
+				monthlyWeekday: newEvent.monthlyWeekday,
+				record_absents: newEvent.record_absents
 			};
 
 			if (newEvent.type === 'recurring' && newEvent.schedule === 'weekly') {
@@ -754,6 +759,15 @@
 									class="mt-2 w-full rounded-xl border-input py-3"
 								/>
 							</div>
+
+							<!-- Record Absents Toggle -->
+							<div class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
+								<div>
+									<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
+									<p class="mt-1 text-xs text-muted-foreground">When OFF, only present attendees are recorded</p>
+								</div>
+								<Switch bind:checked={newEvent.record_absents} />
+							</div>
 						</div>
 					</div>
 
@@ -980,6 +994,15 @@
 									placeholder="e.g. Main Sanctuary"
 									class="mt-2 w-full rounded-xl border-input py-3"
 								/>
+							</div>
+
+							<!-- Record Absents Toggle -->
+							<div class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
+								<div>
+									<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
+									<p class="mt-1 text-xs text-muted-foreground">When OFF, only present attendees are recorded</p>
+								</div>
+								<Switch bind:checked={newEvent.record_absents} />
 							</div>
 						</div>
 					</div>

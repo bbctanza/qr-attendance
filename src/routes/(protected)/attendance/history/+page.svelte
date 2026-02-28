@@ -21,6 +21,7 @@
 		event_date: string;
 		start_datetime: string;
 		end_datetime: string;
+		record_absents?: boolean;
 		attendees?: { member_id: string; first_name: string; last_name: string; time?: string; care_group?: string }[];
 		absent?: { member_id: string; first_name: string; last_name: string; care_group?: string }[];
 	};
@@ -61,9 +62,15 @@
 		})
 	);
 
-	// Attendance calculations
+	// Attendance calculations - Only include events that record absents
 	let totalAttendees = $derived(filteredEvents.reduce((s, e) => s + (e.attendees ? e.attendees.length : 0), 0));
-	let totalExpected = $derived(filteredEvents.reduce((s, e) => s + ((e.attendees?.length || 0) + (e.absent?.length || 0)), 0));
+	let totalExpected = $derived(filteredEvents.reduce((s, e) => {
+		// Only count expected attendance for events that record absents
+		if (e.record_absents !== false) {
+			return s + ((e.attendees?.length || 0) + (e.absent?.length || 0));
+		}
+		return s; // For events without absent records, don't count them in overall stats
+	}, 0));
 	
 	let averageSize = $derived(filteredEvents.length ? Math.round(totalAttendees / filteredEvents.length) : 0);
 	let attendanceRate = $derived(totalExpected > 0 ? Math.round((totalAttendees / totalExpected) * 100) : 0);
@@ -94,7 +101,7 @@
 	});
 
 	async function fetchHistory() {
-		// 1. Fetch completed events
+		// 1. Fetch completed events - Include all for display, but mark which ones to exclude from stats
 		const { data: completedEvents, error } = await supabase
 			.from('events')
 			.select('*')
@@ -148,6 +155,7 @@
 				event_date: ev.event_date,
 				start_datetime: ev.start_datetime,
 				end_datetime: ev.end_datetime,
+				record_absents: (ev.metadata as any)?.record_absents !== false,
 				attendees,
 				absent
 			};

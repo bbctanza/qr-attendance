@@ -9,9 +9,38 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.2.1';
+export const CURRENT_VERSION = '2.3.0';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.3.0',
+		date: 'February 28, 2026',
+		title: 'Record Absents Toggle and Event Deduplication Fixes',
+		items: [
+			// Record Absents Toggle Feature
+			'Event-level record absents toggle - Control whether absent records are created per event',
+			'Flexible attendance tracking - Turn OFF to only record present attendees (skip absents)',
+			'Database-level enforcement - Toggle checked in process_event_attendance() function',
+			'Analytics exclusion - Events with toggle OFF excluded from attendance rate calculations',
+			'Metadata storage - Toggle stored in event metadata for persistence across edits',
+			'Backward compatible - Defaults to ON for all existing events (no data loss)',
+
+			// Event Duplication Fix
+			'Fixed triplicating events - Race condition in automation engine fixed',
+			'Per-template duplicate check - Database queried fresh before each template creation',
+			'Multi-staff fix - Automation now singleton instance (not per-user session)',
+			'Reduced database queries - Concurrent runs no longer create duplicate events',
+
+			// Staff Permissions
+			'Hidden audit logs from staff - Audit logs only visible to admins and developers',
+			'Protected audit route - Direct access attempt redirects staff to analytics',
+			'Role-based access control - Settings button hidden for non-admin users',
+
+			// Bug Fixes
+			'Fixed event edit loading - record_absents now loaded when editing existing events',
+			'Fixed getSnapshotAtVersion error - Removed non-existent import from restore page',
+		]
+	},
 	{
 		version: '2.2.1',
 		date: 'February 18, 2026',

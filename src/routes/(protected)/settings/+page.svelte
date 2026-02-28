@@ -124,6 +124,7 @@
                     </div>
                     <ChevronRight class="text-muted-foreground shrink-0" />
                 </button>
+                {#if user.role === 'Admin' || user.role === 'Developer'}
                 <button class="w-full flex items-center gap-4 py-3 px-4 sm:px-6 rounded-2xl bg-card/20 border border-border/20 hover:border-border/40 hover:bg-card/30 transition-all" onclick={() => open('/analytics/audit-logs')}> 
                     <div class="p-3 rounded-md bg-primary/10 text-primary shrink-0"><ShieldAlert class="h-5 w-5" /></div>
                     <div class="flex-1 text-left min-w-0">
@@ -132,6 +133,7 @@
                     </div>
                     <ChevronRight class="text-muted-foreground shrink-0" />
                 </button>
+                {/if}
             </div>
         </div>
 

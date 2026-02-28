@@ -120,11 +120,12 @@
                 absent: total - present
             };
 
-            // 4. Recent Events (completed events)
+            // 4. Recent Events (completed events) - Exclude events where record_absents is false
             const { data: historyEvents } = await supabase
                 .from('events')
                 .select('*')
                 .eq('status', 'completed')
+                .filter('metadata->>record_absents', 'is', 'true')  // Only include events that record absents
                 .neq('event_id', currentEventData?.event_id || -1)
                 .order('end_datetime', { ascending: false })
                 .limit(4);
