@@ -7,7 +7,7 @@
     import { onboardingState } from '$lib/stores/onboarding';
     import OnboardingModal from '$lib/components/onboarding-modal.svelte';
     import ChangelogModal from '$lib/components/changelog-modal.svelte';
-    import { AutomationEngine } from '$lib/logic/automation';
+    import { automation } from '$lib/logic/automation';
     import { changelogStore } from '$lib/stores/changelog';
     import { CURRENT_VERSION, changelog } from '$lib/config/changelog';
 
@@ -24,16 +24,15 @@
             isChangelogOpen = true;
         }
 
-        // Start automation engine
-        const engine = new AutomationEngine();
-        engine.start();
+        // Start automation engine (singleton - shared across all user sessions)
+        automation.start();
 
         // Set up a listener for auth changes synchronously to ensure we catch everything
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             if (event === 'SIGNED_OUT') {
                 devTools.clearMockTime();
                 onboardingState.set({ isOpen: false, userEmail: '', userId: '' });
-                engine.stop();
+                // Don't stop the automation engine - it's shared across sessions
                 goto('/');
             }
         });
@@ -72,7 +71,7 @@
         return () => {
             mounted = false;
             subscription.unsubscribe();
-            engine.stop();
+            // Don't stop the automation engine - it's shared across all sessions
         };
     });
 </script>

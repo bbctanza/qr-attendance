@@ -101,11 +101,10 @@ export class AutomationEngine {
 				const eventTypes = await eventsApi.getEventTypesForDay(dayOfWeek);
 				if (!eventTypes || eventTypes.length === 0) continue;
 
-				// 2. Get existing events for this specific date
-				const existingEvents = await eventsApi.getEventsByDate(localDateStr);
-				
-				// 3. Process each template
+				// 2. Process each template (get fresh events for each to prevent race conditions)
 				for (const type of eventTypes) {
+					// Re-fetch before each creation to prevent duplicates from concurrent runs
+					const existingEvents = await eventsApi.getEventsByDate(localDateStr);
 					const alreadyExists = existingEvents.some(e => e.event_type_id === type.event_type_id);
 					
 					if (!alreadyExists) {
