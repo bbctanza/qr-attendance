@@ -464,6 +464,14 @@
 							.eq('event_type_id', existing[0].event_type_id);
 
 						if (error) throw error;
+
+						// Propagate record_absents to all upcoming/ongoing events from this template
+						await supabase
+							.from('events')
+							.update({ metadata: { ...metadata } })
+							.eq('event_type_id', existing[0].event_type_id)
+							.in('status', ['upcoming', 'ongoing']);
+
 						skippedCount++;
 						continue;
 					}
@@ -484,6 +492,15 @@
 							.from('event_types')
 							.update(typePayload)
 							.eq('event_type_id', editingId.split('-')[1]));
+
+						if (!error) {
+							// Propagate to existing upcoming events from this template
+							await supabase
+								.from('events')
+								.update({ metadata: { ...metadata } })
+								.eq('event_type_id', editingId.split('-')[1])
+								.in('status', ['upcoming', 'ongoing']);
+						}
 					} else {
 						({ error } = await supabase.from('event_types').insert([typePayload]));
 					}
