@@ -388,63 +388,28 @@
 		const toastId = toast.loading('Checking in...');
 
 		try {
-			// 1. Verify Member exists & Get Name
-			const { data: member, error: memberError } = await supabase
-				.from('members')
-				.select('first_name, last_name, group_id')
-				.eq('member_id', id)
-				.single();
-
-			if (memberError || !member) {
-				const msg = getErrorMessage(memberError || { message: 'Member not found' });
-				toast.error(`Member not found: ${msg}`, { id: toastId });
-				return;
-			}
-
-			const fullName = `${member.first_name} ${member.last_name}`;
-
-			// 1.5 Check if already checked in
-			const { data: existingScan } = await supabase
-				.from('attendance_scans')
-				.select('scan_id')
-				.eq('member_id', id)
-				.eq('event_id', activeEvent.event_id)
-				.maybeSingle();
-
-			const { data: existingPresent } = await supabase
-				.from('attendance_present')
-				.select('present_id')
-				.eq('member_id', id)
-				.eq('event_id', activeEvent.event_id)
-				.maybeSingle();
-
-			if (existingScan || existingPresent) {
-				errorModalData = {
-					memberName: fullName,
-					memberId: id
-				};
-				showAlreadyCheckedInModal = true;
-				toast.dismiss(toastId);
-				return;
-			}
-
-			// Get group name
-			let groupName = 'N/A';
-			if (member.group_id) {
-				const { data: group } = await supabase
-					.from('groups')
-					.select('name')
-					.eq('group_id', member.group_id)
-					.single();
-				groupName = group?.name || 'N/A';
-			}
-
-			// 2. Perform Scan
+			// Perform atomic Scan using server RPC
 			const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
-			await attendanceApi.scanMember(id, activeEvent.event_id, mockTime);
+			const result = await attendanceApi.scanMember(id, activeEvent.event_id, mockTime);
 
-			// 3. Success UI - Show modal instead of toast
+			if (!result.success) {
+				if (result.message.includes('Already')) {
+					errorModalData = {
+						memberName: result.member_name || 'Member',
+						memberId: id
+					};
+					showAlreadyCheckedInModal = true;
+					toast.dismiss(toastId);
+				} else {
+					toast.error(result.message, { id: toastId });
+				}
+				return;
+			}
+
+			// Success UI - Show modal instead of toast
 			const time = await formatLocalTime((mockTime || new Date()).toISOString());
+			const fullName = result.member_name || 'Member';
+			const groupName = result.care_group || 'N/A';
 
 			successModalData = {
 				memberName: fullName,
@@ -549,20 +514,9 @@
 
 		// Deduplicate against server (Already Checked In)
 		if (activeEvent) {
-			const { data: existingScan } = await supabase
-				.from('attendance_scans')
-				.select('scan_id')
-				.eq('member_id', id)
-				.eq('event_id', activeEvent.event_id)
-				.maybeSingle();
-			const { data: existingPresent } = await supabase
-				.from('attendance_present')
-				.select('present_id')
-				.eq('member_id', id)
-				.eq('event_id', activeEvent.event_id)
-				.maybeSingle();
+			const isDuplicate = await attendanceApi.isAlreadyScanned(id, activeEvent.event_id);
 
-			if (existingScan || existingPresent) {
+			if (isDuplicate) {
 				toast.error(`${name || id} is already checked in.`);
 				return;
 			}

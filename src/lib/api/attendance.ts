@@ -52,55 +52,42 @@ export const attendanceApi = {
 	},
 
 	/**
-	 * Scan a member into an event.
-	 * 1. Checks if already scanned in `attendance_scans`
-	 * 2. Checks if already present in `attendance_present` (history)
-	 * 3. Inserts into `attendance_scans`
+	 * Scan a member into an event using optimized atomic transaction.
 	 */
 	async scanMember(memberId: string, eventId: number, scanTime?: Date | null) {
-		// 1. Check if already in temporary scans
-		const { data: existingScan, error: scanCheckError } = await supabase
-			.from('attendance_scans')
-			.select('scan_id')
-			.eq('member_id', memberId)
-			.eq('event_id', eventId)
-			.maybeSingle();
-
-		if (scanCheckError) throw scanCheckError;
-
-		if (existingScan) {
-			return { success: false, message: 'Already scanned (pending processing).' };
-		}
-
-		// 2. Check if already permanently recorded (e.g. if they left and came back later after a sync)
-		const { data: existingPresent, error: presentCheckError } = await supabase
-			.from('attendance_present')
-			.select('present_id')
-			.eq('member_id', memberId)
-			.eq('event_id', eventId)
-			.maybeSingle();
-
-		if (presentCheckError) throw presentCheckError;
-
-		if (existingPresent) {
-			return { success: false, message: 'Already marked as present.' };
-		}
-
-		// 3. Insert scan
-		// We use crypto.randomUUID() which is standard in most modern environments
-		const scanId = crypto.randomUUID();
 		const timestamp = scanTime ? scanTime.toISOString() : new Date().toISOString();
 
-		const { error: insertError } = await supabase.from('attendance_scans').insert({
-			scan_id: scanId,
-			member_id: memberId,
-			event_id: eventId,
-			scan_datetime: timestamp
+		// Convert UTC ISO to naive timestamp string for PostgreSQL to ingest properly
+		const naïveTimestamp = timestamp.replace('T', ' ').replace('Z', '');
+		
+		const { data, error } = await supabase.rpc('scan_member_transaction', {
+			p_member_id: memberId,
+			p_event_id: eventId,
+			p_scan_time: naïveTimestamp
 		});
 
-		if (insertError) throw insertError;
+		if (error) throw error;
+		
+return data as { 
+			success: boolean; 
+			message: string; 
+			member_name?: string;
+			care_group?: string;
+			member_id?: string;
+		};
+	},
 
-		return { success: true, message: 'Scan successful!' };
+	/**
+	 * Check if a member is already checked into an event (fast boolean check)
+	 */
+	async isAlreadyScanned(memberId: string, eventId: number) {
+		const { data, error } = await supabase.rpc('check_already_scanned', {
+			p_member_id: memberId,
+			p_event_id: eventId
+		});
+
+		if (error) throw error;
+		return data as boolean;
 	},
 
 	/**
