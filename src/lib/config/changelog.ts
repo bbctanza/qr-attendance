@@ -15,11 +15,12 @@ export const changelog: ChangelogEntry[] = [
 	{
 		version: '2.3.1',
 		date: 'March 29, 2026',
-		title: 'Dashboard Metrics & Audit Logs Access Fixes',
+		title: 'Scanning Speed & System Reliability Improvements',
 		items: [
-			'Fixed Overview dashboard loading error - Corrected a background issue where recent events failed to display properly.',
-			'Restored Audit Logs access - Fixed a technical issue that was incorrectly blocking Administrators from viewing system logs.',
-			'Fixed recurring event duplication - Editing recurring events now properly updates them instead of creating duplicate copies.'
+			'Lightning-Fast QR Scanning - Dramatically improved QR code scanning speed so attendance registers instantly.',
+			'Reliable Event Editing - Editing recurring events now correctly updates them instead of accidentally creating duplicate copies.',
+			'Audit Logs Access Restored - Fixed an issue that was preventing authorized staff from viewing the system audit logs.',
+			'System Stability - Resolved a background data-fetching error that caused unexpected behavior across the system.'
 		]
 	},
 	{
