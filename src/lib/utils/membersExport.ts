@@ -16,19 +16,20 @@ export interface MemberExportRecord {
 	created_at?: string;
 }
 
-
 function formatDate(dateStr?: string) {
 	if (!dateStr) return '-';
 	try {
 		const d = new Date(dateStr);
 		return d.toLocaleDateString();
-	} catch { return dateStr; }
+	} catch {
+		return dateStr;
+	}
 }
 
 export function exportMembersToCSV(records: MemberExportRecord[]) {
 	try {
 		let csv = 'ID,First Name,Last Name,Group,Email,Status,Created At\n';
-		records.forEach(r => {
+		records.forEach((r) => {
 			const id = r.member_id || '-';
 			const fn = `"${r.first_name}"`;
 			const ln = `"${r.last_name}"`;
@@ -43,7 +44,7 @@ export function exportMembersToCSV(records: MemberExportRecord[]) {
 		const url = window.URL.createObjectURL(blob);
 		const a = document.createElement('a');
 		a.href = url;
-		a.download = `members-${new Date().toISOString().slice(0,10)}.csv`;
+		a.download = `members-${new Date().toISOString().slice(0, 10)}.csv`;
 		a.style.display = 'none';
 		document.body.appendChild(a);
 		a.click();
@@ -69,7 +70,12 @@ export async function exportMembersToPDF(records: MemberExportRecord[]) {
 		doc.setFontSize(18);
 		doc.text('Members Export', doc.internal.pageSize.getWidth() / 2, 20, { align: 'center' });
 		doc.setFontSize(10);
-		doc.text(`Generated: ${new Date().toLocaleString()}`, doc.internal.pageSize.getWidth() / 2, 28, { align: 'center' });
+		doc.text(
+			`Generated: ${new Date().toLocaleString()}`,
+			doc.internal.pageSize.getWidth() / 2,
+			28,
+			{ align: 'center' }
+		);
 
 		const headers = [['No.', 'ID', 'Name', 'Group', 'Email', 'Status', 'Created']];
 		const body = records.map((r, i) => [
@@ -87,10 +93,10 @@ export async function exportMembersToPDF(records: MemberExportRecord[]) {
 			head: headers,
 			body,
 			theme: 'grid',
-			headStyles: { fillColor: [45,136,0], textColor: [255,255,255] }
+			headStyles: { fillColor: [45, 136, 0], textColor: [255, 255, 255] }
 		});
 
-		doc.save(`members-${new Date().toISOString().slice(0,10)}.pdf`);
+		doc.save(`members-${new Date().toISOString().slice(0, 10)}.pdf`);
 		alert(`Saved PDF with ${records.length} members`);
 	} catch (err) {
 		console.error('Error exporting members PDF', err);
@@ -110,8 +116,10 @@ export async function exportMembersQRPDF(records: MemberExportRecord[], siteName
 			if (i > 0) doc.addPage();
 
 			doc.setFontSize(20);
-			doc.setTextColor(45,136,0);
-			doc.text(siteName || 'Organization', doc.internal.pageSize.getWidth() / 2, 40, { align: 'center' });
+			doc.setTextColor(45, 136, 0);
+			doc.text(siteName || 'Organization', doc.internal.pageSize.getWidth() / 2, 40, {
+				align: 'center'
+			});
 
 			// Generate QR Data URL
 			const qrData = await qrcode.toDataURL(r.member_id || '');
@@ -119,15 +127,19 @@ export async function exportMembersQRPDF(records: MemberExportRecord[], siteName
 			doc.addImage(qrData, 'PNG', x, 70, 210, 210);
 
 			doc.setFontSize(16);
-			doc.setTextColor(0,0,0);
-			doc.text(`${r.first_name} ${r.last_name}`, doc.internal.pageSize.getWidth() / 2, 300, { align: 'center' });
+			doc.setTextColor(0, 0, 0);
+			doc.text(`${r.first_name} ${r.last_name}`, doc.internal.pageSize.getWidth() / 2, 300, {
+				align: 'center'
+			});
 			doc.setFontSize(12);
 			doc.text(`${r.member_id}`, doc.internal.pageSize.getWidth() / 2, 320, { align: 'center' });
 			doc.setFontSize(10);
-			doc.text(`Group: ${r.group || '-'}`, doc.internal.pageSize.getWidth() / 2, 340, { align: 'center' });
+			doc.text(`Group: ${r.group || '-'}`, doc.internal.pageSize.getWidth() / 2, 340, {
+				align: 'center'
+			});
 		}
 
-		doc.save(`members-qr-${new Date().toISOString().slice(0,10)}.pdf`);
+		doc.save(`members-qr-${new Date().toISOString().slice(0, 10)}.pdf`);
 		alert(`Saved QR PDF with ${records.length} members`);
 	} catch (err) {
 		console.error('Error exporting QR PDF', err);
@@ -136,7 +148,15 @@ export async function exportMembersQRPDF(records: MemberExportRecord[], siteName
 }
 
 // Export QR+Details as PNG files compressed into a ZIP
-export async function exportMembersQRZip(records: MemberExportRecord[], options?: { siteName?: string; subheader?: string; qrCardColor?: string; qrBackgroundImage?: string }) {
+export async function exportMembersQRZip(
+	records: MemberExportRecord[],
+	options?: {
+		siteName?: string;
+		subheader?: string;
+		qrCardColor?: string;
+		qrBackgroundImage?: string;
+	}
+) {
 	try {
 		// Lazy-load libraries
 		/* eslint-disable @typescript-eslint/no-explicit-any */
@@ -146,9 +166,9 @@ export async function exportMembersQRZip(records: MemberExportRecord[], options?
 		/* eslint-enable @typescript-eslint/no-explicit-any */
 
 		/* eslint-disable @typescript-eslint/no-explicit-any */
-		const zip: any = new (JSZip as unknown as { new(): unknown })();
+		const zip: any = new (JSZip as unknown as { new (): unknown })();
 		/* eslint-enable @typescript-eslint/no-explicit-any */
-		const folderName = `members-qr-${new Date().toISOString().slice(0,10)}`;
+		const folderName = `members-qr-${new Date().toISOString().slice(0, 10)}`;
 		const folder = zip.folder(folderName) || zip;
 
 		function sanitizeFileName(s: string) {
@@ -180,8 +200,8 @@ export async function exportMembersQRZip(records: MemberExportRecord[], options?
 						bgImg.onerror = reject;
 					});
 					const scale = Math.max(canvas.width / bgImg.width, canvas.height / bgImg.height);
-					const x = (canvas.width / 2) - (bgImg.width / 2) * scale;
-					const y = (canvas.height / 2) - (bgImg.height / 2) * scale;
+					const x = canvas.width / 2 - (bgImg.width / 2) * scale;
+					const y = canvas.height / 2 - (bgImg.height / 2) * scale;
 					ctx.drawImage(bgImg, x, y, bgImg.width * scale, bgImg.height * scale);
 				} catch {
 					// fallback gradient
@@ -218,10 +238,16 @@ export async function exportMembersQRZip(records: MemberExportRecord[], options?
 			const qrSize = 520; // final draw size for QR
 
 			// Generate QR at higher resolution to keep it sharp when drawn
-			const qrDataUrl = await qrcode.toDataURL(r.member_id || '', { errorCorrectionLevel: 'H', margin: 0, width: qrSize * 2 });
+			const qrDataUrl = await qrcode.toDataURL(r.member_id || '', {
+				errorCorrectionLevel: 'H',
+				margin: 0,
+				width: qrSize * 2
+			});
 			const qrImg = new Image();
 			qrImg.src = qrDataUrl;
-			await new Promise((resolve) => { qrImg.onload = resolve; });
+			await new Promise((resolve) => {
+				qrImg.onload = resolve;
+			});
 
 			// rounded rect background
 			ctx.save();
@@ -229,8 +255,20 @@ export async function exportMembersQRZip(records: MemberExportRecord[], options?
 			// rounded rect helper
 			const rR = containerRadius;
 			ctx.moveTo(containerX + rR, containerY);
-			ctx.arcTo(containerX + containerSize, containerY, containerX + containerSize, containerY + containerSize, rR);
-			ctx.arcTo(containerX + containerSize, containerY + containerSize, containerX, containerY + containerSize, rR);
+			ctx.arcTo(
+				containerX + containerSize,
+				containerY,
+				containerX + containerSize,
+				containerY + containerSize,
+				rR
+			);
+			ctx.arcTo(
+				containerX + containerSize,
+				containerY + containerSize,
+				containerX,
+				containerY + containerSize,
+				rR
+			);
 			ctx.arcTo(containerX, containerY + containerSize, containerX, containerY, rR);
 			ctx.arcTo(containerX, containerY, containerX + containerSize, containerY, rR);
 			ctx.closePath();
@@ -254,7 +292,9 @@ export async function exportMembersQRZip(records: MemberExportRecord[], options?
 			ctx.fillStyle = headerColor;
 
 			// Draw name (fit to width, allow two lines if necessary)
-			const rawName = `${(r.first_name || '').trim()} ${(r.last_name || '').trim()}`.trim().toUpperCase();
+			const rawName = `${(r.first_name || '').trim()} ${(r.last_name || '').trim()}`
+				.trim()
+				.toUpperCase();
 			let nameFontSize = 72;
 			ctx.font = `bold ${nameFontSize}px Inter, sans-serif`;
 			const maxTextWidth = canvas.width - 160; // side padding
@@ -284,9 +324,13 @@ export async function exportMembersQRZip(records: MemberExportRecord[], options?
 			ctx.fillText(`${r.member_id}`, canvas.width / 2, containerY + containerSize + 165);
 
 			// Convert to blob
-			const blob: Blob = await new Promise((resolve) => canvas.toBlob((b) => resolve(b as Blob), 'image/png'));
+			const blob: Blob = await new Promise((resolve) =>
+				canvas.toBlob((b) => resolve(b as Blob), 'image/png')
+			);
 
-			const filename = sanitizeFileName(`${r.first_name}_${r.group || 'unassigned'}_${r.member_id}.png`);
+			const filename = sanitizeFileName(
+				`${r.first_name}_${r.group || 'unassigned'}_${r.member_id}.png`
+			);
 			folder.file(filename, blob);
 
 			manifest += `${filename},${r.member_id},${r.first_name},${r.last_name},${r.group || ''}\n`;

@@ -13,12 +13,21 @@ export class AutomationEngine {
 	 * Starts all automation jobs with their respective intervals.
 	 */
 	start() {
+		// Prevent multiple starts
+		if (this.creationIntervalId || this.statusIntervalId || this.archivalIntervalId) {
+			console.log('🔄 Automation Engine Already Running');
+			return;
+		}
+
 		console.log('🔄 Automation Engine Started');
 
 		// Job 1: Event Creation (every 10 minutes)
-		this.creationIntervalId = setInterval(() => {
-			this.runEventCreationJob();
-		}, 10 * 60 * 1000);
+		this.creationIntervalId = setInterval(
+			() => {
+				this.runEventCreationJob();
+			},
+			10 * 60 * 1000
+		);
 
 		// Job 2: Status Updates (every 30 seconds)
 		this.statusIntervalId = setInterval(() => {
@@ -105,10 +114,12 @@ export class AutomationEngine {
 				for (const type of eventTypes) {
 					// Re-fetch before each creation to prevent duplicates from concurrent runs
 					const existingEvents = await eventsApi.getEventsByDate(localDateStr);
-					const alreadyExists = existingEvents.some(e => e.event_type_id === type.event_type_id);
-					
+					const alreadyExists = existingEvents.some((e) => e.event_type_id === type.event_type_id);
+
 					if (!alreadyExists) {
-						console.log(`[Job] Creation: Creating event for ${localDateStr} from template "${type.name}"`);
+						console.log(
+							`[Job] Creation: Creating event for ${localDateStr} from template "${type.name}"`
+						);
 						await this.createEventFromTemplate(type, localDateStr, userTimezone);
 					}
 				}
@@ -128,7 +139,7 @@ export class AutomationEngine {
 			event_name: type.name,
 			event_date: dateStr,
 			start_datetime: startDt, // Now correctly converted to UTC string
-			end_datetime: endDt,     // Now correctly converted to UTC string
+			end_datetime: endDt, // Now correctly converted to UTC string
 			status: 'upcoming',
 			is_custom: false,
 			is_recurring: true, // Mark as recurring
@@ -145,7 +156,7 @@ export class AutomationEngine {
 	async runStatusUpdateJob() {
 		try {
 			let now = new Date();
-			
+
 			// Check for mock time in localStorage to support Developer Tools
 			let isMock = false;
 			if (typeof window !== 'undefined') {
@@ -173,7 +184,11 @@ export class AutomationEngine {
 			}
 
 			if (isMock || activeEvents.length > 0) {
-				console.log(`[Job] Status: Checking ${activeEvents.length} active events. Time:`, now.toISOString(), isMock ? '(MOCK)' : '(REAL)');
+				console.log(
+					`[Job] Status: Checking ${activeEvents.length} active events. Time:`,
+					now.toISOString(),
+					isMock ? '(MOCK)' : '(REAL)'
+				);
 			}
 
 			for (const event of activeEvents) {
@@ -186,7 +201,9 @@ export class AutomationEngine {
 				const endLocal = this.formatTimeInTimezone(end, userTimezone);
 				const nowLocal = this.formatTimeInTimezone(now, userTimezone);
 
-				console.log(`[Job] Status: Event "${event.event_name}" (${event.event_id}) - Start: ${start.toISOString()} vs Now: ${now.toISOString()}`);
+				console.log(
+					`[Job] Status: Event "${event.event_name}" (${event.event_id}) - Start: ${start.toISOString()} vs Now: ${now.toISOString()}`
+				);
 
 				// Upcoming -> Ongoing (compare in UTC)
 				if (event.status === 'upcoming' && now >= start && now < end) {
@@ -201,7 +218,9 @@ export class AutomationEngine {
 				// Special Case: Upcoming -> Completed (Skipped event / missed window)
 				// If the event hasn't started yet but we are already past the end time.
 				else if (event.status === 'upcoming' && now >= end) {
-					console.log(`[Job] Status: ⚠️ Event "${event.event_name}" missed/finished. Marking as completed.`);
+					console.log(
+						`[Job] Status: ⚠️ Event "${event.event_name}" missed/finished. Marking as completed.`
+					);
 					await eventsApi.updateEventStatus(event.event_id, 'completed');
 				}
 			}
@@ -230,7 +249,7 @@ export class AutomationEngine {
 
 			if (eventsToProcess.length > 0) {
 				console.log(`[Job] Archival: Found ${eventsToProcess.length} events to process.`);
-				
+
 				for (const event of eventsToProcess) {
 					console.log(`[Job] Archival: Processing attendance for "${event.event_name}"`);
 					await eventsApi.processEventAttendance(event.event_id);

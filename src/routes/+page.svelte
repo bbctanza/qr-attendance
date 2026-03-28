@@ -11,8 +11,10 @@
 		document.documentElement.classList.remove('dark');
 
 		try {
-			const { data: { session } } = await supabase.auth.getSession();
-			
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+
 			if (session) {
 				// User is already logged in, redirect to overview
 				goto('/overview');

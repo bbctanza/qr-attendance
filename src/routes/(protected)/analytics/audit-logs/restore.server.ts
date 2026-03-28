@@ -14,11 +14,7 @@ import type { RequestEvent } from '@sveltejs/kit';
  */
 export async function restoreEntity(
 	event: RequestEvent,
-	{
-		entityType,
-		entityId,
-		toVersion
-	}: { entityType: string; entityId: string; toVersion: number }
+	{ entityType, entityId, toVersion }: { entityType: string; entityId: string; toVersion: number }
 ) {
 	try {
 		// Check if user is admin
@@ -42,17 +38,17 @@ export async function restoreEntity(
 		}
 
 		// Get the snapshot at the target version
-		const snapshotResult = await getSnapshotAtVersion(
-			entityType as EntityType,
-			entityId,
-			toVersion
-		);
+		const { data: targetSnapshot, error: snapshotError } = await supabase
+			.from('audit_snapshots')
+			.select('*')
+			.eq('entity_type', entityType)
+			.eq('entity_id', entityId)
+			.eq('version_number', toVersion)
+			.single();
 
-		if (!snapshotResult.success || !snapshotResult.data) {
+		if (snapshotError || !targetSnapshot) {
 			return fail(404, { error: 'Snapshot not found' });
 		}
-
-		const targetSnapshot = snapshotResult.data;
 
 		// Get current state for before/after diff
 		let currentState: Record<string, unknown> | null = null;
@@ -65,11 +61,7 @@ export async function restoreEntity(
 				.single();
 			currentState = data;
 		} else if (entityType === 'event') {
-			const { data } = await supabase
-				.from('events')
-				.select('*')
-				.eq('event_id', entityId)
-				.single();
+			const { data } = await supabase.from('events').select('*').eq('event_id', entityId).single();
 			currentState = data;
 		}
 
@@ -90,10 +82,7 @@ export async function restoreEntity(
 
 			restoreError = error;
 		} else if (entityType === 'event') {
-			const { error } = await supabase
-				.from('events')
-				.update(restoreData)
-				.eq('event_id', entityId);
+			const { error } = await supabase.from('events').update(restoreData).eq('event_id', entityId);
 
 			restoreError = error;
 		}
@@ -231,11 +220,7 @@ export async function previewRestore(
 				.single();
 			currentState = data;
 		} else if (entityType === 'event') {
-			const { data } = await supabase
-				.from('events')
-				.select('*')
-				.eq('event_id', entityId)
-				.single();
+			const { data } = await supabase.from('events').select('*').eq('event_id', entityId).single();
 			currentState = data;
 		}
 

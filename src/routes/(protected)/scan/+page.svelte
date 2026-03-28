@@ -240,18 +240,18 @@
 						}
 					);
 				} else {
-						const msg = getErrorMessage({ message: 'No cameras found on device.' });
-						toast.error(msg);
-						isScanning = false;
-					}
-				} catch (err) {
-					console.error(err);
-					const msg = getErrorMessage(err);
-					const title = getErrorTitle(err);
-					toast.error(`${title}: ${msg}`);
-			isScanning = false;
-		}
-	}, 100);
+					const msg = getErrorMessage({ message: 'No cameras found on device.' });
+					toast.error(msg);
+					isScanning = false;
+				}
+			} catch (err) {
+				console.error(err);
+				const msg = getErrorMessage(err);
+				const title = getErrorTitle(err);
+				toast.error(`${title}: ${msg}`);
+				isScanning = false;
+			}
+		}, 100);
 	}
 
 	async function stopScanner() {
@@ -280,9 +280,9 @@
 
 			currentCameraIndex = (currentCameraIndex + 1) % cameras.length;
 			const nextCamera = cameras[currentCameraIndex];
-			
+
 			console.log(`Switching to camera: ${nextCamera.label}`);
-			
+
 			// Restart with new camera
 			await scanner.start(
 				nextCamera.id,
@@ -290,14 +290,14 @@
 				(decodedText) => handleScan(decodedText),
 				() => {}
 			);
-			
+
 			toast.success(`Switched to ${nextCamera.label}`);
 		} catch (err) {
 			console.error('Camera switch failed:', err);
 			const msg = getErrorMessage(err);
 			const title = getErrorTitle(err);
 			toast.error(`${title}: ${msg}`);
-			
+
 			// Try to restart the original camera
 			try {
 				if (scanner) {
@@ -327,7 +327,7 @@
 					(scannerContainer as any).webkitRequestFullscreen();
 				}
 				isFullscreen = true;
-				
+
 				// Restart camera after fullscreen transition with delay
 				setTimeout(async () => {
 					try {
@@ -335,17 +335,17 @@
 							// Stop and reinitialize scanner
 							await scanner.stop();
 							await scanner.clear();
-							
+
 							// Restart with a small delay to allow fullscreen to settle
-							await new Promise(resolve => setTimeout(resolve, 300));
-							
+							await new Promise((resolve) => setTimeout(resolve, 300));
+
 							await scanner.start(
 								cameras[currentCameraIndex].id,
 								{ fps: 10, qrbox: getQrBoxConfig() },
 								(decodedText) => handleScan(decodedText),
 								() => {}
 							);
-							
+
 							toast.success('Camera restarted in fullscreen mode');
 						}
 					} catch (err) {
@@ -661,7 +661,7 @@
 
 	/* Event Session Display */
 	let session = $state<any>(null);
-	
+
 	$effect(() => {
 		if (activeEvent) {
 			(async () => {
@@ -738,7 +738,7 @@
 	<div
 		bind:this={scannerContainer}
 		class={isFullscreen
-			? 'fixed inset-0 z-100 flex flex-col items-center justify-center bg-black overflow-visible'
+			? 'fixed inset-0 z-100 flex flex-col items-center justify-center overflow-visible bg-black'
 			: 'relative flex min-h-75 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
 	>
 		{#if !isScanning}
@@ -928,10 +928,10 @@
 						SELECTED ({batchList.length})
 					{/if}
 				</div>
-				<div class="flex gap-2 items-center">
+				<div class="flex items-center gap-2">
 					{#if isSelectionMode}
 						<button
-							class="p-1 hover:bg-muted rounded transition-colors"
+							class="rounded p-1 transition-colors hover:bg-muted"
 							onclick={exitSelectionMode}
 							aria-label="Exit selection mode"
 						>
@@ -949,7 +949,8 @@
 			<div class="flex flex-col gap-2">
 				{#each batchList as item, i}
 					<div
-						class="group relative flex items-center gap-3 rounded-xl border-2 p-3 transition-all cursor-pointer select-none {isSelectionMode && selectedBatchIndices.has(i)
+						class="group relative flex cursor-pointer items-center gap-3 rounded-xl border-2 p-3 transition-all select-none {isSelectionMode &&
+						selectedBatchIndices.has(i)
 							? 'border-primary bg-primary/5'
 							: 'border-border/40 bg-card/50 hover:border-border/60'}"
 						role="button"
@@ -970,7 +971,12 @@
 						}}
 						oncontextmenu={(e) => {
 							e.preventDefault();
-							console.log('Context menu / long-press on item', i, 'isSelectionMode:', isSelectionMode);
+							console.log(
+								'Context menu / long-press on item',
+								i,
+								'isSelectionMode:',
+								isSelectionMode
+							);
 							if (isSelectionMode) {
 								// In selection mode, toggle the selection
 								toggleBatchSelection(i);
@@ -997,7 +1003,9 @@
 					>
 						{#if isSelectionMode}
 							<div
-								class="flex h-5 w-5 items-center justify-center rounded border-2 pointer-events-none {selectedBatchIndices.has(i)
+								class="pointer-events-none flex h-5 w-5 items-center justify-center rounded border-2 {selectedBatchIndices.has(
+									i
+								)
 									? 'border-primary bg-primary'
 									: 'border-muted-foreground/30 bg-transparent'}"
 							>
@@ -1007,14 +1015,18 @@
 							</div>
 						{/if}
 
-						<Avatar class="h-10 w-10 border border-border/20 pointer-events-none {isSelectionMode ? 'opacity-75' : ''}">
+						<Avatar
+							class="pointer-events-none h-10 w-10 border border-border/20 {isSelectionMode
+								? 'opacity-75'
+								: ''}"
+						>
 							<AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${item.name}`} />
 							<AvatarFallback class="bg-primary/20 text-xs font-bold text-primary"
 								>{item.name.substring(0, 2).toUpperCase()}</AvatarFallback
 							>
 						</Avatar>
 
-						<div class="min-w-0 flex-1 pointer-events-none">
+						<div class="pointer-events-none min-w-0 flex-1">
 							<div class="truncate text-sm font-bold text-foreground">{item.name}</div>
 							<div class="font-mono text-xs text-muted-foreground">ID: {item.id}</div>
 						</div>
@@ -1034,12 +1046,7 @@
 			<!-- Selection Mode Action Buttons -->
 			{#if isSelectionMode && selectedBatchIndices.size > 0}
 				<div class="flex gap-2 pt-2">
-					<Button
-						variant="destructive"
-						size="sm"
-						class="flex-1"
-						onclick={deleteSelectedMembers}
-					>
+					<Button variant="destructive" size="sm" class="flex-1" onclick={deleteSelectedMembers}>
 						<X class="mr-1 h-4 w-4" /> Delete ({selectedBatchIndices.size})
 					</Button>
 					<Button

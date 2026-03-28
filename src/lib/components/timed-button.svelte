@@ -52,7 +52,7 @@
 
 <button
 	onclick={handleClick}
-	class="relative w-full py-6 rounded-2xl {colors.bg} text-white font-bold text-lg active:scale-[0.98] transition-all shadow-lg {colors.shadow} overflow-hidden"
+	class="relative w-full rounded-2xl py-6 {colors.bg} text-lg font-bold text-white shadow-lg transition-all active:scale-[0.98] {colors.shadow} overflow-hidden"
 >
 	<!-- Progress bar background fill -->
 	<div
@@ -63,7 +63,9 @@
 	<!-- Button text (on top of progress) -->
 	<div class="relative z-10 flex items-center justify-center gap-2">
 		<span>{label}</span>
-		<span class="text-xs font-mono bg-white/20 px-2 py-1 rounded-lg">({String(Math.ceil(progress / 20)).padStart(1, '0')}s)</span>
+		<span class="rounded-lg bg-white/20 px-2 py-1 font-mono text-xs"
+			>({String(Math.ceil(progress / 20)).padStart(1, '0')}s)</span
+		>
 	</div>
 </button>
 

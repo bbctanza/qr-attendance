@@ -110,7 +110,9 @@ export const auditedMembersApi = {
 					entityType: 'member',
 					entityId: memberId,
 					action: 'delete',
-					before: memberBeforeDeletion ? JSON.parse(JSON.stringify(memberBeforeDeletion)) : undefined,
+					before: memberBeforeDeletion
+						? JSON.parse(JSON.stringify(memberBeforeDeletion))
+						: undefined,
 					after: undefined,
 					tags: ['manual-entry']
 				},
@@ -217,11 +219,7 @@ export const auditedEventsApi = {
 		// Get event before deletion for audit trail
 		let eventBeforeDeletion: AttendanceEvent | null = null;
 		try {
-			const { data } = await supabase
-				.from('events')
-				.select('*')
-				.eq('event_id', eventId)
-				.single();
+			const { data } = await supabase.from('events').select('*').eq('event_id', eventId).single();
 			eventBeforeDeletion = data;
 		} catch (error) {
 			console.warn('Could not fetch event before deletion for audit:', error);
@@ -257,11 +255,7 @@ export const auditedEventsApi = {
 		// Get existing event
 		let existingEvent: AttendanceEvent | null = null;
 		try {
-			const { data } = await supabase
-				.from('events')
-				.select('*')
-				.eq('event_id', eventId)
-				.single();
+			const { data } = await supabase.from('events').select('*').eq('event_id', eventId).single();
 			existingEvent = data;
 		} catch (error) {
 			console.warn('Could not fetch event before update for audit:', error);

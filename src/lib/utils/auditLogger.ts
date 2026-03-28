@@ -4,7 +4,7 @@ import type { Session } from '@supabase/supabase-js';
 /**
  * Audit Logger Service
  * Handles change tracking with smart batching to optimize Supabase free tier
- * 
+ *
  * Features:
  * - Automatic batching (reduces write operations by ~90%)
  * - Change diff calculation (only stores what changed)
@@ -146,9 +146,7 @@ async function processBatch() {
 
 	try {
 		// Try batch insert
-		const { error } = await supabase
-			.from('audit_logs')
-			.insert(entriesToProcess);
+		const { error } = await supabase.from('audit_logs').insert(entriesToProcess);
 
 		if (error) {
 			if (AUDIT_BATCH_CONFIG.fallbackToRealtime) {
@@ -190,7 +188,7 @@ function scheduleBatchProcess() {
 
 /**
  * Main log function - called by all API operations
- * 
+ *
  * @example
  * await logAuditChange({
  *   entityType: 'member',
@@ -303,9 +301,7 @@ export async function getAllAuditLogs(
 			}
 		}
 
-		const { data, error } = await query
-			.order('created_at', { ascending: false })
-			.limit(limit);
+		const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
 
 		if (error) throw error;
 		return { success: true, data };

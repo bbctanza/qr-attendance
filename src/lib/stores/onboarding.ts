@@ -1,7 +1,7 @@
 import { writable } from 'svelte/store';
 
 export const onboardingState = writable({
-    isOpen: false,
-    userEmail: '',
-    userId: ''
+	isOpen: false,
+	userEmail: '',
+	userId: ''
 });

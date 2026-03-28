@@ -8,13 +8,15 @@ export const membersApi = {
 	async getAll() {
 		const { data, error } = await supabase
 			.from('members')
-			.select(`
+			.select(
+				`
         *,
         groups (
           group_code,
           name
         )
-      `)
+      `
+			)
 			.order('last_name', { ascending: true });
 
 		if (error) throw error;
@@ -27,13 +29,15 @@ export const membersApi = {
 	async getById(memberId: string) {
 		const { data, error } = await supabase
 			.from('members')
-			.select(`
+			.select(
+				`
         *,
         groups (
           group_code,
           name
         )
-      `)
+      `
+			)
 			.eq('member_id', memberId)
 			.single();
 
@@ -49,11 +53,7 @@ export const membersApi = {
 		// eslint-disable-next-line @typescript-eslint/no-unused-vars
 		const { groups, created_at, ...dbData } = member;
 
-		const { data, error } = await supabase
-			.from('members')
-			.upsert(dbData)
-			.select()
-			.single();
+		const { data, error } = await supabase.from('members').upsert(dbData).select().single();
 
 		if (error) throw error;
 		return data as Member;

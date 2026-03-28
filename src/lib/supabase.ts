@@ -9,6 +9,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 // Ensure we don't crash if keys are missing (e.g. during build or initial setup)
-export const supabase = (supabaseUrl && supabaseAnonKey) 
-    ? createClient(supabaseUrl, supabaseAnonKey)
-    : createClient('https://placeholder.supabase.co', 'placeholder');
+export const supabase =
+	supabaseUrl && supabaseAnonKey
+		? createClient(supabaseUrl, supabaseAnonKey)
+		: createClient('https://placeholder.supabase.co', 'placeholder');

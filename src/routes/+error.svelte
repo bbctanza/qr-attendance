@@ -27,7 +27,9 @@
 	});
 </script>
 
-<div class="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground">
+<div
+	class="flex min-h-screen flex-col items-center justify-center bg-background p-4 text-foreground"
+>
 	<div class="flex w-full max-w-md flex-col items-center space-y-6 text-center">
 		<!-- Error Icon -->
 		<div class="rounded-full bg-destructive/10 p-6">
@@ -54,9 +56,10 @@
 
 		<!-- Countdown Message -->
 		{#if mounted}
-			<div class="space-y-4 w-full">
+			<div class="w-full space-y-4">
 				<p class="text-sm text-muted-foreground">
-					Redirecting in <span class="font-bold text-primary">{countdown}</span> second{countdown !== 1 ? 's' : ''}...
+					Redirecting in <span class="font-bold text-primary">{countdown}</span>
+					second{countdown !== 1 ? 's' : ''}...
 				</p>
 				<div class="h-1 w-full overflow-hidden rounded-full bg-secondary">
 					<div
@@ -66,12 +69,10 @@
 				</div>
 			</div>
 		{:else}
-			<div class="space-y-4 w-full">
-				<p class="text-sm text-muted-foreground">
-					Preparing to redirect...
-				</p>
+			<div class="w-full space-y-4">
+				<p class="text-sm text-muted-foreground">Preparing to redirect...</p>
 				<div class="h-1 w-full overflow-hidden rounded-full bg-secondary">
-					<div class="h-full bg-primary animate-pulse"></div>
+					<div class="h-full animate-pulse bg-primary"></div>
 				</div>
 			</div>
 		{/if}

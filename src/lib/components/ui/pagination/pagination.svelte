@@ -23,7 +23,11 @@
 		range.push(1);
 
 		// Add numbers before current page
-		for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+		for (
+			let i = Math.max(2, currentPage - delta);
+			i <= Math.min(totalPages - 1, currentPage + delta);
+			i++
+		) {
 			range.push(i);
 		}
 
@@ -64,12 +68,7 @@
 </script>
 
 <div class="flex items-center justify-center gap-2 py-4">
-	<Button
-		variant="outline"
-		size="sm"
-		disabled={currentPage === 1}
-		onclick={handlePrevious}
-	>
+	<Button variant="outline" size="sm" disabled={currentPage === 1} onclick={handlePrevious}>
 		<ChevronLeft class="h-4 w-4" />
 	</Button>
 
@@ -90,16 +89,11 @@
 		{/if}
 	{/each}
 
-	<Button
-		variant="outline"
-		size="sm"
-		disabled={currentPage === totalPages}
-		onclick={handleNext}
-	>
+	<Button variant="outline" size="sm" disabled={currentPage === totalPages} onclick={handleNext}>
 		<ChevronRight class="h-4 w-4" />
 	</Button>
 
-	<span class="text-sm text-muted-foreground ml-2">
+	<span class="ml-2 text-sm text-muted-foreground">
 		Page {currentPage} of {totalPages}
 	</span>
 </div>

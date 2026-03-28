@@ -1,40 +1,37 @@
 import { supabase } from '$lib/supabase';
-import type { 
-	AttendanceEvent, 
-	AttendanceScanWithMember, 
-	AttendancePresentWithMember, 
-	AttendanceHistoryWithEvent 
+import type {
+	AttendanceEvent,
+	AttendanceScanWithMember,
+	AttendancePresentWithMember,
+	AttendanceHistoryWithEvent
 } from '$lib/types';
 
 export const attendanceApi = {
-    /**
-     * Trigger a check to update statuses of all events.
-     * Can be called periodically by the client or lazily before fetching.
-     */
-    async refreshEventStatuses(mockDate?: Date | null) {
-        let payload = {};
-        if (mockDate) {
-            // Adjust to local time string to match naive TIMESTAMP in DB
-            const offset = mockDate.getTimezoneOffset() * 60000;
-            const localIso = new Date(mockDate.getTime() - offset).toISOString().slice(0, -1);
-            payload = { p_now: localIso };
-        }
-        const { error } = await supabase.rpc('update_event_statuses', payload);
-        if (error) console.error("Failed to refresh event statuses:", error);
-    },
+	/**
+	 * Trigger a check to update statuses of all events.
+	 * Can be called periodically by the client or lazily before fetching.
+	 */
+	async refreshEventStatuses(mockDate?: Date | null) {
+		let payload = {};
+		if (mockDate) {
+			// Adjust to local time string to match naive TIMESTAMP in DB
+			const offset = mockDate.getTimezoneOffset() * 60000;
+			const localIso = new Date(mockDate.getTime() - offset).toISOString().slice(0, -1);
+			payload = { p_now: localIso };
+		}
+		const { error } = await supabase.rpc('update_event_statuses', payload);
+		if (error) console.error('Failed to refresh event statuses:', error);
+	},
 
 	/**
 	 * Get all currently 'ongoing' events.
 	 * Used by the scanner to determine if scanning is allowed.
 	 */
 	async getOngoingEvents() {
-        // Optional: Lazily update statuses before fetching
-        // await attendanceApi.refreshEventStatuses(); 
-        
-		const { data, error } = await supabase
-			.from('events')
-			.select('*')
-			.eq('status', 'ongoing');
+		// Optional: Lazily update statuses before fetching
+		// await attendanceApi.refreshEventStatuses();
+
+		const { data, error } = await supabase.from('events').select('*').eq('status', 'ongoing');
 
 		if (error) throw error;
 		return data as AttendanceEvent[];
@@ -92,16 +89,14 @@ export const attendanceApi = {
 		// 3. Insert scan
 		// We use crypto.randomUUID() which is standard in most modern environments
 		const scanId = crypto.randomUUID();
-        const timestamp = scanTime ? scanTime.toISOString() : new Date().toISOString();
-        
-		const { error: insertError } = await supabase
-			.from('attendance_scans')
-			.insert({
-				scan_id: scanId,
-				member_id: memberId,
-				event_id: eventId,
-				scan_datetime: timestamp
-			});
+		const timestamp = scanTime ? scanTime.toISOString() : new Date().toISOString();
+
+		const { error: insertError } = await supabase.from('attendance_scans').insert({
+			scan_id: scanId,
+			member_id: memberId,
+			event_id: eventId,
+			scan_datetime: timestamp
+		});
 
 		if (insertError) throw insertError;
 
@@ -114,14 +109,16 @@ export const attendanceApi = {
 	async getEventScans(eventId: number) {
 		const { data, error } = await supabase
 			.from('attendance_scans')
-			.select(`
+			.select(
+				`
 				*,
 				members (
 					first_name,
 					last_name,
 					member_id
 				)
-			`)
+			`
+			)
 			.eq('event_id', eventId)
 			.order('scan_datetime', { ascending: false });
 
@@ -135,14 +132,16 @@ export const attendanceApi = {
 	async getConfirmedAttendance(eventId: number) {
 		const { data, error } = await supabase
 			.from('attendance_present')
-			.select(`
+			.select(
+				`
 				*,
 				members (
 					first_name,
 					last_name,
 					member_id
 				)
-			`)
+			`
+			)
 			.eq('event_id', eventId);
 
 		if (error) throw error;
@@ -155,13 +154,15 @@ export const attendanceApi = {
 	async getMemberAttendanceHistory(memberId: string) {
 		const { data, error } = await supabase
 			.from('attendance_present')
-			.select(`
+			.select(
+				`
 				*,
 				events (
 					event_name,
 					event_date
 				)
-			`)
+			`
+			)
 			.eq('member_id', memberId);
 
 		if (error) throw error;

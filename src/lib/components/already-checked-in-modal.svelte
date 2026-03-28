@@ -16,29 +16,30 @@
 		isOpen = false;
 		onClose();
 	}
-
 </script>
 
 {#if isOpen}
-	<div class="fixed inset-0 z-150 flex items-center justify-center p-4 pointer-events-auto">
+	<div class="pointer-events-auto fixed inset-0 z-150 flex items-center justify-center p-4">
 		<!-- Backdrop -->
 		<div
-			class="absolute inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto"
+			class="pointer-events-auto absolute inset-0 bg-black/40 backdrop-blur-sm"
 			role="button"
 			tabindex="0"
-			onkeydown={(e) => (e.key === 'Escape') && handleClose()}
+			onkeydown={(e) => e.key === 'Escape' && handleClose()}
 			aria-label="Close modal"
 			onclick={handleClose}
 		></div>
 
 		<!-- Modal -->
-		<div class="relative z-10 w-full max-w-sm rounded-3xl bg-card border border-border/40 shadow-2xl animate-in fade-in zoom-in duration-300 pointer-events-auto">
+		<div
+			class="pointer-events-auto relative z-10 w-full max-w-sm animate-in rounded-3xl border border-border/40 bg-card shadow-2xl duration-300 fade-in zoom-in"
+		>
 			<!-- Modal Content -->
-			<div class="p-6 sm:p-8 space-y-6 relative">
+			<div class="relative space-y-6 p-6 sm:p-8">
 				<!-- Close Button -->
 				<button
 					onclick={handleClose}
-					class="absolute top-4 right-4 p-2 hover:bg-muted rounded-lg transition-colors"
+					class="absolute top-4 right-4 rounded-lg p-2 transition-colors hover:bg-muted"
 					aria-label="Close"
 				>
 					<X class="h-5 w-5 text-muted-foreground" />
@@ -46,32 +47,36 @@
 
 				<!-- Error Icon -->
 				<div class="flex justify-center">
-					<div class="p-4 bg-red-500/10 rounded-full">
+					<div class="rounded-full bg-red-500/10 p-4">
 						<AlertCircle class="h-12 w-12 text-red-500" />
 					</div>
 				</div>
 
 				<!-- Error Message -->
-				<div class="text-center space-y-1">
+				<div class="space-y-1 text-center">
 					<h2 class="text-2xl font-bold text-red-600">Already Checked In</h2>
-					<p class="text-sm text-muted-foreground">This member has already been checked in for this event</p>
+					<p class="text-sm text-muted-foreground">
+						This member has already been checked in for this event
+					</p>
 				</div>
 
 				<!-- Member Details -->
-				<div class="bg-muted/40 rounded-2xl p-4 space-y-3">
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-muted-foreground font-medium">Name:</span>
-						<span class="font-semibold text-right">{memberName}</span>
+				<div class="space-y-3 rounded-2xl bg-muted/40 p-4">
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium text-muted-foreground">Name:</span>
+						<span class="text-right font-semibold">{memberName}</span>
 					</div>
 					<div class="h-px bg-border/40"></div>
-					<div class="flex justify-between items-center">
-						<span class="text-sm text-muted-foreground font-medium">Member ID:</span>
-						<span class="font-mono text-sm font-semibold text-right">{memberId}</span>
+					<div class="flex items-center justify-between">
+						<span class="text-sm font-medium text-muted-foreground">Member ID:</span>
+						<span class="text-right font-mono text-sm font-semibold">{memberId}</span>
 					</div>
 				</div>
 
 				<!-- Info Text -->
-				<div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-3 text-sm text-amber-600">
+				<div
+					class="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-600"
+				>
 					<p>If you need to update their attendance record, please contact an administrator.</p>
 				</div>
 
@@ -108,6 +113,8 @@
 	}
 
 	:global(.animate-in) {
-		animation: fadeIn 0.3s ease-out, zoomIn 0.3s ease-out;
+		animation:
+			fadeIn 0.3s ease-out,
+			zoomIn 0.3s ease-out;
 	}
 </style>

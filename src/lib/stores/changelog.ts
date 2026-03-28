@@ -33,7 +33,7 @@ function createChangelogStore() {
 			if (!browser) return;
 
 			const lastSeen = localStorage.getItem('lastSeenVersion');
-			
+
 			// Parse versions for comparison (e.g., "1.1.0" -> [1, 1, 0])
 			const parseVersion = (v: string) => v.split('.').map(Number);
 			const current = parseVersion(currentVersion);

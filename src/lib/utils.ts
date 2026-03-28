@@ -1,14 +1,14 @@
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
+import { clsx, type ClassValue } from 'clsx';
+import { twMerge } from 'tailwind-merge';
 
 export function cn(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type WithoutChild<T> = T extends { child?: any } ? Omit<T, "child"> : T;
+export type WithoutChild<T> = T extends { child?: any } ? Omit<T, 'child'> : T;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type WithoutChildren<T> = T extends { children?: any } ? Omit<T, "children"> : T;
+export type WithoutChildren<T> = T extends { children?: any } ? Omit<T, 'children'> : T;
 export type WithoutChildrenOrChild<T> = WithoutChildren<WithoutChild<T>>;
 export type WithElementRef<T, U extends HTMLElement = HTMLElement> = T & { ref?: U | null };
 
@@ -64,7 +64,8 @@ export function formatError(error: any): FormattedError {
 	) {
 		return {
 			title: 'Permission Denied',
-			message: 'You do not have permission to perform this action. Contact an administrator if you believe this is an error.',
+			message:
+				'You do not have permission to perform this action. Contact an administrator if you believe this is an error.',
 			code: 'PERMISSION_DENIED',
 			action: 'Check your user role and permissions'
 		};
@@ -98,7 +99,8 @@ export function formatError(error: any): FormattedError {
 	) {
 		return {
 			title: 'Duplicate Entry',
-			message: 'This entry already exists. Please use a different value or update the existing entry.',
+			message:
+				'This entry already exists. Please use a different value or update the existing entry.',
 			code: 'DUPLICATE_ERROR'
 		};
 	}
@@ -109,15 +111,13 @@ export function formatError(error: any): FormattedError {
 	) {
 		return {
 			title: 'Referenced Record Missing',
-			message: 'The referenced record does not exist or has been deleted. Please select a valid option.',
+			message:
+				'The referenced record does not exist or has been deleted. Please select a valid option.',
 			code: 'FK_ERROR'
 		};
 	}
 
-	if (
-		errorStr.includes('violates check constraint') ||
-		errorStr.includes('new row for relation')
-	) {
+	if (errorStr.includes('violates check constraint') || errorStr.includes('new row for relation')) {
 		return {
 			title: 'Invalid Value',
 			message: 'The value provided does not meet the requirements. Please check your input.',
@@ -168,7 +168,8 @@ export function formatError(error: any): FormattedError {
 	) {
 		return {
 			title: 'Camera Error',
-			message: 'Camera is not available or has been disconnected. Check your device and permissions.',
+			message:
+				'Camera is not available or has been disconnected. Check your device and permissions.',
 			code: 'DEVICE_ERROR',
 			action: 'Grant camera permissions or try a different device'
 		};
@@ -181,7 +182,8 @@ export function formatError(error: any): FormattedError {
 	) {
 		return {
 			title: 'Permission Required',
-			message: 'Camera or device access was denied. Enable these permissions in your browser settings.',
+			message:
+				'Camera or device access was denied. Enable these permissions in your browser settings.',
 			code: 'DEVICE_PERMISSION',
 			action: 'Allow camera access in settings'
 		};

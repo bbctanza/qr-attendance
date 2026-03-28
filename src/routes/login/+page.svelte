@@ -30,13 +30,13 @@
 			errorMessage = 'Please enter both email and password.';
 			return;
 		}
-		
+
 		// Validate email format
 		if (!isValidEmail(email)) {
 			errorMessage = 'Please enter a valid email address.';
 			return;
 		}
-		
+
 		// Open modal to trigger Turnstile
 		showTurnstileModal = true;
 	}
@@ -44,7 +44,7 @@
 	async function handleTurnstileCallback(token: string) {
 		showTurnstileModal = false;
 		isLoading = true;
-		
+
 		try {
 			const { error } = await supabase.auth.signInWithPassword({
 				email,
@@ -87,7 +87,9 @@
 
 		// Check if already logged in
 		(async () => {
-			const { data: { session } } = await supabase.auth.getSession();
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
 			if (session) {
 				goto('/overview');
 			}
@@ -95,26 +97,25 @@
 	});
 </script>
 
-<div 
-	class="flex min-h-screen flex-col items-center justify-center p-4 text-foreground font-sans relative light"
+<div
+	class="light relative flex min-h-screen flex-col items-center justify-center p-4 font-sans text-foreground"
 	style="background-image: url('/Background.png'); background-size: cover; background-position: center; background-attachment: fixed; --background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695); --card: oklch(1 0 0); --card-foreground: oklch(0.129 0.042 264.695); --border: oklch(84.651% 0.01125 256.831); --secondary: oklch(0.968 0.007 247.896); --secondary-foreground: oklch(0.208 0.042 265.755); --muted-foreground: oklch(0.554 0.046 257.417); --input: oklch(0.929 0.013 255.508);"
 >
 	<!-- Overlay for better readability -->
 	<div class="absolute inset-0 bg-white/60"></div>
-	
+
 	<!-- Content container -->
 	<div class="relative z-10">
 		<div class="flex w-full max-w-100 flex-col items-center space-y-6">
-			
 			<!-- Logo Section -->
 			<div class="flex flex-col items-center space-y-2 text-center">
-				<div class="mb-2 flex h-16 w-16 items-center justify-center rounded-2xl bg-card border border-border text-primary shadow-2xl shadow-primary/20">
+				<div
+					class="mb-2 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-card text-primary shadow-2xl shadow-primary/20"
+				>
 					<QrCode class="h-8 w-8" />
 				</div>
 				<div class="space-y-1">
-					<h1 class="text-2xl font-bold tracking-tight text-foreground">
-						Welcome back
-					</h1>
+					<h1 class="text-2xl font-bold tracking-tight text-foreground">Welcome back</h1>
 					<p class="text-sm text-muted-foreground">
 						Please sign in to your {siteConfig.name} account
 					</p>
@@ -123,9 +124,10 @@
 
 			<!-- Login Card -->
 			<div class="w-full rounded-xl border border-border bg-card p-6 shadow-sm">
-				
 				{#if errorMessage}
-					<div class="mb-4 rounded-md bg-destructive/10 p-3 text-sm text-destructive border border-destructive/20">
+					<div
+						class="mb-4 rounded-md border border-destructive/20 bg-destructive/10 p-3 text-sm text-destructive"
+					>
 						{errorMessage}
 					</div>
 				{/if}
@@ -134,7 +136,9 @@
 					<div class="grid gap-2">
 						<Label for="email" class="text-foreground">Email address</Label>
 						<div class="relative">
-							<div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground">
+							<div
+								class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground"
+							>
 								<Mail class="h-5 w-5" />
 							</div>
 							<Input
@@ -143,7 +147,7 @@
 								placeholder="you@example.com"
 								bind:value={email}
 								disabled={isLoading}
-								class="pl-10 bg-secondary/50 border-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
+								class="border-transparent bg-secondary/50 pl-10 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
 								onkeydown={(e) => e.key === 'Enter' && startLogin()}
 							/>
 						</div>
@@ -152,7 +156,9 @@
 					<div class="grid gap-2">
 						<Label for="password" class="text-foreground">Password</Label>
 						<div class="relative">
-							<div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground">
+							<div
+								class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-muted-foreground"
+							>
 								<Lock class="h-5 w-5" />
 							</div>
 							<Input
@@ -161,15 +167,15 @@
 								placeholder="••••••••"
 								bind:value={password}
 								disabled={isLoading}
-								class="pl-10 pr-10 bg-secondary/50 border-transparent text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
+								class="border-transparent bg-secondary/50 pr-10 pl-10 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
 								onkeydown={(e) => e.key === 'Enter' && startLogin()}
 							/>
 							<div class="absolute inset-y-0 right-0 flex items-center pr-3">
 								<button
 									type="button"
-									class="text-muted-foreground hover:text-foreground focus:outline-hidden transition-colors"
+									class="text-muted-foreground transition-colors hover:text-foreground focus:outline-hidden"
 									onclick={togglePasswordVisibility}
-									aria-label={showPassword ? "Hide password" : "Show password"}
+									aria-label={showPassword ? 'Hide password' : 'Show password'}
 								>
 									{#if showPassword}
 										<EyeOff class="h-4 w-4" />
@@ -183,26 +189,29 @@
 
 					<div class="flex items-center justify-between">
 						<div class="flex items-center space-x-2">
-							<Checkbox 
-								id="remember" 
-								bind:checked={rememberMe} 
-								class="border-muted-foreground/30 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
+							<Checkbox
+								id="remember"
+								bind:checked={rememberMe}
+								class="border-muted-foreground/30 data-[state=checked]:border-primary data-[state=checked]:bg-primary"
 							/>
 							<Label
 								for="remember"
-								class="text-sm font-medium leading-none text-muted-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+								class="text-sm leading-none font-medium text-muted-foreground peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
 							>
 								Remember me
 							</Label>
 						</div>
-						<a href="/forgot-password" class="text-sm font-medium text-primary hover:text-primary/90 hover:underline">
+						<a
+							href="/forgot-password"
+							class="text-sm font-medium text-primary hover:text-primary/90 hover:underline"
+						>
 							Forgot your password?
 						</a>
 					</div>
 
-					<Button 
-						class="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-medium" 
-						onclick={startLogin} 
+					<Button
+						class="w-full bg-primary font-medium text-primary-foreground hover:bg-primary/90"
+						onclick={startLogin}
 						disabled={isLoading}
 					>
 						{#if isLoading}
@@ -213,7 +222,6 @@
 						{/if}
 					</Button>
 				</div>
-
 			</div>
 
 			<!-- Footer outside the card -->
@@ -228,18 +236,24 @@
 
 <Dialog.Root bind:open={showTurnstileModal}>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" style="--background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695);" />
-		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto pointer-events-auto" style="--background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695); --card: oklch(1 0 0); --card-foreground: oklch(0.129 0.042 264.695); --border: oklch(84.651% 0.01125 256.831); --muted-foreground: oklch(0.554 0.046 257.417);">
+		<Dialog.Overlay
+			class="pointer-events-none fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
+			style="--background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695);"
+		/>
+		<Dialog.Content
+			class="pointer-events-auto fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-xl border bg-card p-4 shadow-lg duration-200 sm:p-6"
+			style="--background: oklch(1 0 0); --foreground: oklch(0.129 0.042 264.695); --card: oklch(1 0 0); --card-foreground: oklch(0.129 0.042 264.695); --border: oklch(84.651% 0.01125 256.831); --muted-foreground: oklch(0.554 0.046 257.417);"
+		>
 			<Dialog.Header>
-				<Dialog.Title class="text-lg sm:text-xl font-semibold">Security Verification</Dialog.Title>
-				<Dialog.Description class="text-xs sm:text-sm text-muted-foreground">
+				<Dialog.Title class="text-lg font-semibold sm:text-xl">Security Verification</Dialog.Title>
+				<Dialog.Description class="text-xs text-muted-foreground sm:text-sm">
 					Please complete the captcha to securely sign in to your account.
 				</Dialog.Description>
 			</Dialog.Header>
-			<div class="flex items-center justify-center p-2 sm:p-4 min-h-32 overflow-x-auto">
-				<Turnstile 
-					siteKey={PUBLIC_TURNSTILE_SITE_KEY} 
-					on:turnstile-callback={(e) => handleTurnstileCallback(e.detail.token)} 
+			<div class="flex min-h-32 items-center justify-center overflow-x-auto p-2 sm:p-4">
+				<Turnstile
+					siteKey={PUBLIC_TURNSTILE_SITE_KEY}
+					on:turnstile-callback={(e) => handleTurnstileCallback(e.detail.token)}
 				/>
 			</div>
 		</Dialog.Content>

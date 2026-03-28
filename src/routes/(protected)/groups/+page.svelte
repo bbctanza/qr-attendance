@@ -268,7 +268,7 @@
 
 		const id = groupToDelete;
 		console.log('Deleting group:', id);
-		
+
 		isDeletingGroup = true;
 		try {
 			const { error } = await supabase.from('groups').delete().eq('group_id', id);
@@ -570,7 +570,9 @@
 			>
 				{#if isDeletingGroup}
 					<div class="flex items-center gap-2">
-						<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+						<div
+							class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+						></div>
 						<span>Deleting...</span>
 					</div>
 				{:else}

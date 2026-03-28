@@ -28,11 +28,7 @@ export interface UserDataExport {
 export async function exportUserData(userId: string): Promise<UserDataExport | null> {
 	try {
 		// Get user profile
-		const { data: profile } = await supabase
-			.from('profiles')
-			.select('*')
-			.eq('id', userId)
-			.single();
+		const { data: profile } = await supabase.from('profiles').select('*').eq('id', userId).single();
 
 		if (!profile) return null;
 
@@ -44,21 +40,12 @@ export async function exportUserData(userId: string): Promise<UserDataExport | n
 			.order('created_at', { ascending: false });
 
 		// Get any data authored by user
-		const { data: membersCreated } = await supabase
-			.from('members')
-			.select('*')
-			.limit(1000); // Get all members for reference
+		const { data: membersCreated } = await supabase.from('members').select('*').limit(1000); // Get all members for reference
 
-		const { data: eventsCreated } = await supabase
-			.from('events')
-			.select('*')
-			.limit(1000); // Get all events
+		const { data: eventsCreated } = await supabase.from('events').select('*').limit(1000); // Get all events
 
 		// Get attendance records (if user participated)
-		const { data: attendance } = await supabase
-			.from('attendance_present')
-			.select('*')
-			.limit(1000);
+		const { data: attendance } = await supabase.from('attendance_present').select('*').limit(1000);
 
 		// Compile export package
 		const exportData: UserDataExport = {
@@ -179,10 +166,7 @@ export async function permanentlyDeleteMember(memberId: string): Promise<boolean
 		}
 
 		// Delete member and cascade to attendance
-		const { error } = await supabase
-			.from('members')
-			.delete()
-			.eq('id', memberId);
+		const { error } = await supabase.from('members').delete().eq('id', memberId);
 
 		if (error) throw error;
 
@@ -221,9 +205,14 @@ export async function getPendingDeletions() {
 		return (data || []).map((item) => ({
 			...item,
 			daysUntilPermanentDelete: item.can_be_permanently_deleted
-				? Math.ceil((new Date(item.can_be_permanently_deleted).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+				? Math.ceil(
+						(new Date(item.can_be_permanently_deleted).getTime() - now.getTime()) /
+							(1000 * 60 * 60 * 24)
+					)
 				: 0,
-			canPermanentlyDelete: item.can_be_permanently_deleted ? new Date() >= new Date(item.can_be_permanently_deleted) : false
+			canPermanentlyDelete: item.can_be_permanently_deleted
+				? new Date() >= new Date(item.can_be_permanently_deleted)
+				: false
 		}));
 	} catch (error) {
 		console.error('Error fetching pending deletions:', error);

@@ -5,7 +5,14 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
-	import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
+	import {
+		Card,
+		CardContent,
+		CardHeader,
+		CardTitle,
+		CardDescription,
+		CardFooter
+	} from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import { Loader2, Camera, CheckCircle2, XCircle, Search, QrCode } from 'lucide-svelte';
@@ -89,7 +96,7 @@
 		setTimeout(async () => {
 			try {
 				scanner = new Html5Qrcode(scannerContainerId);
-				
+
 				// Try different constraint combinations to handle various browsers
 				const constraintOptions = [
 					// Option 1: Rear camera (primary for mobile)
@@ -132,19 +139,22 @@
 			} catch (err: any) {
 				console.error('Failed to start scanner:', err);
 				let errorMsg = 'Could not start camera. ';
-				
+
 				if (err.message?.includes('NotAllowedError') || err.name === 'NotAllowedError') {
-					errorMsg = 'Camera permission denied. Please enable camera access in your browser settings.';
+					errorMsg =
+						'Camera permission denied. Please enable camera access in your browser settings.';
 				} else if (err.message?.includes('NotFoundError') || err.name === 'NotFoundError') {
 					errorMsg = 'No camera found. Please ensure your device has a camera.';
 				} else if (err.message?.includes('NotSupportedError') || err.name === 'NotSupportedError') {
-					errorMsg = 'Your browser does not support camera access. Please use a modern browser like Chrome or Safari.';
+					errorMsg =
+						'Your browser does not support camera access. Please use a modern browser like Chrome or Safari.';
 				} else if (err.message?.includes('AbortError') || err.name === 'AbortError') {
 					errorMsg = 'Camera access was aborted. Please refresh the page and try again.';
 				} else {
-					errorMsg += 'Ensure:\n1. Camera permission is granted\n2. Camera is not in use elsewhere\n3. Using HTTPS or localhost\n4. Browser supports camera access';
+					errorMsg +=
+						'Ensure:\n1. Camera permission is granted\n2. Camera is not in use elsewhere\n3. Using HTTPS or localhost\n4. Browser supports camera access';
 				}
-				
+
 				toast.error(errorMsg);
 				isScanning = false;
 			}
@@ -209,7 +219,6 @@
 				// Sanitize the error message from RPC
 				statusMessage = sanitizeText(data?.message || 'Check-in failed.', 200);
 			}
-
 		} catch (err: any) {
 			console.error(err);
 			playBeep(400, 300); // Error beep
@@ -222,19 +231,15 @@
 	}
 </script>
 
-<div class="min-h-screen relative flex items-center justify-center p-4">
+<div class="relative flex min-h-screen items-center justify-center p-4">
 	<!-- Background Image -->
 	<div class="absolute inset-0 z-0">
-		<img 
-			src="/Background.png" 
-			alt="Background" 
-			class="w-full h-full object-cover opacity-100" 
-		/>
+		<img src="/Background.png" alt="Background" class="h-full w-full object-cover opacity-100" />
 		<!-- White overlay to ensure form readability -->
 		<div class="absolute inset-0 bg-white/60 backdrop-blur-[2px]"></div>
 	</div>
 
-	<div class="max-w-md w-full relative z-10">
+	<div class="relative z-10 w-full max-w-md">
 		{#if loading}
 			<div class="flex justify-center p-8">
 				<Loader2 class="h-8 w-8 animate-spin text-primary" />
@@ -250,8 +255,8 @@
 				</CardHeader>
 			</Card>
 		{:else if event}
-			<Card class="shadow-lg border-t-4 border-t-primary">
-				<CardHeader class="text-center pb-2">
+			<Card class="border-t-4 border-t-primary shadow-lg">
+				<CardHeader class="pb-2 text-center">
 					<Badge variant="outline" class="mx-auto mb-2 capitalize">{event.status}</Badge>
 					<CardTitle class="text-2xl">{event.event_name}</CardTitle>
 					<CardDescription>
@@ -261,23 +266,27 @@
 
 				<CardContent class="space-y-6">
 					{#if checkInStatus === 'success'}
-						<div class="bg-green-50 text-green-700 p-4 rounded-lg flex flex-col items-center animate-in fade-in zoom-in duration-300">
-							<CheckCircle2 class="h-12 w-12 mb-2" />
+						<div
+							class="flex animate-in flex-col items-center rounded-lg bg-green-50 p-4 text-green-700 duration-300 fade-in zoom-in"
+						>
+							<CheckCircle2 class="mb-2 h-12 w-12" />
 							<h3 class="text-lg font-bold">Checked In!</h3>
 							<p>{statusMessage}</p>
-							<Button variant="outline" class="mt-4" onclick={() => checkInStatus = 'idle'}>
+							<Button variant="outline" class="mt-4" onclick={() => (checkInStatus = 'idle')}>
 								Scan Another
 							</Button>
 						</div>
 					{:else}
 						<!-- Scanner Section -->
 						{#if isScanning}
-							<div class="relative bg-black rounded-xl overflow-hidden border shadow-inner aspect-4/5 sm:aspect-square">
-								<div id={scannerContainerId} class="w-full h-full"></div>
-								<Button 
-									variant="destructive" 
-									size="sm" 
-									class="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 shadow-lg"
+							<div
+								class="relative aspect-4/5 overflow-hidden rounded-xl border bg-black shadow-inner sm:aspect-square"
+							>
+								<div id={scannerContainerId} class="h-full w-full"></div>
+								<Button
+									variant="destructive"
+									size="sm"
+									class="absolute bottom-4 left-1/2 z-10 -translate-x-1/2 shadow-lg"
 									onclick={stopScanner}
 								>
 									Stop Camera
@@ -285,31 +294,44 @@
 							</div>
 						{:else}
 							<div class="flex flex-col gap-3">
-								<Button size="lg" class="w-full py-8 text-lg gap-2" onclick={startScanner}>
+								<Button size="lg" class="w-full gap-2 py-8 text-lg" onclick={startScanner}>
 									<Camera class="h-6 w-6" />
 									Scan Your ID Badge
 								</Button>
-								
+
 								<div class="relative">
 									<div class="absolute inset-0 flex items-center">
 										<span class="w-full border-t"></span>
 									</div>
 									<div class="relative flex justify-center text-xs uppercase">
-										<span class="bg-background px-2 text-muted-foreground">Or enter ID manually</span>
+										<span class="bg-background px-2 text-muted-foreground"
+											>Or enter ID manually</span
+										>
 									</div>
 								</div>
 
-								<form class="flex flex-col gap-3" onsubmit={(e) => { e.preventDefault(); handleCheckIn(); }}>
+								<form
+									class="flex flex-col gap-3"
+									onsubmit={(e) => {
+										e.preventDefault();
+										handleCheckIn();
+									}}
+								>
 									<div class="grid gap-2">
 										<Label for="memberId" class="sr-only">Member ID</Label>
-										<Input 
-											id="memberId" 
-											placeholder="Enter Member ID" 
+										<Input
+											id="memberId"
+											placeholder="Enter Member ID"
 											bind:value={memberId}
-											class="text-center text-lg h-12"
+											class="h-12 text-center text-lg"
 										/>
 									</div>
-									<Button type="submit" size="lg" class="w-full py-3" disabled={!memberId || checkingIn}>
+									<Button
+										type="submit"
+										size="lg"
+										class="w-full py-3"
+										disabled={!memberId || checkingIn}
+									>
 										{checkingIn ? 'Checking in...' : 'Check In'}
 									</Button>
 								</form>
@@ -320,22 +342,18 @@
 							<div class="mt-4 rounded-md bg-destructive/15 p-4 text-destructive">
 								<div class="flex items-center gap-2">
 									<XCircle class="h-4 w-4" />
-									<h5 class="font-medium leading-none tracking-tight">Error</h5>
+									<h5 class="leading-none font-medium tracking-tight">Error</h5>
 								</div>
 								<div class="mt-1 text-sm opacity-90">{statusMessage}</div>
 							</div>
 						{/if}
 					{/if}
 				</CardContent>
-				<CardFooter class="flex flex-col items-center justify-center text-center gap-3 pb-6">
-					<Button 
-						variant="outline" 
-						class="w-full"
-						onclick={() => showInstructions = true}
-					>
+				<CardFooter class="flex flex-col items-center justify-center gap-3 pb-6 text-center">
+					<Button variant="outline" class="w-full" onclick={() => (showInstructions = true)}>
 						How to Check In?
 					</Button>
-					<div class="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">
+					<div class="text-[10px] font-semibold tracking-widest text-muted-foreground uppercase">
 						Bible Baptist Church Tanza
 					</div>
 					<div class="text-xs text-muted-foreground/80">
@@ -350,84 +368,96 @@
 <!-- Instructions Modal -->
 <Dialog.Root bind:open={showInstructions}>
 	<Dialog.Portal>
-		<Dialog.Overlay class="fixed inset-0 z-40 bg-background/80 backdrop-blur-sm pointer-events-none" />
-		<Dialog.Content class="fixed left-[50%] top-[50%] z-50 grid w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 border bg-card p-4 sm:p-6 shadow-lg duration-200 rounded-xl max-h-[90vh] overflow-y-auto pointer-events-auto">
+		<Dialog.Overlay
+			class="pointer-events-none fixed inset-0 z-40 bg-background/80 backdrop-blur-sm"
+		/>
+		<Dialog.Content
+			class="pointer-events-auto fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-[95vw] max-w-md translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-xl border bg-card p-4 shadow-lg duration-200 sm:p-6"
+		>
 			<Dialog.Header>
-				<Dialog.Title class="text-lg sm:text-xl font-semibold">How to Check In</Dialog.Title>
-				<Dialog.Description class="text-xs sm:text-sm text-muted-foreground">
+				<Dialog.Title class="text-lg font-semibold sm:text-xl">How to Check In</Dialog.Title>
+				<Dialog.Description class="text-xs text-muted-foreground sm:text-sm">
 					Follow these simple steps to check in for the event
 				</Dialog.Description>
 			</Dialog.Header>
 			<div class="space-y-4">
 				<div class="flex gap-3">
-					<div class="shrink-0 flex items-start">
-						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+					<div class="flex shrink-0 items-start">
+						<div
+							class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
+						>
 							1
 						</div>
 					</div>
 					<div>
-						<h4 class="font-semibold text-sm">Scan Your ID Badge</h4>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
-							Tap the "Scan Your ID Badge" button to activate the camera and scan your QR code badge.
+						<h4 class="text-sm font-semibold">Scan Your ID Badge</h4>
+						<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+							Tap the "Scan Your ID Badge" button to activate the camera and scan your QR code
+							badge.
 						</p>
 					</div>
 				</div>
 
 				<div class="flex gap-3">
-					<div class="shrink-0 flex items-start">
-						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+					<div class="flex shrink-0 items-start">
+						<div
+							class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
+						>
 							2
 						</div>
 					</div>
 					<div>
-						<h4 class="font-semibold text-sm">Position Your Badge</h4>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
-							Hold your ID badge in front of the camera until it scans successfully. You'll hear a beep when it's detected.
+						<h4 class="text-sm font-semibold">Position Your Badge</h4>
+						<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+							Hold your ID badge in front of the camera until it scans successfully. You'll hear a
+							beep when it's detected.
 						</p>
 					</div>
 				</div>
 
 				<div class="flex gap-3">
-					<div class="shrink-0 flex items-start">
-						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+					<div class="flex shrink-0 items-start">
+						<div
+							class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
+						>
 							3
 						</div>
 					</div>
 					<div>
-						<h4 class="font-semibold text-sm">Manual Entry (Optional)</h4>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
-							If scanning doesn't work, you can manually enter your Member ID in the input field and tap "Check In".
+						<h4 class="text-sm font-semibold">Manual Entry (Optional)</h4>
+						<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+							If scanning doesn't work, you can manually enter your Member ID in the input field and
+							tap "Check In".
 						</p>
 					</div>
 				</div>
 
 				<div class="flex gap-3">
-					<div class="shrink-0 flex items-start">
-						<div class="flex items-center justify-center h-6 w-6 rounded-full bg-primary text-primary-foreground text-xs font-bold">
+					<div class="flex shrink-0 items-start">
+						<div
+							class="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground"
+						>
 							4
 						</div>
 					</div>
 					<div>
-						<h4 class="font-semibold text-sm">Confirmation</h4>
-						<p class="text-xs sm:text-sm text-muted-foreground mt-1">
-							Once checked in successfully, you'll see a green confirmation message. You can then scan another badge or exit.
+						<h4 class="text-sm font-semibold">Confirmation</h4>
+						<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+							Once checked in successfully, you'll see a green confirmation message. You can then
+							scan another badge or exit.
 						</p>
 					</div>
 				</div>
 
-				<div class="rounded-lg bg-primary/10 border border-primary/20 p-3 mt-4">
-					<p class="text-xs sm:text-sm font-medium text-primary">
+				<div class="mt-4 rounded-lg border border-primary/20 bg-primary/10 p-3">
+					<p class="text-xs font-medium text-primary sm:text-sm">
 						💡 Tip: Make sure the lighting is good and hold your badge steady for faster scanning.
 					</p>
 				</div>
 			</div>
 
 			<Dialog.Header class="flex-row justify-end gap-2 space-y-0">
-				<Button 
-					variant="outline" 
-					onclick={() => showInstructions = false}
-					class="w-full"
-				>
+				<Button variant="outline" onclick={() => (showInstructions = false)} class="w-full">
 					Got it!
 				</Button>
 			</Dialog.Header>

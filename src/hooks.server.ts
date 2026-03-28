@@ -10,72 +10,72 @@ import { supabase } from '$lib/supabase';
  * qr-attendance-bbct-v2.vercel.app: Full access including admin panel
  */
 const domainRouting: Handle = async ({ event, resolve }) => {
-  const hostname = event.url.hostname;
-  const pathname = event.url.pathname;
+	const hostname = event.url.hostname;
+	const pathname = event.url.pathname;
 
-  // check-in-bbct.vercel.app domain - only allow check-in and display routes
-  if (hostname === 'check-in-bbct.vercel.app') {
-    // Allow check-in routes
-    if (pathname.startsWith('/check-in/')) {
-      return resolve(event);
-    }
-    // Allow display routes
-    if (pathname.startsWith('/display/')) {
-      return resolve(event);
-    }
-    // Allow login page
-    if (pathname.startsWith('/login')) {
-      return resolve(event);
-    }
-    // Allow public assets
-    if (pathname.startsWith('/static/')) {
-      return resolve(event);
-    }
-    
-    // Handle root path - redirect to latest event or show waiting page
-    if (pathname === '/') {
-      try {
-        // Get the latest/current event
-        const now = new Date();
-        const { data: currentEvent } = await supabase
-          .from('events')
-          .select('event_id, event_name, status')
-          .eq('status', 'live')
-          .single();
+	// check-in-bbct.vercel.app domain - only allow check-in and display routes
+	if (hostname === 'check-in-bbct.vercel.app') {
+		// Allow check-in routes
+		if (pathname.startsWith('/check-in/')) {
+			return resolve(event);
+		}
+		// Allow display routes
+		if (pathname.startsWith('/display/')) {
+			return resolve(event);
+		}
+		// Allow login page
+		if (pathname.startsWith('/login')) {
+			return resolve(event);
+		}
+		// Allow public assets
+		if (pathname.startsWith('/static/')) {
+			return resolve(event);
+		}
 
-        if (currentEvent) {
-          // Redirect to the live event's check-in page
-          return redirect(302, `/check-in/${currentEvent.event_id}`);
-        }
+		// Handle root path - redirect to latest event or show waiting page
+		if (pathname === '/') {
+			try {
+				// Get the latest/current event
+				const now = new Date();
+				const { data: currentEvent } = await supabase
+					.from('events')
+					.select('event_id, event_name, status')
+					.eq('status', 'live')
+					.single();
 
-        // If no live event, try to get the most recent event
-        const { data: recentEvent } = await supabase
-          .from('events')
-          .select('event_id, event_name, status')
-          .order('event_date', { ascending: false })
-          .limit(1)
-          .single();
+				if (currentEvent) {
+					// Redirect to the live event's check-in page
+					return redirect(302, `/check-in/${currentEvent.event_id}`);
+				}
 
-        if (recentEvent) {
-          // Redirect to the most recent event's check-in page
-          return redirect(302, `/check-in/${recentEvent.event_id}`);
-        }
+				// If no live event, try to get the most recent event
+				const { data: recentEvent } = await supabase
+					.from('events')
+					.select('event_id, event_name, status')
+					.order('event_date', { ascending: false })
+					.limit(1)
+					.single();
 
-        // No event found - show waiting page
-        return error(503, 'No events available. Please wait for an event to be scheduled.');
-      } catch (err) {
-        console.error('Error fetching event:', err);
-        // Fallback if database query fails
-        return error(503, 'Service temporarily unavailable. Please wait for another event.');
-      }
-    }
+				if (recentEvent) {
+					// Redirect to the most recent event's check-in page
+					return redirect(302, `/check-in/${recentEvent.event_id}`);
+				}
 
-    // Reject all other routes (including admin panel)
-    return error(404, 'Not found');
-  }
+				// No event found - show waiting page
+				return error(503, 'No events available. Please wait for an event to be scheduled.');
+			} catch (err) {
+				console.error('Error fetching event:', err);
+				// Fallback if database query fails
+				return error(503, 'Service temporarily unavailable. Please wait for another event.');
+			}
+		}
 
-  // For all other domains/localhost, allow full access
-  return resolve(event);
+		// Reject all other routes (including admin panel)
+		return error(404, 'Not found');
+	}
+
+	// For all other domains/localhost, allow full access
+	return resolve(event);
 };
 
 /**
@@ -84,61 +84,61 @@ const domainRouting: Handle = async ({ event, resolve }) => {
  * If a session is marked as inactive, the user is logged out.
  */
 const validateSession: Handle = async ({ event, resolve }) => {
-  try {
-    // Get the user from the request if available
-    const authHeader = event.request.headers.get('authorization');
-    
-    if (!authHeader) {
-      // No auth header, continue without validation
-      return resolve(event);
-    }
+	try {
+		// Get the user from the request if available
+		const authHeader = event.request.headers.get('authorization');
 
-    // Extract JWT from Authorization header (Bearer <token>)
-    const token = authHeader.replace('Bearer ', '');
-    
-    if (!token) {
-      return resolve(event);
-    }
+		if (!authHeader) {
+			// No auth header, continue without validation
+			return resolve(event);
+		}
 
-    // Get the user associated with this token
-    const {
-      data: { user },
-      error: userError
-    } = await supabase.auth.getUser(token);
+		// Extract JWT from Authorization header (Bearer <token>)
+		const token = authHeader.replace('Bearer ', '');
 
-    if (userError || !user?.id) {
-      // No valid user, continue
-      return resolve(event);
-    }
-  
-    // Check if user has at least one active session
-    const { data: activeSessions, error } = await supabase
-      .from('user_sessions')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('is_active', true)
-      .limit(1);
+		if (!token) {
+			return resolve(event);
+		}
 
-    if (error) {
-      console.error('Session validation error:', error);
-      return resolve(event);
-    }
+		// Get the user associated with this token
+		const {
+			data: { user },
+			error: userError
+		} = await supabase.auth.getUser(token);
 
-    // If no active sessions found, invalidate the session
-    if (!activeSessions || activeSessions.length === 0) {
-      // Sign out the user
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (signOutError) {
-        console.error('Sign out error during session validation:', signOutError);
-      }
-      // Redirect to root (login page)
-      return redirect(302, '/');
-    }
-  } catch (err) {
-    console.error('Unexpected error during session validation:', err);
-  }
+		if (userError || !user?.id) {
+			// No valid user, continue
+			return resolve(event);
+		}
 
-  return resolve(event);
+		// Check if user has at least one active session
+		const { data: activeSessions, error } = await supabase
+			.from('user_sessions')
+			.select('id')
+			.eq('user_id', user.id)
+			.eq('is_active', true)
+			.limit(1);
+
+		if (error) {
+			console.error('Session validation error:', error);
+			return resolve(event);
+		}
+
+		// If no active sessions found, invalidate the session
+		if (!activeSessions || activeSessions.length === 0) {
+			// Sign out the user
+			const { error: signOutError } = await supabase.auth.signOut();
+			if (signOutError) {
+				console.error('Sign out error during session validation:', signOutError);
+			}
+			// Redirect to root (login page)
+			return redirect(302, '/');
+		}
+	} catch (err) {
+		console.error('Unexpected error during session validation:', err);
+	}
+
+	return resolve(event);
 };
 
 export const handle = sequence(domainRouting, validateSession);

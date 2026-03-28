@@ -5,23 +5,27 @@ A comprehensive attendance and event management system migrated from React to **
 ## 🚀 Key Features
 
 ### Core Attendance Tracking
+
 - **Scan-In Flow**: Rapid member check-in using a centralized scanning interface.
 - **Manual Attendance**: Staff can manually record attendance for sessions if needed.
 - **Real-time Status**: Live updates on who is currently checked in.
 - **History Tracking**: Detailed history of all attendance records across different events and sessions.
 
 ### Event Management
+
 - **Automated Workflows**: Smart system for opening, closing, and archiving events based on schedules.
 - **Categorization**: Support for different event types (Regular, Special, etc.).
 - **Asia/Manila Persistence**: All event times are handled within the appropriate timezone context.
 
 ### Member Management
+
 - **Profile Database**: Centralized storage for member information.
 - **Analytics**: Visualization of attendance trends and member engagement (Upcoming).
 - **Exporting**: Export attendance data and member lists to various formats.
 
 ### Security & RBAC
-- **Multi-Role Support**: 
+
+- **Multi-Role Support**:
   - `developer`: Full system access.
   - `admin`: Full administrative access.
   - `staff`: Operational access for managing events and members.
@@ -39,10 +43,12 @@ A comprehensive attendance and event management system migrated from React to **
 ## 📦 Getting Started
 
 ### Prerequisites
+
 - Node.js (Latest LTS)
 - Supabase Account & Project
 
 ### Installation
+
 1. Clone the repository
 2. Install dependencies:
    ```bash

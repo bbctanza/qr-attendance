@@ -9,7 +9,7 @@
  */
 export function escapeHtml(str: string | null | undefined): string {
 	if (!str) return '';
-	
+
 	const htmlEscapeMap: Record<string, string> = {
 		'&': '&amp;',
 		'<': '&lt;',
@@ -18,7 +18,7 @@ export function escapeHtml(str: string | null | undefined): string {
 		"'": '&#x27;',
 		'/': '&#x2F;'
 	};
-	
+
 	return String(str).replace(/[&<>"']/g, (char) => htmlEscapeMap[char] || char);
 }
 
@@ -31,10 +31,10 @@ export function escapeHtml(str: string | null | undefined): string {
  */
 export function sanitizeText(str: string | null | undefined, maxLength: number = 500): string {
 	if (!str) return '';
-	
+
 	// Escape HTML entities
 	let sanitized = escapeHtml(str);
-	
+
 	// Remove any remaining potentially dangerous patterns
 	sanitized = sanitized
 		.replace(/javascript:/gi, '')
@@ -42,12 +42,12 @@ export function sanitizeText(str: string | null | undefined, maxLength: number =
 		.replace(/data:/gi, '')
 		.replace(/vbscript:/gi, '')
 		.trim();
-	
+
 	// Limit length to prevent DoS attacks
 	if (sanitized.length > maxLength) {
 		sanitized = sanitized.substring(0, maxLength) + '...';
 	}
-	
+
 	return sanitized;
 }
 
@@ -58,9 +58,11 @@ export function sanitizeText(str: string | null | undefined, maxLength: number =
  */
 export function sanitizeId(id: string | null | undefined): string {
 	if (!id) return '';
-	
+
 	// Only allow alphanumeric characters, hyphens, and underscores
-	const sanitized = String(id).replace(/[^a-zA-Z0-9\-_]/g, '').substring(0, 100);
+	const sanitized = String(id)
+		.replace(/[^a-zA-Z0-9\-_]/g, '')
+		.substring(0, 100);
 	return sanitized;
 }
 
@@ -71,7 +73,7 @@ export function sanitizeId(id: string | null | undefined): string {
  */
 export function isValidEmail(email: string | null | undefined): boolean {
 	if (!email) return false;
-	
+
 	const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 	return emailRegex.test(String(email).trim());
 }
@@ -84,10 +86,10 @@ export function isValidEmail(email: string | null | undefined): boolean {
  */
 export function sanitizeErrorMessage(error: unknown): string {
 	if (!error) return 'An error occurred';
-	
+
 	// Extract message safely
 	let message = '';
-	
+
 	if (typeof error === 'string') {
 		message = error;
 	} else if (typeof error === 'object' && error !== null) {
@@ -102,12 +104,12 @@ export function sanitizeErrorMessage(error: unknown): string {
 	} else {
 		message = 'An unexpected error occurred';
 	}
-	
+
 	// Don't expose stack traces or internal details
 	if (message.includes('stack') || message.includes('at ')) {
 		return 'An unexpected error occurred';
 	}
-	
+
 	// Sanitize and limit length
 	return sanitizeText(message, 200);
 }

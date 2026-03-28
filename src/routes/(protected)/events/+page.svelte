@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { Button } from '$lib/components/ui/button';
-	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
+	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Calendar, Clock, MapPin, Edit, Trash2, Plus, Check } from '@lucide/svelte';
+	import { Calendar, Clock, MapPin, Pencil, Trash2, Plus, Check } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import {
 		Drawer,
@@ -21,17 +21,13 @@
 	} from '$lib/components/ui/sheet';
 	import { Label } from '$lib/components/ui/label';
 	import { Input } from '$lib/components/ui/input';
-	import { Checkbox } from '$lib/components/ui/checkbox';
 	import * as Select from '$lib/components/ui/select';
 	import { supabase } from '$lib/supabase';
 	import { auditedEventsApi, auditedEventTypesApi } from '$lib/api/auditedApi';
 	import { onMount } from 'svelte';
 	import FullPageLoading from '$lib/components/full-page-loading.svelte';
-	import { eventTypesApi } from '$lib/api/event_types';
-	import { goto } from '$app/navigation';
 	import { showErrorToast, showSuccessToast, showWarningToast } from '$lib/utils/errorHandler';
-	import { CalendarRange, Settings2 } from 'lucide-svelte';
-	import { formatLocalTime, convertToUTC, formatTimeRange, formatTimeColumn } from '$lib/utils/time';
+	import { formatLocalTime, convertToUTC, formatTimeColumn } from '$lib/utils/time';
 
 	// Data
 	const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -79,27 +75,29 @@
 			.order('start_time', { ascending: true });
 
 		if (typesError) {
-		showErrorToast(typesError, 'Failed to Load Event Types');
+			showErrorToast(typesError, 'Failed to Load Event Types');
 			return;
 		}
 
 		// Process event types into UI format
-		recurringEventTypes = await Promise.all((types || []).map(async (row) => ({
-			event_id: `type-${row.event_type_id}`,
-			db_id: row.event_type_id,
-			name: row.name,
-			type: 'Recurring',
-			day_of_week: row.day_of_week,
-			day_name: weekdays[row.day_of_week],
-			start_time: row.start_time,
-			end_time: row.end_time,
-			start_time_formatted: formatTimeColumn(row.start_time),
-			end_time_formatted: formatTimeColumn(row.end_time),
-			is_active: row.is_active,
-			status: row.is_active ? 'Active' : 'Inactive',
-			is_template: true,
-			_raw: row
-		})));
+		recurringEventTypes = await Promise.all(
+			(types || []).map(async (row) => ({
+				event_id: `type-${row.event_type_id}`,
+				db_id: row.event_type_id,
+				name: row.name,
+				type: 'Recurring',
+				day_of_week: row.day_of_week,
+				day_name: weekdays[row.day_of_week],
+				start_time: row.start_time,
+				end_time: row.end_time,
+				start_time_formatted: formatTimeColumn(row.start_time),
+				end_time_formatted: formatTimeColumn(row.end_time),
+				is_active: row.is_active,
+				status: row.is_active ? 'Active' : 'Inactive',
+				is_template: true,
+				_raw: row
+			}))
+		);
 
 		// 2. Fetch custom events (event_type_id IS NULL) - both upcoming and completed
 		const { data: customEvents, error: customError } = await supabase
@@ -110,25 +108,27 @@
 			.order('start_datetime', { ascending: true });
 
 		if (customError) {
-		showErrorToast(customError, 'Failed to Load Custom Events');
+			showErrorToast(customError, 'Failed to Load Custom Events');
 			return;
 		}
 
 		// Process all custom events
-		allCustomEvents = await Promise.all((customEvents || []).map(async (row) => ({
-			event_id: `custom-${row.event_id}`,
-			db_id: row.event_id,
-			name: row.event_name,
-			type: 'Custom',
-			event_date: row.event_date,
-			start_time: await formatLocalTime(row.start_datetime),
-			end_time: await formatLocalTime(row.end_datetime),
-			location: row.metadata?.location || '',
-			status: row.status === 'completed' ? 'Inactive' : 'Active',
-			is_template: false,
-			row_status: row.status,
-			_raw: row
-		})));
+		allCustomEvents = await Promise.all(
+			(customEvents || []).map(async (row) => ({
+				event_id: `custom-${row.event_id}`,
+				db_id: row.event_id,
+				name: row.event_name,
+				type: 'Custom',
+				event_date: row.event_date,
+				start_time: await formatLocalTime(row.start_datetime),
+				end_time: await formatLocalTime(row.end_datetime),
+				location: row.metadata?.location || '',
+				status: row.status === 'completed' ? 'Inactive' : 'Active',
+				is_template: false,
+				row_status: row.status,
+				_raw: row
+			}))
+		);
 
 		// Separate upcoming from all custom events
 		upcomingCustomEvents = allCustomEvents.filter((e) => e.row_status !== 'completed');
@@ -233,7 +233,12 @@
 			const eventType = recurringEventTypes.find((e) => e.event_id === id);
 			if (!eventType) return;
 
-			if (!confirm(`Delete recurring template: "${eventType.name}"? This will stop future events from being generated.`)) return;
+			if (
+				!confirm(
+					`Delete recurring template: "${eventType.name}"? This will stop future events from being generated.`
+				)
+			)
+				return;
 
 			isDeletingEvent = true;
 			try {
@@ -303,25 +308,6 @@
 		}
 	}
 
-	async function toggleRecurringActive(id: string) {
-		const eventType = recurringEventTypes.find((e) => e.event_id === id);
-		if (!eventType) return;
-
-		const newStatus = !eventType.is_active;
-		const { error } = await supabase
-			.from('event_types')
-			.update({ is_active: newStatus })
-			.eq('event_type_id', eventType.db_id);
-
-		if (error) {
-			toast.error('Failed to toggle event type');
-			return;
-		}
-
-		toast.success(`Event type ${newStatus ? 'activated' : 'deactivated'}`);
-		fetchData();
-	}
-
 	// Add Event Dialog State
 	let showAddEventDialog = $state(false);
 	let newEvent: any = $state({
@@ -374,7 +360,7 @@
 
 	async function addNewEvent() {
 		if (isAddingEvent) return;
-		
+
 		if (!newEvent.name.trim()) {
 			toast.error('Please enter event name');
 			return;
@@ -391,7 +377,7 @@
 		}
 
 		isAddingEvent = true;
-		
+
 		try {
 			const scheduleLabel =
 				newEvent.type === 'recurring'
@@ -442,34 +428,61 @@
 					const startTime = newEvent.startTime.trim();
 					const endTime = newEvent.endTime.trim();
 
-					// Check if a template already exists for this day/time
-					const { data: existing, error: checkError } = await supabase
-						.from('event_types')
-						.select('event_type_id')
-						.eq('day_of_week', dayOfWeek)
-						.eq('start_time', startTime)
-						.eq('end_time', endTime)
-						.eq('name', newEvent.name.trim());
+					// When editing, we ignore the check for "existing templates" for the currently edited ID.
+					// Otherwise, changing just the day or time creates a collision or creates new entries wrongly.
+					let existingToUpdate = null;
 
-					if (checkError) throw checkError;
+					if (isEditing && editingId?.startsWith('type-')) {
+						// Check if we are updating the SAME template
+						const idToUpdate = editingId.split('-')[1];
+						// We don't try to look for exact time matches when editing, we just overwrite the ID
+						const { data: currentTemplate } = await supabase
+							.from('event_types')
+							.select('event_type_id')
+							.eq('event_type_id', idToUpdate)
+							.single();
 
-					if (existing && existing.length > 0) {
+						if (currentTemplate) {
+							existingToUpdate = currentTemplate.event_type_id;
+						}
+					} else {
+						// Check if a template already exists for this exact day/time/name (to prevent duplicates on ADD)
+						const { data: existing, error: checkError } = await supabase
+							.from('event_types')
+							.select('event_type_id')
+							.eq('day_of_week', dayOfWeek)
+							.eq('start_time', startTime)
+							.eq('end_time', endTime)
+							.eq('name', newEvent.name.trim());
+
+						if (checkError) throw checkError;
+
+						if (existing && existing.length > 0) {
+							existingToUpdate = existing[0].event_type_id;
+						}
+					}
+
+					if (existingToUpdate) {
 						// Update existing template
 						const { error } = await supabase
 							.from('event_types')
 							.update({
+								name: newEvent.name.trim(),
+								day_of_week: dayOfWeek,
+								start_time: startTime,
+								end_time: endTime,
 								is_active: true,
 								metadata
 							})
-							.eq('event_type_id', existing[0].event_type_id);
+							.eq('event_type_id', existingToUpdate);
 
 						if (error) throw error;
 
-						// Propagate record_absents to all upcoming/ongoing events from this template
+						// Propagate metadata to all upcoming/ongoing events from this template
 						await supabase
 							.from('events')
 							.update({ metadata: { ...metadata } })
-							.eq('event_type_id', existing[0].event_type_id)
+							.eq('event_type_id', existingToUpdate)
 							.in('status', ['upcoming', 'ongoing']);
 
 						skippedCount++;
@@ -486,24 +499,7 @@
 						metadata
 					};
 
-					let error;
-					if (isEditing && editingId?.startsWith('template-')) {
-						({ error } = await supabase
-							.from('event_types')
-							.update(typePayload)
-							.eq('event_type_id', editingId.split('-')[1]));
-
-						if (!error) {
-							// Propagate to existing upcoming events from this template
-							await supabase
-								.from('events')
-								.update({ metadata: { ...metadata } })
-								.eq('event_type_id', editingId.split('-')[1])
-								.in('status', ['upcoming', 'ongoing']);
-						}
-					} else {
-						({ error } = await supabase.from('event_types').insert([typePayload]));
-					}
+					const { error } = await supabase.from('event_types').insert([typePayload]);
 
 					if (error) throw error;
 					createdCount++;
@@ -514,7 +510,9 @@
 				} else if (createdCount > 0 && skippedCount > 0) {
 					toast.success(`Created ${createdCount}, updated ${skippedCount} templates`);
 				} else {
-					toast.success(isEditing ? 'Templates updated' : `Recurring templates added (${createdCount})`);
+					toast.success(
+						isEditing ? 'Templates updated' : `Recurring templates added (${createdCount})`
+					);
 				}
 			} else {
 				// One-time or Monthly (Monthly not fully supported by event_types schema yet, so treat as custom instance for now)
@@ -528,7 +526,7 @@
 					metadata
 				};
 
-				if (isEditing && editingId?.startsWith('instance-')) {
+				if (isEditing && editingId?.startsWith('custom-')) {
 					await auditedEventsApi.updateEvent(Number(editingId.split('-')[1]), payload);
 				} else {
 					await auditedEventsApi.createEvent(payload);
@@ -778,10 +776,14 @@
 							</div>
 
 							<!-- Record Absents Toggle -->
-							<div class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
+							<div
+								class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
+							>
 								<div>
 									<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
-									<p class="mt-1 text-xs text-muted-foreground">When OFF, only present attendees are recorded</p>
+									<p class="mt-1 text-xs text-muted-foreground">
+										When OFF, only present attendees are recorded
+									</p>
 								</div>
 								<Switch bind:checked={newEvent.record_absents} />
 							</div>
@@ -796,7 +798,9 @@
 						<Button class="w-full" onclick={addNewEvent} disabled={isAddingEvent}>
 							{#if isAddingEvent}
 								<div class="flex items-center gap-2">
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									<div
+										class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+									></div>
 									<span>Saving...</span>
 								</div>
 							{:else}
@@ -1014,10 +1018,14 @@
 							</div>
 
 							<!-- Record Absents Toggle -->
-							<div class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3">
+							<div
+								class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
+							>
 								<div>
 									<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
-									<p class="mt-1 text-xs text-muted-foreground">When OFF, only present attendees are recorded</p>
+									<p class="mt-1 text-xs text-muted-foreground">
+										When OFF, only present attendees are recorded
+									</p>
 								</div>
 								<Switch bind:checked={newEvent.record_absents} />
 							</div>
@@ -1032,7 +1040,9 @@
 						<Button class="w-full md:w-auto" onclick={addNewEvent} disabled={isAddingEvent}>
 							{#if isAddingEvent}
 								<div class="flex items-center gap-2">
-									<div class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+									<div
+										class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+									></div>
 									<span>Saving...</span>
 								</div>
 							{:else}
@@ -1103,7 +1113,7 @@
 											class="h-9 w-9 p-0"
 											onclick={() => editEvent(event.event_id)}
 										>
-											<Edit class="h-4 w-4" />
+											<Pencil class="h-4 w-4" />
 										</Button>
 										<Button
 											variant="ghost"
@@ -1113,7 +1123,9 @@
 											onclick={() => deleteEvent(event.event_id)}
 										>
 											{#if isDeletingEvent}
-												<div class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"></div>
+												<div
+													class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"
+												></div>
 											{:else}
 												<Trash2 class="h-4 w-4" />
 											{/if}
@@ -1172,7 +1184,7 @@
 											class="h-9 w-9 p-0"
 											onclick={() => editEvent(event.event_id)}
 										>
-											<Edit class="h-4 w-4" />
+											<Pencil class="h-4 w-4" />
 										</Button>
 										<Button
 											variant="ghost"
@@ -1182,7 +1194,9 @@
 											onclick={() => deleteEvent(event.event_id)}
 										>
 											{#if isDeletingEvent}
-												<div class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"></div>
+												<div
+													class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"
+												></div>
 											{:else}
 												<Trash2 class="h-4 w-4" />
 											{/if}

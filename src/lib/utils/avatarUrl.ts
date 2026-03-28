@@ -5,7 +5,7 @@
 
 export function ensureAvatarDownloadParam(url: string | null | undefined): string | undefined {
 	if (!url) return undefined;
-	
+
 	// If it's a signed URL (contains /sign/), convert to public URL
 	if (url.includes('/sign/')) {
 		// Extract the file path from the signed URL
@@ -19,7 +19,7 @@ export function ensureAvatarDownloadParam(url: string | null | undefined): strin
 			return `${supabaseUrl}/storage/v1/object/public/${filePath}`;
 		}
 	}
-	
+
 	// Public URLs from Supabase storage already work fine for image loading
 	return url;
 }

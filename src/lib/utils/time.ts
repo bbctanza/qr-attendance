@@ -8,22 +8,22 @@ import { get } from 'svelte/store';
  */
 export function ensureUTC(dateString: string): string {
 	if (!dateString) return '';
-	
+
 	// If already has Z or T with timezone info, return as-is
 	if (dateString.includes('Z') || dateString.includes('+') || dateString.includes('-00:')) {
 		return dateString;
 	}
-	
+
 	// If it's a database string like "2026-02-06 07:21:00", convert to ISO UTC
 	if (dateString.includes(' ') && !dateString.includes('T')) {
 		return dateString.replace(' ', 'T') + 'Z';
 	}
-	
+
 	// If it's already ISO but missing Z, add it
 	if (dateString.includes('T') && !dateString.includes('Z')) {
 		return dateString + 'Z';
 	}
-	
+
 	return dateString;
 }
 
@@ -32,7 +32,7 @@ export function ensureUTC(dateString: string): string {
  */
 async function getUserTimezone(): Promise<string> {
 	const defaultTimezone = 'Asia/Manila';
-	
+
 	try {
 		const settings = get(systemSettings);
 		if (settings?.timezone) {
@@ -44,11 +44,7 @@ async function getUserTimezone(): Promise<string> {
 
 	// If store doesn't have it, try database
 	try {
-		const { data } = await supabase
-			.from('system_settings')
-			.select('timezone')
-			.eq('id', 1)
-			.single();
+		const { data } = await supabase.from('system_settings').select('timezone').eq('id', 1).single();
 
 		if (data?.timezone) {
 			return data.timezone;
@@ -72,7 +68,8 @@ export async function formatLocalDateTime(dateString: string, showTime = true): 
 	// Ensure the date string is in proper UTC format
 	const utcString = ensureUTC(dateString);
 	const timezone = await getUserTimezone();
-	const use12HourFormat = typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
+	const use12HourFormat =
+		typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
 
 	const date = new Date(utcString);
 
@@ -103,18 +100,19 @@ export async function formatLocalDateTime(dateString: string, showTime = true): 
  */
 export function formatTimeColumn(timeString: string): string {
 	if (!timeString) return '';
-	
+
 	const [hours, minutes] = timeString.split(':').map(Number);
 	const date = new Date();
 	date.setHours(hours);
 	date.setMinutes(minutes);
-	
-	const use12HourFormat = typeof localStorage !== 'undefined' && localStorage.getItem('time_format') !== '24h'; // Default to 12h
 
-	return date.toLocaleTimeString([], { 
-		hour: 'numeric', 
-		minute: '2-digit', 
-		hour12: use12HourFormat 
+	const use12HourFormat =
+		typeof localStorage !== 'undefined' && localStorage.getItem('time_format') !== '24h'; // Default to 12h
+
+	return date.toLocaleTimeString([], {
+		hour: 'numeric',
+		minute: '2-digit',
+		hour12: use12HourFormat
 	});
 }
 
@@ -129,7 +127,8 @@ export async function formatLocalTime(dateString: string): Promise<string> {
 	// Ensure the date string is in proper UTC format
 	const utcString = ensureUTC(dateString);
 	const timezone = await getUserTimezone();
-	const use12HourFormat = typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
+	const use12HourFormat =
+		typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
 
 	const date = new Date(utcString);
 
@@ -144,7 +143,11 @@ export async function formatLocalTime(dateString: string): Promise<string> {
 		return formatter.format(date);
 	} catch (e) {
 		console.warn('Invalid timezone:', timezone, e);
-		return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: use12HourFormat });
+		return date.toLocaleTimeString([], {
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: use12HourFormat
+		});
 	}
 }
 
@@ -182,9 +185,9 @@ export async function convertToUTC(localDateString: string, timeString: string):
 
 		// Step 3: Check what time this UTC date shows in user's timezone
 		let parts = formatter.formatToParts(testDate);
-		let displayedDay = parseInt(parts.find(p => p.type === 'day')?.value || '1');
-		let displayedHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-		let displayedMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
+		let displayedDay = parseInt(parts.find((p) => p.type === 'day')?.value || '1');
+		let displayedHour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0');
+		let displayedMinute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0');
 
 		// Step 4: Calculate the offset
 		const hourDiff = hour - displayedHour;
@@ -198,9 +201,9 @@ export async function convertToUTC(localDateString: string, timeString: string):
 
 		// Step 6: Verify it's correct
 		parts = formatter.formatToParts(testDate);
-		displayedHour = parseInt(parts.find(p => p.type === 'hour')?.value || '0');
-		displayedMinute = parseInt(parts.find(p => p.type === 'minute')?.value || '0');
-		displayedDay = parseInt(parts.find(p => p.type === 'day')?.value || '1');
+		displayedHour = parseInt(parts.find((p) => p.type === 'hour')?.value || '0');
+		displayedMinute = parseInt(parts.find((p) => p.type === 'minute')?.value || '0');
+		displayedDay = parseInt(parts.find((p) => p.type === 'day')?.value || '1');
 
 		// If not correct, adjust once more
 		if (displayedHour !== hour || displayedMinute !== minute || displayedDay !== day) {

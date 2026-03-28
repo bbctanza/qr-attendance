@@ -14,7 +14,7 @@ import { getErrorMessage, getErrorTitle } from '$lib/utils';
 export function showErrorToast(error: unknown, fallbackMessage?: string): void {
 	const title = getErrorTitle(error);
 	const message = getErrorMessage(error);
-	
+
 	if (fallbackMessage) {
 		toast.error(`${fallbackMessage}: ${message}`);
 	} else {
@@ -58,11 +58,14 @@ export function showLoadingToast(message: string): string | number {
 /**
  * Update an existing toast
  */
-export function updateToast(id: string | number, options: {
-	message?: string;
-	type?: 'success' | 'error' | 'warning' | 'info' | 'loading';
-	duration?: number;
-}): void {
+export function updateToast(
+	id: string | number,
+	options: {
+		message?: string;
+		type?: 'success' | 'error' | 'warning' | 'info' | 'loading';
+		duration?: number;
+	}
+): void {
 	if (options.type === 'success') {
 		toast.success(options.message || '', { id });
 	} else if (options.type === 'error') {

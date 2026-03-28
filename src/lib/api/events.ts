@@ -22,10 +22,7 @@ export const eventsApi = {
 	 */
 	async getEventsByDate(dateStr: string) {
 		// dateStr should be YYYY-MM-DD
-		const { data, error } = await supabase
-			.from('events')
-			.select('*')
-			.eq('event_date', dateStr);
+		const { data, error } = await supabase.from('events').select('*').eq('event_date', dateStr);
 
 		if (error) throw error;
 		return data as AttendanceEvent[];
@@ -35,13 +32,16 @@ export const eventsApi = {
 	 * Create a new event instance.
 	 */
 	async createEvent(eventData: Partial<AttendanceEvent>) {
-		const { data, error } = await supabase
-			.from('events')
-			.insert(eventData)
-			.select()
-			.single();
+		const { data, error } = await supabase.from('events').insert(eventData).select().single();
 
-		if (error) throw error;
+		if (error) {
+			// Ignore unique constraint violations (23505) gracefully for duplicate recurring events.
+			if (error.code === '23505' && eventData.is_recurring) {
+				console.warn('Attempted to create a duplicate recurring event, ignoring.');
+				return null as unknown as AttendanceEvent; // Or fetch the existing event if necessary
+			}
+			throw error;
+		}
 		return data as AttendanceEvent;
 	},
 
@@ -86,38 +86,35 @@ export const eventsApi = {
 		// A simpler approach for the client:
 		// 1. Get all events with status 'completed' AND created recently (e.g. today).
 		// 2. Or, simpler: Just call the RPC for all recently completed events. It's safe/idempotent-ish (except the insert conflict do nothing).
-		
+
 		// Let's try to query attendance_scans to get unique event_ids, then filter those events.
-		
-        const { data: scans, error: scanError } = await supabase
-            .from('attendance_scans')
-            .select('event_id');
 
-        if (scanError) throw scanError;
+		const { data: scans, error: scanError } = await supabase
+			.from('attendance_scans')
+			.select('event_id');
 
-        if (!scans || scans.length === 0) return [];
+		if (scanError) throw scanError;
 
-        const eventIds = [...new Set(scans.map(s => s.event_id))];
+		if (!scans || scans.length === 0) return [];
 
-        const { data: events, error: eventError } = await supabase
-            .from('events')
-            .select('*')
-            .in('event_id', eventIds)
-            .eq('status', 'completed');
+		const eventIds = [...new Set(scans.map((s) => s.event_id))];
 
-        if (eventError) throw eventError;
+		const { data: events, error: eventError } = await supabase
+			.from('events')
+			.select('*')
+			.in('event_id', eventIds)
+			.eq('status', 'completed');
 
-        return events as AttendanceEvent[];
+		if (eventError) throw eventError;
+
+		return events as AttendanceEvent[];
 	},
 
 	/**
 	 * Delete an event
 	 */
 	async deleteEvent(eventId: number) {
-		const { error } = await supabase
-			.from('events')
-			.delete()
-			.eq('event_id', eventId);
+		const { error } = await supabase.from('events').delete().eq('event_id', eventId);
 
 		if (error) throw error;
 		return true;

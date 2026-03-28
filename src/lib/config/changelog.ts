@@ -38,7 +38,7 @@ export const changelog: ChangelogEntry[] = [
 
 			// Bug Fixes
 			'Fixed event edit loading - record_absents now loaded when editing existing events',
-			'Fixed getSnapshotAtVersion error - Removed non-existent import from restore page',
+			'Fixed getSnapshotAtVersion error - Removed non-existent import from restore page'
 		]
 	},
 	{
@@ -54,7 +54,7 @@ export const changelog: ChangelogEntry[] = [
 			'Visual enhancements - Improved spacing and typography throughout the audit logs page',
 
 			// Undo/Restore Button & Logic
-			'Always-visible undo button - Button visible with tooltip explaining why it\'s disabled',
+			"Always-visible undo button - Button visible with tooltip explaining why it's disabled",
 			'Proper state tracking - Correctly tracks restrictUndoToAdmin and requireUndoApproval conditions',
 			'Professional dialogs - Replaced browser confirm() with shadcn AlertDialog',
 			'Error handling - Comprehensive error messages with toast notifications',
@@ -84,7 +84,7 @@ export const changelog: ChangelogEntry[] = [
 			// Bug Fixes
 			'Fixed 400 Bad Request - Avatar loading errors from malformed signed URLs resolved',
 			'Fixed InvalidJWT errors - Expired tokens no longer prevent avatar display',
-			'Fixed ERR_BLOCKED_BY_ORB - Cross-origin image loading now works without token issues',
+			'Fixed ERR_BLOCKED_BY_ORB - Cross-origin image loading now works without token issues'
 		]
 	},
 	{
@@ -130,7 +130,7 @@ export const changelog: ChangelogEntry[] = [
 			'Smart batch processing - Queues audit entries, reduces free tier writes by ~90%',
 			'Configurable batching - Enables/disables batching via dev settings',
 			'Minimal storage footprint - ~300 bytes per audit entry, supports 130+ years on free tier',
-			'Async queue processing - Non-blocking audit logging doesn\'t slow down operations',
+			"Async queue processing - Non-blocking audit logging doesn't slow down operations",
 			'Fallback to realtime - Automatic fallback if batching fails',
 
 			// Dev Settings & Monitoring
@@ -151,7 +151,7 @@ export const changelog: ChangelogEntry[] = [
 			'Audited API layer - auditedMembersApi, auditedEventsApi with automatic logging',
 			'Backward compatible - Original APIs remain unchanged, new audited layer as alternative',
 			'Tag-based filtering - Logs include tags for bulk operations, auto-system, manual, etc',
-			'Session context - Captures user ID, email, role, IP, user agent automatically',
+			'Session context - Captures user ID, email, role, IP, user agent automatically'
 		]
 	},
 	{
@@ -211,7 +211,7 @@ export const changelog: ChangelogEntry[] = [
 			// Bug Fixes
 			'Fixed layout structure - Removed broken navbar hiding code with duplicate components',
 			'Corrected div nesting - Fixed malformed div structure causing breadcrumb issues',
-			'Removed unused UI store - Cleaned up isModalOpen store no longer needed',
+			'Removed unused UI store - Cleaned up isModalOpen store no longer needed'
 		]
 	},
 	{
@@ -313,7 +313,7 @@ export const changelog: ChangelogEntry[] = [
 			'No more reload glitches - Scanner works perfectly without needing to refresh',
 			'Fullscreen scanning mode - Better camera view for faster QR detection',
 			'Grouped check-in entry - Add multiple people at once before checking them in (saves time!)',
-			'Manual check-in improvements - Easier way to mark attendance when QR codes aren\'t available',
+			"Manual check-in improvements - Easier way to mark attendance when QR codes aren't available",
 
 			// QR Card Generation
 			'Built-in QR card design - Create professional QR cards without extra software',
@@ -321,7 +321,7 @@ export const changelog: ChangelogEntry[] = [
 			'Print-ready cards - Get cards ready to print immediately',
 
 			// New Analytics Page
-			'Attendance statistics - See who\'s attending most and trends over time',
+			"Attendance statistics - See who's attending most and trends over time",
 			'Event performance metrics - Understand which events get the most attendance',
 			'Visual reports - Charts and graphs that are easy to understand at a glance',
 
@@ -333,7 +333,7 @@ export const changelog: ChangelogEntry[] = [
 
 			// Additional Improvements
 			'Faster overall performance - App loads quicker and responds instantly',
-			'Better error messages - When something goes wrong, we tell you exactly what\'s wrong',
+			"Better error messages - When something goes wrong, we tell you exactly what's wrong",
 			'Improved notifications - Real-time updates so you know immediately when someone checks in',
 			'Better data exports - More ways to download and backup your data'
 		]
