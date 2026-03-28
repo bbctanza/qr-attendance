@@ -9,9 +9,19 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.3.0';
+export const CURRENT_VERSION = '2.3.1';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.3.1',
+		date: 'March 29, 2026',
+		title: 'Dashboard Metrics & Audit Logs Access Fixes',
+		items: [
+			'Fixed Overview dashboard loading error - Corrected a background issue where recent events failed to display properly.',
+			'Restored Audit Logs access - Fixed a technical issue that was incorrectly blocking Administrators from viewing system logs.',
+			'Fixed recurring event duplication - Editing recurring events now properly updates them instead of creating duplicate copies.'
+		]
+	},
 	{
 		version: '2.3.0',
 		date: 'February 28, 2026',

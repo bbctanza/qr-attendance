@@ -196,7 +196,7 @@
 				.from('events')
 				.select('*')
 				.eq('status', 'completed')
-				.filter('metadata->>record_absents', 'is', 'true') // Only include events that record absents
+				.or('metadata->>record_absents.eq.true,metadata->>record_absents.is.null') // Only include events that record absents
 				.neq('event_id', currentEventData?.event_id || -1)
 				.order('end_datetime', { ascending: false })
 				.limit(4);

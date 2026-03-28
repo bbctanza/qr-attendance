@@ -1,36 +1,28 @@
-# Scan-In System (v2.0.0)
+# BBCTanza QR Attendance System (v2.3.1)
 
-A comprehensive attendance and event management system migrated from React to **SvelteKit 2.0** and **Svelte 5**. This system provides a robust solution for tracking member attendance at various events with automated workflows and real-time synchronization via Supabase.
+A robust, enterprise-ready **Attendance and Event Management System**, beautifully designed with **SvelteKit 2.0** and the latest **Svelte 5** paradigms. Built initially for organizational meetups and recurring groups, this platform serves as an all-in-one hub to frictionlessly manage memberships, track scanning activities (QRs/barcodes), and oversee comprehensive attendance analytics.
 
-## 🚀 Key Features
+With deep **Supabase** backend integration, this system ensures real-time check-ins, extensive security via role-based access control (RBAC), and automated event state management (e.g., dynamically changing statuses as designated hours pass). From detailed timeline visualizations of attendee activity to fine-grained audit tracking, the Scan-In System replaces fragile spreadsheets with fully persistent, scalable digital workflows.
 
-### Core Attendance Tracking
+## 🚀 What it Does
 
-- **Scan-In Flow**: Rapid member check-in using a centralized scanning interface.
-- **Manual Attendance**: Staff can manually record attendance for sessions if needed.
-- **Real-time Status**: Live updates on who is currently checked in.
-- **History Tracking**: Detailed history of all attendance records across different events and sessions.
+### 1. Robust Attendance Tracking
+- **High-Speed Check-In Modules**: Process large queues quickly, offering both self-service display nodes and staff-assisted mobile capabilities.
+- **Accurate Absentee Tracking**: Control via metadata toggles whether specific events register non-attending members.
+- **Real-Time Data Streams**: Dashboards instantly reflect when someone registers their presence without refreshing.
 
-### Event Management
+### 2. Comprehensive Event & Membership Management
+- **Automated Lifecycle Hooks**: Pre-schedule events, handle complex recurring dates gracefully, and let the system archive finished conferences untouched.
+- **Hierarchical Groups**: Connect members through distinct care-groups, tracks, or departments for deeper sorting.
+- **Export Power**: Generate cleanly formatted `.xlsx` or `.csv` sheets instantly to deliver overviews to external stakeholders.
 
-- **Automated Workflows**: Smart system for opening, closing, and archiving events based on schedules.
-- **Categorization**: Support for different event types (Regular, Special, etc.).
-- **Asia/Manila Persistence**: All event times are handled within the appropriate timezone context.
+### 3. Auditing & Trust
+- **Full Action Traces**: Everything—from a staff member forcibly updating a record to someone erroneously deleting a history row—is logged sequentially, complete with "Before" and "After" data snapshots diffs. 
+- **Point-in-time Undo**: Advanced point-and-click rollback capabilities for rectifying administrative mistakes safely.
 
-### Member Management
-
-- **Profile Database**: Centralized storage for member information.
-- **Analytics**: Visualization of attendance trends and member engagement (Upcoming).
-- **Exporting**: Export attendance data and member lists to various formats.
-
-### Security & RBAC
-
-- **Multi-Role Support**:
-  - `developer`: Full system access.
-  - `admin`: Full administrative access.
-  - `staff`: Operational access for managing events and members.
-  - `guest`: Read-only access with restricted configuration capabilities.
-- **Global Settings Lock**: Guests are restricted from modifying critical system settings (branding, localization, QR config).
+### 4. Advanced Security & RBAC
+- **Strict Role Boundaries**: Ranging through `Developer`, `Admin`, `Staff`, down to a purely `Guest` (View-Only) configuration.
+- **Enforced Route Protection**: Strict database-level Row Level Security (RLS) restricts lower-tier roles from tampering directly with tables or sensitive audit archives.
 
 ## 🛠 Tech Stack
 
@@ -74,4 +66,4 @@ A comprehensive attendance and event management system migrated from React to **
 
 ## 📜 Changelog
 
-Detailed version history is available within the application's **Changelog Modal**. Recent updates include the complete migration from React to Svelte and the implementation of Guest Role restrictions in App Settings.
+Detailed version history is available within the application's **Changelog Modal**. Recent updates include restoring proper Audit Logs access for administrators, accurate overview metrics, and proper toggle options for recording absent attendees (introduced in 2.3.0).
