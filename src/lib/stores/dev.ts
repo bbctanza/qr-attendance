@@ -2,8 +2,7 @@ import { writable } from 'svelte/store';
 import { browser } from '$app/environment';
 
 export interface DevState {
-	isMockTimeActive: boolean;
-	mockTime: Date | null;
+	bypassEventTimeValidation: boolean;
 	// Audit Trail Settings
 	auditTrailEnabled: boolean;
 	gdprModeEnabled: boolean;
@@ -14,8 +13,7 @@ export interface DevState {
 }
 
 const initialState: DevState = {
-	isMockTimeActive: false,
-	mockTime: null,
+	bypassEventTimeValidation: false,
 	// Audit Trail enabled by default, GDPR disabled, staff can undo
 	auditTrailEnabled: true,
 	gdprModeEnabled: false,
@@ -32,37 +30,31 @@ function createDevStore() {
 		subscribe,
 		init: () => {
 			if (!browser) return;
+			let state = { ...initialState };
+
 			const savedState = localStorage.getItem('dev_audit_settings');
 			if (savedState) {
 				try {
 					const parsedState = JSON.parse(savedState);
-					set({
-						...initialState,
-						...parsedState
-					});
-				} catch (e) {
-					set(initialState);
-				}
-			} else {
-				set(initialState);
+					state = { ...state, ...parsedState };
+				} catch (e) {}
 			}
+
+			const savedBypass = localStorage.getItem('dev_bypass_time');
+			if (savedBypass) {
+				try {
+					state.bypassEventTimeValidation = JSON.parse(savedBypass);
+				} catch (e) {}
+			}
+
+			set(state);
 		},
-		setMockTime: (date: Date) => {
+		setBypassEventTimeValidation: (enabled: boolean) => {
 			if (!browser) return;
-			localStorage.setItem('dev_mock_time', date.toISOString());
-			set({
-				...initialState,
-				isMockTimeActive: true,
-				mockTime: date
-			});
-		},
-		clearMockTime: () => {
-			if (!browser) return;
-			localStorage.removeItem('dev_mock_time');
+			localStorage.setItem('dev_bypass_time', JSON.stringify(enabled));
 			update((state) => ({
 				...state,
-				isMockTimeActive: false,
-				mockTime: null
+				bypassEventTimeValidation: enabled
 			}));
 		},
 		// Audit Trail Settings
@@ -113,8 +105,7 @@ function createDevStore() {
 			localStorage.removeItem('dev_audit_settings');
 			set({
 				...initialState,
-				isMockTimeActive: false,
-				mockTime: null
+				bypassEventTimeValidation: false
 			});
 		}
 	};

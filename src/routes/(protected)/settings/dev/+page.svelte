@@ -5,32 +5,12 @@
 	import { Label } from '$lib/components/ui/label';
 	import { Input } from '$lib/components/ui/input';
 	import { Switch } from '$lib/components/ui/switch';
-	import { Calendar } from '$lib/components/ui/calendar';
-	import * as Popover from '$lib/components/ui/popover';
-	import {
-		type DateValue,
-		DateFormatter,
-		getLocalTimeZone,
-		parseDate
-	} from '@internationalized/date';
 	import { cn, getErrorMessage, getErrorTitle } from '$lib/utils';
-	import {
-		ChevronLeft,
-		CalendarClock,
-		Trash2,
-		RefreshCw,
-		Construction,
-		Calendar as CalendarIcon,
-		Clock,
-		Wrench
-	} from '@lucide/svelte';
+	import { ChevronLeft, CalendarClock, Trash2, RefreshCw, Construction, Wrench } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { devTools } from '$lib/stores/dev';
 	import { supabase } from '$lib/supabase';
-
-	let mockDateStr = $state('');
-	let mockTimeStr = $state('');
 
 	// Audit Trail Settings State
 	let auditTrailEnabled = $state(false);
@@ -39,12 +19,7 @@
 	let requireUndoApproval = $state(false);
 	let auditLogRetentionDays = $state(90);
 	let auditBatchingEnabled = $state(true);
-
-	// Date Picker State
-	let mockDateValue = $state<DateValue | undefined>();
-	const df = new DateFormatter('en-US', {
-		dateStyle: 'medium'
-	});
+	let bypassEventTimeValidation = $state(false);
 
 	// Sync audit settings from store
 	$effect(() => {
@@ -54,6 +29,7 @@
 		requireUndoApproval = $devTools.requireUndoApproval;
 		auditLogRetentionDays = $devTools.auditLogRetentionDays;
 		auditBatchingEnabled = $devTools.auditBatchingEnabled;
+		bypassEventTimeValidation = $devTools.bypassEventTimeValidation;
 	});
 
 	// Sync changes back to store
@@ -81,37 +57,9 @@
 		devTools.setAuditBatchingEnabled(auditBatchingEnabled);
 	});
 
-	// Sync from store
 	$effect(() => {
-		if ($devTools.isMockTimeActive && $devTools.mockTime) {
-			const d = $devTools.mockTime;
-			// Format YYYY-MM-DD and HH:MM
-			const isoDate = d.toISOString().split('T')[0];
-			mockDateStr = isoDate;
-			mockTimeStr = d.toTimeString().slice(0, 5);
-			try {
-				mockDateValue = parseDate(isoDate);
-			} catch (e) {}
-		}
+		devTools.setBypassEventTimeValidation(bypassEventTimeValidation);
 	});
-
-	async function applyMockTime() {
-		if (!mockDateStr || !mockTimeStr) {
-			devTools.setMockTime(new Date()); // Reset to current time
-			toast.success('Mock time cleared');
-			return;
-		}
-
-		try {
-			const [hours, minutes] = mockTimeStr.split(':').map(Number);
-			const combined = new Date(mockDateStr);
-			combined.setHours(hours, minutes, 0);
-			devTools.setMockTime(combined);
-			toast.success(`Mock time set to ${combined.toLocaleString()}`);
-		} catch (e) {
-			toast.error('Invalid time format');
-		}
-	}
 
 	async function runDevTool(tool: 'fix_past' | 'process_all' | 'clear_history') {
 		if (!confirm('Are you sure? This is a developer action.')) return;
@@ -166,68 +114,17 @@
 			</div>
 		</CardHeader>
 		<CardContent class="space-y-6">
-			<!-- Mock Time -->
+			<!-- Event Validation Bypass -->
 			<div class="space-y-3">
-				<div class="flex items-center gap-2 text-sm font-bold text-foreground/80">
-					<CalendarClock class="h-4 w-4" /> Mock Date & Time
+				<div class="flex items-center justify-between">
+					<div class="space-y-0.5">
+						<Label>Bypass Event Time Validation</Label>
+						<p class="text-[11px] text-muted-foreground">
+							Allows scanning into ANY event regardless of its start or end time. Great for local testing without modifying real dates.
+						</p>
+					</div>
+					<Switch bind:checked={bypassEventTimeValidation} />
 				</div>
-				<div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-					<div class="flex flex-col space-y-1">
-						<Label class="mb-1 text-xs text-muted-foreground">Mock Date</Label>
-						<Popover.Root>
-							<Popover.Trigger>
-								{#snippet child({ props })}
-									<Button
-										variant="outline"
-										class={cn(
-											'w-full justify-start text-left font-normal',
-											!mockDateValue && 'text-muted-foreground'
-										)}
-										{...props}
-									>
-										<CalendarIcon class="mr-2 h-4 w-4" />
-										{mockDateValue
-											? df.format(mockDateValue.toDate(getLocalTimeZone()))
-											: 'Pick a date'}
-									</Button>
-								{/snippet}
-							</Popover.Trigger>
-							<Popover.Content class="w-auto p-0" align="start">
-								<Calendar type="single" bind:value={mockDateValue} initialFocus />
-							</Popover.Content>
-						</Popover.Root>
-					</div>
-					<div class="space-y-1">
-						<Label class="text-xs text-muted-foreground">Mock Time</Label>
-						<div class="relative">
-							<Input type="time" bind:value={mockTimeStr} class="bg-card pl-10" />
-							<Clock
-								class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-							/>
-						</div>
-					</div>
-					<div class="flex items-end gap-2">
-						<Button
-							size="sm"
-							class="flex-1 bg-green-600 text-white hover:bg-green-700"
-							onclick={applyMockTime}>Apply</Button
-						>
-						<Button
-							size="sm"
-							variant="outline"
-							onclick={() => {
-								mockDateStr = '';
-								mockDateValue = undefined;
-								mockTimeStr = '';
-								applyMockTime();
-							}}>Reset</Button
-						>
-					</div>
-				</div>
-				<p class="text-[11px] text-muted-foreground">
-					If set, the app will simulate this time for client-side logic (e.g. scanner validation).
-					Does not affect server time.
-				</p>
 			</div>
 
 			<div class="h-px w-full bg-border/10"></div>

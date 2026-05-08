@@ -186,6 +186,19 @@
 </svelte:head>
 <Toaster position="top-center" />
 
+{#if $devTools.bypassEventTimeValidation}
+	<div
+		class="relative z-[100] flex w-full animate-in items-center justify-center gap-2 bg-orange-500 px-3 py-2 font-mono text-[10px] font-bold text-white shadow-md fade-in slide-in-from-top-4 md:text-xs"
+	>
+		<span class="relative flex h-2 w-2">
+			<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"
+			></span>
+			<span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
+		</span>
+		EVENT TIME VALIDATION BYPASSED
+	</div>
+{/if}
+
 {#if showSidebar}
 	<SidebarProvider>
 		<AppSidebar />
@@ -233,24 +246,6 @@
 	</SidebarProvider>
 {:else}
 	{@render children()}
-{/if}
-
-{#if $devTools.isMockTimeActive}
-	<div
-		class="pointer-events-none fixed right-4 bottom-24 z-100 flex animate-in items-center gap-2 rounded-full border-2 border-orange-400 bg-orange-500 px-3 py-1.5 font-mono text-[10px] font-bold text-white shadow-lg fade-in slide-in-from-bottom-4 md:right-6 md:bottom-6 md:text-xs"
-	>
-		<span class="relative flex h-2 w-2">
-			<span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75"
-			></span>
-			<span class="relative inline-flex h-2 w-2 rounded-full bg-white"></span>
-		</span>
-		MOCK TIME: {$devTools.mockTime?.toLocaleString('en-US', {
-			month: 'short',
-			day: 'numeric',
-			hour: 'numeric',
-			minute: '2-digit'
-		})}
-	</div>
 {/if}
 
 <Toaster position="top-center" richColors />

@@ -31,7 +31,7 @@
 			data: { subscription }
 		} = supabase.auth.onAuthStateChange((event) => {
 			if (event === 'SIGNED_OUT') {
-				devTools.clearMockTime();
+				devTools.setBypassEventTimeValidation(false);
 				onboardingState.set({ isOpen: false, userEmail: '', userId: '' });
 				// Don't stop the automation engine - it's shared across sessions
 				goto('/');

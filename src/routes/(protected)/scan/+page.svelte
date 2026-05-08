@@ -149,17 +149,27 @@
 		if (!silent) isLoading = true;
 		try {
 			// Trigger backend status update (Lazy Load approach)
-			// This ensures if an event just ended 1 second ago, the DB is updated before we fetch
-			// Pass Mock Time if active
-			const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
-			await attendanceApi.refreshEventStatuses(mockTime);
+			await attendanceApi.refreshEventStatuses(null);
 
 			// 1. Try Ongoing
-			const ongoing = await attendanceApi.getOngoingEvents();
+			let validEvents = await attendanceApi.getOngoingEvents();
+
+			// If bypass is on and no ongoing events, try to get upcoming or completed events for today
+			if ($devTools.bypassEventTimeValidation && (!validEvents || validEvents.length === 0)) {
+				const { data: bypassEvents } = await supabase
+					.from('events')
+					.select('*')
+					.order('start_datetime', { ascending: false })
+					.limit(1);
+				
+				if (bypassEvents && bypassEvents.length > 0) {
+					validEvents = bypassEvents as any;
+				}
+			}
 
 			// Check for event transitions
-			if (ongoing && ongoing.length > 0) {
-				const newEvent = ongoing[0];
+			if (validEvents && validEvents.length > 0) {
+				const newEvent = validEvents[0];
 
 				// If we switched events (A -> B), clear local state
 				if (activeEvent && activeEvent.event_id !== newEvent.event_id) {
@@ -389,8 +399,7 @@
 
 		try {
 			// Perform atomic Scan using server RPC
-			const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
-			const result = await attendanceApi.scanMember(id, activeEvent.event_id, mockTime);
+			const result = await attendanceApi.scanMember(id, activeEvent.event_id, null);
 
 			if (!result.success) {
 				if (result.message.includes('Already')) {
@@ -407,7 +416,7 @@
 			}
 
 			// Success UI - Show modal instead of toast
-			const time = await formatLocalTime((mockTime || new Date()).toISOString());
+			const time = await formatLocalTime(new Date().toISOString());
 			const fullName = result.member_name || 'Member';
 			const groupName = result.care_group || 'N/A';
 
@@ -551,15 +560,14 @@
 
 		const toastId = toast.loading(`Checking in ${batchList.length} members...`);
 		let successCount = 0;
-		const mockTime = $devTools.isMockTimeActive ? $devTools.mockTime : null;
 
 		for (const m of batchList) {
 			try {
-				await attendanceApi.scanMember(m.id, activeEvent.event_id, mockTime);
+				await attendanceApi.scanMember(m.id, activeEvent.event_id, null);
 				successCount++;
 
 				// Add to recent scans for record
-				const time = await formatLocalTime((mockTime || new Date()).toISOString());
+				const time = await formatLocalTime(new Date().toISOString());
 				// Add to local list if not already there
 				if (!recentScans.find((s) => s.id === m.id)) {
 					recentScans = [{ id: m.id, name: m.name, time }, ...recentScans];

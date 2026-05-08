@@ -59,14 +59,6 @@ export class AutomationEngine {
 		try {
 			let now = new Date();
 
-			// Check for mock time in localStorage
-			if (typeof window !== 'undefined') {
-				const mockTimeStr = localStorage.getItem('dev_mock_time');
-				if (mockTimeStr) {
-					now = new Date(mockTimeStr);
-				}
-			}
-
 			// Get user timezone to determine what "today" is
 			let userTimezone = 'UTC';
 			if (typeof window !== 'undefined') {
@@ -157,16 +149,6 @@ export class AutomationEngine {
 		try {
 			let now = new Date();
 
-			// Check for mock time in localStorage to support Developer Tools
-			let isMock = false;
-			if (typeof window !== 'undefined') {
-				const mockTimeStr = localStorage.getItem('dev_mock_time');
-				if (mockTimeStr) {
-					now = new Date(mockTimeStr);
-					isMock = true;
-				}
-			}
-
 			const activeEvents = await eventsApi.getActiveEvents();
 
 			// Get user timezone (default to UTC if not available)
@@ -183,11 +165,11 @@ export class AutomationEngine {
 				}
 			}
 
-			if (isMock || activeEvents.length > 0) {
+			if (activeEvents.length > 0) {
 				console.log(
 					`[Job] Status: Checking ${activeEvents.length} active events. Time:`,
 					now.toISOString(),
-					isMock ? '(MOCK)' : '(REAL)'
+					'(REAL)'
 				);
 			}
 
