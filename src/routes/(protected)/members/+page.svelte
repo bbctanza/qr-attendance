@@ -7,6 +7,8 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Label } from '$lib/components/ui/label';
+	import { Skeleton } from '$lib/components/ui/skeleton';
+
 	import {
 		Search,
 		Plus,
@@ -199,9 +201,10 @@
 	onMount(async () => {
 		isLoading = true;
 		try {
-			await fetchGroups();
-			await fetchMembers();
-			await fetchStats();
+			await Promise.all([
+				fetchGroups(),
+				fetchMembers().then(() => fetchStats())
+			]);
 		} finally {
 			isLoading = false;
 		}
@@ -923,7 +926,114 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Synchronizing members list..." />
+	<!-- Mobile View Skeleton -->
+	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20 md:hidden">
+		<!-- Search & Add -->
+		<div class="flex items-center gap-3 px-4 py-2">
+			<Skeleton class="h-14 flex-1 rounded-2xl" />
+			<Skeleton class="h-14 w-14 rounded-[22px]" />
+		</div>
+
+		<!-- Stats & Filter -->
+		<div class="flex items-end justify-between px-4 py-6">
+			<div>
+				<Skeleton class="mb-1 h-3 w-24" />
+				<div class="flex items-baseline gap-2">
+					<Skeleton class="h-10 w-16" />
+					<Skeleton class="h-4 w-10" />
+				</div>
+			</div>
+			<div class="flex items-center gap-2">
+				<Skeleton class="h-12 w-12 rounded-2xl" />
+				<Skeleton class="h-12 w-12 rounded-2xl" />
+			</div>
+		</div>
+
+		<!-- Grouped List -->
+		<div class="flex-1 space-y-8 px-4 py-4">
+			{#each Array(3) as _}
+				<div class="space-y-4">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-2">
+							<Skeleton class="h-4 w-1" />
+							<Skeleton class="h-4 w-24" />
+							<Skeleton class="h-4 w-6 rounded" />
+						</div>
+						<Skeleton class="h-4 w-4" />
+					</div>
+					<div class="space-y-3">
+						{#each Array(3) as _}
+							<Skeleton class="h-24 w-full rounded-2xl" />
+						{/each}
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Desktop View Skeleton -->
+	<div class="mx-auto hidden max-w-7xl flex-col gap-6 p-6 md:flex lg:p-8">
+		<!-- Page Header -->
+		<div class="flex items-center justify-between">
+			<div>
+				<Skeleton class="mb-2 h-9 w-40" />
+				<Skeleton class="h-5 w-64" />
+			</div>
+			<div class="flex gap-2">
+				<Skeleton class="h-9 w-24" />
+				<Skeleton class="h-9 w-32" />
+			</div>
+		</div>
+
+		<!-- Statistics Cards -->
+		<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+			{#each Array(3) as _}
+				<Skeleton class="h-[120px] rounded-xl" />
+			{/each}
+		</div>
+
+		<!-- Search, Filters & View Toggle -->
+		<div class="flex items-center gap-4">
+			<Skeleton class="h-10 w-full max-w-sm rounded-lg" />
+			<div class="flex items-center gap-2">
+				{#each Array(4) as _}
+					<Skeleton class="h-8 w-20 rounded-full" />
+				{/each}
+			</div>
+			<Skeleton class="ml-auto h-10 w-20 rounded-lg" />
+		</div>
+
+		<!-- Table View -->
+		<div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+			<div class="border-b px-4 py-3">
+				<div class="flex items-center gap-4">
+					<Skeleton class="h-4 w-4" />
+					<Skeleton class="h-4 w-8" />
+					<Skeleton class="h-4 w-40" />
+					<Skeleton class="h-4 w-32" />
+					<Skeleton class="h-4 w-24" />
+					<Skeleton class="h-4 w-20" />
+					<Skeleton class="ml-auto h-4 w-16" />
+				</div>
+			</div>
+			<div class="px-4 py-2">
+				{#each Array(5) as _}
+					<div class="flex items-center gap-4 py-3">
+						<Skeleton class="h-4 w-4" />
+						<Skeleton class="h-8 w-8 rounded-full" />
+						<Skeleton class="h-4 w-40" />
+						<Skeleton class="h-4 w-32" />
+						<Skeleton class="h-4 w-24" />
+						<Skeleton class="h-4 w-20" />
+						<div class="ml-auto flex gap-2">
+							<Skeleton class="h-8 w-8 rounded-md" />
+							<Skeleton class="h-8 w-8 rounded-md" />
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	</div>
 {:else}
 	<!-- Mobile View -->
 	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20 md:hidden">
@@ -1102,6 +1212,7 @@
 												src={ensureAvatarDownloadParam(member.avatar)}
 												alt={member.name}
 												class="h-12 w-12 rounded-2xl object-cover"
+												loading="lazy"
 											/>
 										{:else}
 											<div
@@ -1389,12 +1500,17 @@
 									</Table.Cell>
 									<Table.Cell>
 										<Avatar class="h-8 w-8">
-											<AvatarImage
+										{#if member.avatar}
+											<img
 												src={ensureAvatarDownloadParam(member.avatar)}
 												alt={member.name}
+												class="aspect-square h-full w-full object-cover"
+												loading="lazy"
 											/>
+										{:else}
 											<AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback>
-										</Avatar>
+										{/if}
+									</Avatar>
 									</Table.Cell>
 									<Table.Cell class="font-medium">{member.name}</Table.Cell>
 									<Table.Cell>
@@ -1472,8 +1588,16 @@
 							<CardContent class="p-6">
 								<div class="mb-4 flex items-start justify-between">
 									<Avatar class="h-12 w-12">
-										<AvatarImage src={ensureAvatarDownloadParam(member.avatar)} alt={member.name} />
-										<AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+										{#if member.avatar}
+											<img
+												src={ensureAvatarDownloadParam(member.avatar)}
+												alt={member.name}
+												class="aspect-square h-full w-full object-cover"
+												loading="lazy"
+											/>
+										{:else}
+											<AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+										{/if}
 									</Avatar>
 									<div class="flex gap-1">
 										<Button

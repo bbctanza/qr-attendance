@@ -26,7 +26,7 @@
 	import { logAuditChange } from '$lib/utils/auditLogger';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	let activeTab = $state('invite'); // "invite" or "manage"
 	let inviteEmail = $state('');
@@ -268,7 +268,47 @@
 </script>
 
 {#if pageLoading}
-	<FullPageLoading message="Verifying permissions..." />
+	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+		<!-- Header Skeleton -->
+		<div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
+			<div class="flex items-center gap-4">
+				<Skeleton class="h-10 w-10 rounded-xl" />
+				<div class="space-y-2">
+					<Skeleton class="h-8 w-40" />
+					<Skeleton class="h-4 w-32" />
+				</div>
+			</div>
+			<Skeleton class="h-10 w-full sm:w-48 rounded-xl" />
+		</div>
+
+		<!-- Content Skeleton (Invite Tab Layout) -->
+		<div class="space-y-6">
+			<div class="space-y-4 rounded-2xl border border-border/30 bg-card p-6">
+				<Skeleton class="h-5 w-40 mb-4" />
+				<div class="space-y-2">
+					<Skeleton class="h-4 w-32" />
+					<Skeleton class="h-10 w-full" />
+				</div>
+				<div class="space-y-2">
+					<Skeleton class="h-4 w-24" />
+					<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
+						<Skeleton class="h-9 w-full" />
+						<Skeleton class="h-9 w-full" />
+						<Skeleton class="h-9 w-full" />
+					</div>
+				</div>
+			</div>
+			<div class="space-y-4 rounded-2xl border border-border/30 bg-card p-6">
+				<Skeleton class="h-5 w-48 mb-4" />
+				<div class="space-y-2">
+					<Skeleton class="h-4 w-32" />
+					<Skeleton class="h-10 w-full" />
+					<Skeleton class="h-3 w-64 mt-1" />
+				</div>
+				<Skeleton class="h-12 w-full rounded-xl" />
+			</div>
+		</div>
+	</div>
 {:else}
 	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
 		<!-- Header -->

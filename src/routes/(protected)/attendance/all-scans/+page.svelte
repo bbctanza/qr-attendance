@@ -12,7 +12,7 @@
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase';
 	import { page } from '$app/stores';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { formatLocalTime } from '$lib/utils/time';
 
 	let allScans = $state<any[]>([]);
@@ -69,7 +69,26 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Loading check-ins..." />
+	<div class="flex h-full flex-col gap-6 p-4 md:p-8">
+		<Skeleton class="h-11 w-full rounded-md" />
+		<div class="grid flex-1 gap-3 overflow-y-auto">
+			{#each Array(8) as _}
+				<div class="flex items-center justify-between rounded-lg border border-border/40 bg-card p-4 shadow-sm">
+					<div class="flex min-w-0 items-center gap-3">
+						<Skeleton class="h-12 w-12 rounded-full" />
+						<div class="space-y-2">
+							<Skeleton class="h-4 w-32" />
+							<Skeleton class="h-3 w-16" />
+						</div>
+					</div>
+					<div class="flex items-center gap-2">
+						<Skeleton class="h-4 w-16" />
+						<Skeleton class="h-2 w-2 rounded-full" />
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
 {:else}
 	<div class="flex h-full flex-col gap-6 p-4 md:p-8">
 		<!-- Search Input -->

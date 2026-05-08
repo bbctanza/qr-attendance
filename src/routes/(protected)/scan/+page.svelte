@@ -161,7 +161,7 @@
 					.select('*')
 					.order('start_datetime', { ascending: false })
 					.limit(1);
-				
+
 				if (bypassEvents && bypassEvents.length > 0) {
 					validEvents = bypassEvents as any;
 				}

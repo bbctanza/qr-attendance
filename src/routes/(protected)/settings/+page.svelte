@@ -19,7 +19,7 @@
 	} from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
 	import { onMount } from 'svelte';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import AboutModal from '$lib/components/about-modal.svelte';
 	import ChangelogModal from '$lib/components/changelog-modal.svelte';
 	import { CURRENT_VERSION } from '$lib/config/changelog';
@@ -83,7 +83,50 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Loading settings..." />
+	<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+		<!-- Header -->
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+			<div class="space-y-2">
+				<Skeleton class="h-8 w-32" />
+				<Skeleton class="h-4 w-48" />
+			</div>
+		</div>
+
+		<!-- Profile Card -->
+		<div class="rounded-2xl border border-border/30 bg-card px-4 py-6 sm:px-6 sm:py-8">
+			<div class="flex flex-row items-center justify-between gap-4">
+				<div class="flex min-w-0 flex-1 items-center gap-4">
+					<Skeleton class="h-16 w-16 rounded-full sm:h-20 sm:w-20" />
+					<div class="space-y-2">
+						<Skeleton class="h-6 w-32 sm:h-7" />
+						<Skeleton class="h-5 w-16 rounded-full" />
+					</div>
+				</div>
+				<Skeleton class="h-8 w-8 rounded-md" />
+			</div>
+		</div>
+
+		<!-- Sections Grid -->
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+			{#each Array(3) as _}
+				<div>
+					<Skeleton class="mb-4 h-4 w-32" />
+					<div class="space-y-3 sm:space-y-4">
+						{#each Array(3) as _}
+							<div class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 sm:px-6">
+								<Skeleton class="h-11 w-11 rounded-md" />
+								<div class="flex-1 space-y-2">
+									<Skeleton class="h-4 w-24 sm:w-32" />
+									<Skeleton class="h-3 w-32 sm:w-48" />
+								</div>
+								<Skeleton class="h-4 w-4" />
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
 {:else}
 	<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
 		<!-- Header -->

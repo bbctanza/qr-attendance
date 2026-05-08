@@ -49,7 +49,7 @@
 	import { onMount } from 'svelte';
 	import { supabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	// State
 	let events = $state<any[]>([]);
@@ -167,7 +167,173 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Synchronizing attendance data..." />
+	<!-- Mobile View -->
+	<div class="flex flex-col gap-4 p-4 pb-28 md:hidden">
+		<!-- Live Session Card Skeleton -->
+		<div class="space-y-4 rounded-2xl border border-border/40 bg-card p-4 shadow-sm">
+			<div class="flex items-start justify-between">
+				<div class="space-y-2">
+					<Skeleton class="h-3 w-20" />
+					<Skeleton class="h-6 w-40" />
+					<Skeleton class="h-4 w-32" />
+				</div>
+				<div class="space-y-1">
+					<Skeleton class="h-3 w-10" />
+					<Skeleton class="h-4 w-16" />
+				</div>
+			</div>
+			<div class="flex items-center justify-between border-t border-border/20 pt-3">
+				<div></div>
+				<Skeleton class="h-8 w-20" />
+			</div>
+		</div>
+
+		<!-- Session Progress Skeleton -->
+		<div class="rounded-2xl border border-border/40 bg-card p-4 shadow-sm">
+			<div class="space-y-1 mb-4">
+				<Skeleton class="h-4 w-32" />
+				<Skeleton class="h-3 w-24" />
+			</div>
+			<div class="flex items-center gap-4">
+				<Skeleton class="h-32 w-32 rounded-full" />
+				<div class="flex-1 space-y-2">
+					<Skeleton class="h-3 w-24" />
+					<Skeleton class="h-6 w-16" />
+					<Skeleton class="h-3 w-32" />
+				</div>
+			</div>
+		</div>
+
+		<!-- Small Stats Skeleton -->
+		<div class="grid grid-cols-2 gap-3">
+			{#each Array(2) as _}
+				<div class="rounded-2xl border border-border/40 bg-card p-4 shadow-sm space-y-2">
+					<Skeleton class="h-4 w-24" />
+					<Skeleton class="h-8 w-12" />
+				</div>
+			{/each}
+		</div>
+
+		<!-- Recent Scans Skeleton -->
+		<div class="mt-4 flex items-center justify-between">
+			<Skeleton class="h-6 w-32" />
+			<Skeleton class="h-4 w-16" />
+		</div>
+		<div class="space-y-3">
+			{#each Array(4) as _}
+				<div class="flex items-center justify-between rounded-2xl border border-border/40 bg-card p-4 shadow-sm">
+					<div class="flex items-center gap-3">
+						<Skeleton class="h-10 w-10 rounded-full" />
+						<div class="space-y-1">
+							<Skeleton class="h-4 w-24" />
+							<Skeleton class="h-3 w-16" />
+						</div>
+					</div>
+					<Skeleton class="h-3 w-12" />
+				</div>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Desktop View -->
+	<div class="hidden h-[calc(100vh-120px)] gap-8 p-8 md:flex lg:p-10">
+		<!-- Left Main Skeleton -->
+		<div class="flex-1 space-y-8 pr-6">
+			<Card>
+				<CardContent class="p-6">
+					<div class="flex items-start justify-between">
+						<div class="space-y-2">
+							<Skeleton class="h-3 w-24" />
+							<Skeleton class="h-8 w-64" />
+							<Skeleton class="h-4 w-48" />
+						</div>
+						<div class="space-y-2 text-right">
+							<Skeleton class="h-5 w-20 ml-auto" />
+							<Skeleton class="h-3 w-12 ml-auto" />
+							<Skeleton class="h-8 w-24 ml-auto mt-4" />
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardContent class="flex items-center gap-6 p-6">
+					<Skeleton class="h-44 w-44 rounded-full" />
+					<div class="flex-1 space-y-6">
+						<div class="flex items-center justify-between">
+							<div class="space-y-2">
+								<Skeleton class="h-4 w-32" />
+								<Skeleton class="h-3 w-24" />
+							</div>
+							<div class="space-y-1 text-right">
+								<Skeleton class="h-4 w-16 ml-auto" />
+								<Skeleton class="h-3 w-12 ml-auto" />
+							</div>
+						</div>
+						<div class="space-y-2">
+							<Skeleton class="h-3 w-32" />
+							<Skeleton class="h-8 w-20" />
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<div class="grid grid-cols-2 gap-4">
+				{#each Array(2) as _}
+					<Card>
+						<CardContent class="p-4 space-y-2">
+							<Skeleton class="h-4 w-24" />
+							<Skeleton class="h-8 w-12" />
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+
+			<div class="mt-8 flex items-center justify-between border-b pb-2">
+				<Skeleton class="h-6 w-40" />
+				<Skeleton class="h-4 w-24" />
+			</div>
+
+			<div class="mt-4 grid grid-cols-2 gap-4">
+				{#each Array(4) as _}
+					<Card>
+						<CardContent class="p-4 flex justify-between items-start">
+							<div class="space-y-2">
+								<Skeleton class="h-3 w-20" />
+								<Skeleton class="h-5 w-32" />
+							</div>
+							<Skeleton class="h-6 w-10 rounded-full" />
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+		</div>
+
+		<!-- Right Sidebar Skeleton -->
+		<aside class="flex h-full w-96 shrink-0 flex-col gap-6 overflow-hidden">
+			<Card class="flex h-full flex-1 flex-col overflow-hidden">
+				<CardHeader>
+					<Skeleton class="h-6 w-32" />
+					<Skeleton class="h-4 w-24 mt-2" />
+				</CardHeader>
+				<div class="space-y-3 p-4 flex-1">
+					{#each Array(8) as _}
+						<div class="flex items-center gap-3 rounded-lg bg-muted/30 p-3">
+							<Skeleton class="h-10 w-10 rounded-full" />
+							<div class="flex-1 space-y-2">
+								<Skeleton class="h-4 w-24" />
+								<Skeleton class="h-3 w-16" />
+							</div>
+							<Skeleton class="h-3 w-10" />
+						</div>
+					{/each}
+				</div>
+				<CardFooter class="border-t p-4">
+					<Skeleton class="h-12 w-full rounded-xl" />
+				</CardFooter>
+			</Card>
+		</aside>
+	</div>
 {:else}
 	<!-- Mobile View -->
 	<div class="flex flex-col gap-4 p-4 pb-28 md:hidden">

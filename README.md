@@ -7,20 +7,24 @@ With deep **Supabase** backend integration, this system ensures real-time check-
 ## 🚀 What it Does
 
 ### 1. Robust Attendance Tracking
+
 - **High-Speed Check-In Modules**: Process large queues quickly, offering both self-service display nodes and staff-assisted mobile capabilities.
 - **Accurate Absentee Tracking**: Control via metadata toggles whether specific events register non-attending members.
 - **Real-Time Data Streams**: Dashboards instantly reflect when someone registers their presence without refreshing.
 
 ### 2. Comprehensive Event & Membership Management
+
 - **Automated Lifecycle Hooks**: Pre-schedule events, handle complex recurring dates gracefully, and let the system archive finished conferences untouched.
 - **Hierarchical Groups**: Connect members through distinct care-groups, tracks, or departments for deeper sorting.
 - **Export Power**: Generate cleanly formatted `.xlsx` or `.csv` sheets instantly to deliver overviews to external stakeholders.
 
 ### 3. Auditing & Trust
-- **Full Action Traces**: Everything—from a staff member forcibly updating a record to someone erroneously deleting a history row—is logged sequentially, complete with "Before" and "After" data snapshots diffs. 
+
+- **Full Action Traces**: Everything—from a staff member forcibly updating a record to someone erroneously deleting a history row—is logged sequentially, complete with "Before" and "After" data snapshots diffs.
 - **Point-in-time Undo**: Advanced point-and-click rollback capabilities for rectifying administrative mistakes safely.
 
 ### 4. Advanced Security & RBAC
+
 - **Strict Role Boundaries**: Ranging through `Developer`, `Admin`, `Staff`, down to a purely `Guest` (View-Only) configuration.
 - **Enforced Route Protection**: Strict database-level Row Level Security (RLS) restricts lower-tier roles from tampering directly with tables or sensitive audit archives.
 

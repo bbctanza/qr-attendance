@@ -59,7 +59,7 @@ export const attendanceApi = {
 
 		// Convert UTC ISO to naive timestamp string for PostgreSQL to ingest properly
 		const naïveTimestamp = timestamp.replace('T', ' ').replace('Z', '');
-		
+
 		const { data, error } = await supabase.rpc('scan_member_transaction', {
 			p_member_id: memberId,
 			p_event_id: eventId,
@@ -67,10 +67,10 @@ export const attendanceApi = {
 		});
 
 		if (error) throw error;
-		
-return data as { 
-			success: boolean; 
-			message: string; 
+
+		return data as {
+			success: boolean;
+			message: string;
 			member_name?: string;
 			care_group?: string;
 			member_id?: string;

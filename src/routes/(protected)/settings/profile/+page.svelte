@@ -28,7 +28,7 @@
 	import { PUBLIC_SUPABASE_URL } from '$env/static/public';
 	import { ensureAvatarDownloadParam } from '$lib/utils/avatarUrl';
 	import { onMount } from 'svelte';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import {
 		getUserSessions,
 		deleteSession,
@@ -326,7 +326,215 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Loading profile..." />
+	<!-- Mobile View Skeleton -->
+	<div class="flex min-h-screen flex-col bg-background pb-20 md:hidden">
+		<!-- Header -->
+		<div class="sticky top-0 z-10 hidden border-b border-border/10 bg-background sm:flex">
+			<div class="flex w-full items-center justify-between gap-3 px-4 py-4">
+				<div class="flex min-w-0 flex-1 items-center gap-3">
+					<Skeleton class="h-9 w-9 rounded-lg" />
+					<div class="space-y-1">
+						<Skeleton class="h-6 w-20" />
+						<Skeleton class="h-3 w-24" />
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Content -->
+		<div class="flex-1 space-y-6 px-4 py-6">
+			<!-- Basic Information -->
+			<Card>
+				<CardHeader class="pb-3">
+					<Skeleton class="h-5 w-32" />
+					<Skeleton class="h-3 w-40" />
+				</CardHeader>
+				<CardContent class="space-y-6">
+					<div class="flex items-center gap-4">
+						<Skeleton class="h-20 w-20 rounded-full" />
+						<Skeleton class="h-9 w-32" />
+					</div>
+					<div class="space-y-4">
+						<div class="space-y-2">
+							<Skeleton class="h-4 w-20" />
+							<Skeleton class="h-10 w-full" />
+						</div>
+						<div class="space-y-2">
+							<Skeleton class="h-4 w-12" />
+							<Skeleton class="h-10 w-full" />
+						</div>
+					</div>
+				</CardContent>
+			</Card>
+
+			<!-- Password & Security -->
+			<Card>
+				<CardHeader class="pb-3">
+					<div class="flex items-center gap-2">
+						<Skeleton class="h-5 w-5 rounded-full" />
+						<div class="space-y-1">
+							<Skeleton class="h-5 w-40" />
+							<Skeleton class="h-3 w-48" />
+						</div>
+					</div>
+				</CardHeader>
+				<CardContent class="space-y-4">
+					<div class="space-y-3 border-b border-border/20 pb-4">
+						<Skeleton class="h-4 w-32 mb-2" />
+						{#each Array(3) as _}
+							<div class="space-y-2">
+								<Skeleton class="h-3 w-24" />
+								<Skeleton class="h-10 w-full" />
+							</div>
+						{/each}
+					</div>
+					<div class="flex items-center justify-between">
+						<div class="space-y-1">
+							<Skeleton class="h-4 w-40" />
+							<Skeleton class="h-3 w-48" />
+						</div>
+						<Skeleton class="h-6 w-11 rounded-full" />
+					</div>
+				</CardContent>
+			</Card>
+
+			<!-- Active Sessions -->
+			<Card>
+				<CardHeader class="pb-3">
+					<div class="flex items-center gap-2">
+						<Skeleton class="h-5 w-5 rounded-full" />
+						<div class="space-y-1">
+							<Skeleton class="h-5 w-32" />
+							<Skeleton class="h-3 w-20" />
+						</div>
+					</div>
+				</CardHeader>
+				<CardContent class="space-y-3">
+					{#each Array(2) as _}
+						<div class="flex items-start justify-between rounded-lg bg-card/50 p-3">
+							<div class="space-y-2">
+								<Skeleton class="h-4 w-24" />
+								<Skeleton class="h-3 w-16" />
+								<Skeleton class="h-3 w-32" />
+							</div>
+						</div>
+					{/each}
+				</CardContent>
+			</Card>
+		</div>
+	</div>
+
+	<!-- Desktop View Skeleton -->
+	<div class="mx-auto hidden max-w-4xl flex-col gap-6 p-6 md:flex lg:p-8">
+		<!-- Header -->
+		<div class="flex items-center justify-between">
+			<div class="space-y-2">
+				<Skeleton class="h-9 w-32" />
+				<Skeleton class="h-4 w-48" />
+			</div>
+			<Skeleton class="h-10 w-24 rounded-md" />
+		</div>
+
+		<!-- Content Grid -->
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+			<div class="space-y-6 lg:col-span-2">
+				<!-- Basic Information -->
+				<Card>
+					<CardHeader>
+						<Skeleton class="h-6 w-40" />
+						<Skeleton class="h-4 w-48" />
+					</CardHeader>
+					<CardContent class="space-y-6">
+						<div class="flex items-center gap-6">
+							<Skeleton class="h-24 w-24 rounded-full" />
+							<Skeleton class="h-10 w-32" />
+						</div>
+						<div class="grid grid-cols-2 gap-4">
+							<div class="space-y-2">
+								<Skeleton class="h-4 w-20" />
+								<Skeleton class="h-10 w-full" />
+							</div>
+							<div class="space-y-2">
+								<Skeleton class="h-4 w-12" />
+								<Skeleton class="h-10 w-full" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<!-- Password & Security -->
+				<Card>
+					<CardHeader>
+						<div class="flex items-center gap-2">
+							<Skeleton class="h-5 w-5 rounded-full" />
+							<div class="space-y-2">
+								<Skeleton class="h-6 w-48" />
+								<Skeleton class="h-4 w-64" />
+							</div>
+						</div>
+					</CardHeader>
+					<CardContent class="space-y-6">
+						<div class="space-y-4 border-b border-border/20 pb-6">
+							<Skeleton class="h-5 w-32 mb-2" />
+							<div class="grid grid-cols-1 gap-4">
+								<div class="space-y-2">
+									<Skeleton class="h-4 w-32" />
+									<Skeleton class="h-10 w-full" />
+								</div>
+								<div class="grid grid-cols-2 gap-4">
+									<div class="space-y-2">
+										<Skeleton class="h-4 w-24" />
+										<Skeleton class="h-10 w-full" />
+									</div>
+									<div class="space-y-2">
+										<Skeleton class="h-4 w-28" />
+										<Skeleton class="h-10 w-full" />
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="flex items-center justify-between">
+							<div class="space-y-2">
+								<Skeleton class="h-4 w-48" />
+								<Skeleton class="h-4 w-64" />
+							</div>
+							<Skeleton class="h-6 w-11 rounded-full" />
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+
+			<!-- Right Column: Sessions -->
+			<div>
+				<Card>
+					<CardHeader>
+						<div class="flex items-center gap-2">
+							<Skeleton class="h-5 w-5 rounded-full" />
+							<div class="space-y-2">
+								<Skeleton class="h-6 w-32" />
+								<Skeleton class="h-3 w-20" />
+							</div>
+						</div>
+					</CardHeader>
+					<CardContent class="space-y-3">
+						{#each Array(3) as _}
+							<div class="rounded-lg border border-border/20 bg-card/50 p-3">
+								<div class="space-y-2">
+									<div class="flex gap-2">
+										<Skeleton class="h-4 w-24" />
+										<Skeleton class="h-4 w-12" />
+									</div>
+									<Skeleton class="h-3 w-16" />
+									<Skeleton class="h-3 w-24" />
+									<Skeleton class="h-3 w-32" />
+								</div>
+							</div>
+						{/each}
+					</CardContent>
+				</Card>
+			</div>
+		</div>
+	</div>
 {:else}
 	<!-- Mobile View -->
 	<div class="flex min-h-screen flex-col bg-background pb-20 md:hidden">

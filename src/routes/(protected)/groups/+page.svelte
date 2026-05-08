@@ -32,7 +32,7 @@
 	import { onMount } from 'svelte';
 	import Color from 'svelte-awesome-color-picker';
 	import { supabase } from '$lib/supabase';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 
 	// Get the primary theme color from CSS variable
 	function getThemeColor(): string {
@@ -310,7 +310,73 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Synchronizing groups..." />
+	<div class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+		<!-- Header -->
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+			<div class="hidden sm:block space-y-2">
+				<Skeleton class="h-8 w-64" />
+				<Skeleton class="h-4 w-48" />
+			</div>
+			<Skeleton class="h-10 w-full sm:w-32 rounded-lg" />
+		</div>
+
+		<!-- Search -->
+		<Skeleton class="h-12 w-full rounded-2xl" />
+
+		<!-- Stats Cards -->
+		<div class="grid grid-cols-3 gap-2">
+			{#each Array(3) as _}
+				<div class="flex flex-col items-center justify-center rounded-xl border bg-card p-4">
+					<Skeleton class="mb-2 h-6 w-6" />
+					<Skeleton class="mb-1 h-8 w-12" />
+					<Skeleton class="h-4 w-20" />
+				</div>
+			{/each}
+		</div>
+
+		<!-- Groups List -->
+		<div>
+			<Skeleton class="mb-4 h-7 w-24" />
+			<!-- Desktop Grid -->
+			<div class="hidden grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid lg:grid-cols-3">
+				{#each Array(6) as _}
+					<div class="rounded-xl border bg-card p-4">
+						<div class="space-y-3">
+							<div class="space-y-2">
+								<Skeleton class="h-6 w-1/2" />
+								<Skeleton class="h-4 w-3/4" />
+							</div>
+							<div class="flex items-center justify-between border-t pt-3">
+								<Skeleton class="h-6 w-24 rounded-full" />
+								<div class="flex items-center gap-2">
+									<Skeleton class="h-8 w-8" />
+									<Skeleton class="h-8 w-8" />
+								</div>
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Mobile List -->
+			<div class="space-y-3 sm:space-y-4 lg:hidden">
+				{#each Array(5) as _}
+					<div class="rounded-xl border bg-card p-3 sm:p-4">
+						<div class="flex items-center justify-between">
+							<div class="flex-1 space-y-2">
+								<Skeleton class="h-5 w-1/3" />
+								<Skeleton class="h-4 w-2/3" />
+							</div>
+							<div class="ml-4 flex gap-2">
+								<Skeleton class="h-8 w-8" />
+								<Skeleton class="h-8 w-8" />
+							</div>
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	</div>
 {:else}
 	<div
 		class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12"

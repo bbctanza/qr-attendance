@@ -25,7 +25,7 @@
 	import { supabase } from '$lib/supabase';
 	import { auditedEventsApi, auditedEventTypesApi } from '$lib/api/auditedApi';
 	import { onMount } from 'svelte';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { showErrorToast, showSuccessToast, showWarningToast } from '$lib/utils/errorHandler';
 	import { formatLocalTime, convertToUTC, formatTimeColumn } from '$lib/utils/time';
 
@@ -549,7 +549,36 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Synchronizing organizational events..." />
+	<div class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+			<div class="hidden sm:block space-y-2">
+				<Skeleton class="h-8 w-64" />
+				<Skeleton class="h-4 w-48" />
+			</div>
+			<Skeleton class="h-10 w-full sm:w-40 rounded-lg" />
+		</div>
+		
+		<div class="mt-6 space-y-6">
+			<!-- Upcoming Events Header -->
+			<Skeleton class="h-8 w-48" />
+			
+			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+				{#each Array(6) as _}
+					<div class="rounded-xl border bg-card p-6">
+						<Skeleton class="mb-4 h-6 w-32 rounded-full" />
+						<div class="space-y-2">
+							<Skeleton class="h-6 w-3/4" />
+							<Skeleton class="h-4 w-1/2" />
+						</div>
+						<div class="mt-4 flex gap-2">
+							<Skeleton class="h-8 w-1/2" />
+							<Skeleton class="h-8 w-1/2" />
+						</div>
+					</div>
+				{/each}
+			</div>
+		</div>
+	</div>
 {:else}
 	<div
 		class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12"

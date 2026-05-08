@@ -6,7 +6,14 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Switch } from '$lib/components/ui/switch';
 	import { cn, getErrorMessage, getErrorTitle } from '$lib/utils';
-	import { ChevronLeft, CalendarClock, Trash2, RefreshCw, Construction, Wrench } from '@lucide/svelte';
+	import {
+		ChevronLeft,
+		CalendarClock,
+		Trash2,
+		RefreshCw,
+		Construction,
+		Wrench
+	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
 	import { devTools } from '$lib/stores/dev';
@@ -120,7 +127,8 @@
 					<div class="space-y-0.5">
 						<Label>Bypass Event Time Validation</Label>
 						<p class="text-[11px] text-muted-foreground">
-							Allows scanning into ANY event regardless of its start or end time. Great for local testing without modifying real dates.
+							Allows scanning into ANY event regardless of its start or end time. Great for local
+							testing without modifying real dates.
 						</p>
 					</div>
 					<Switch bind:checked={bypassEventTimeValidation} />

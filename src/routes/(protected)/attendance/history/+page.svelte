@@ -7,7 +7,7 @@
 	import { ChevronRight, ChevronDown, ChevronLeft, Download, Search } from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
 	import Progress from '$lib/components/ui/progress';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { formatLocalTime } from '$lib/utils/time';
 	import { exportToCSV, exportToPDF, type ExportRecord } from '$lib/utils/attendanceExport';
 	import {
@@ -526,7 +526,63 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Loading attendance history..." />
+	<div class="flex flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+		<Card>
+			<CardHeader class="flex flex-row items-center justify-between pb-2">
+				<Skeleton class="h-6 w-40" />
+				<Skeleton class="h-8 w-24 rounded-md" />
+			</CardHeader>
+			<CardContent>
+				<div class="flex items-center justify-between mb-4">
+					<Skeleton class="h-10 w-24" />
+					<Skeleton class="h-4 w-16" />
+				</div>
+				<Skeleton class="h-2 w-full rounded-full" />
+			</CardContent>
+		</Card>
+
+		<div class="grid grid-cols-2 gap-4 md:gap-6">
+			{#each Array(2) as _}
+				<div class="rounded-2xl border border-border/20 bg-card p-4 space-y-2">
+					<Skeleton class="h-3 w-16" />
+					<Skeleton class="h-8 w-12" />
+					<Skeleton class="h-3 w-20" />
+				</div>
+			{/each}
+		</div>
+
+		<div class="mt-2 flex flex-col items-center md:mt-4 md:flex-row md:items-center md:justify-between gap-4">
+			<div class="flex items-center gap-2">
+				<Skeleton class="h-8 w-8 rounded-full" />
+				<Skeleton class="h-8 w-16 rounded-full" />
+				<Skeleton class="h-8 w-16 rounded-full" />
+				<Skeleton class="h-8 w-16 rounded-full" />
+				<Skeleton class="h-8 w-8 rounded-full" />
+			</div>
+			<Skeleton class="h-10 w-48 rounded-2xl" />
+		</div>
+
+		<div class="space-y-4 mt-2">
+			{#each Array(3) as _}
+				<div class="rounded-2xl border border-border/20 bg-card p-4 md:p-6">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-3">
+							<Skeleton class="h-10 w-1.5 rounded-l-full" />
+							<div class="space-y-2">
+								<Skeleton class="h-5 w-32" />
+								<Skeleton class="h-4 w-24" />
+							</div>
+						</div>
+						<div class="flex items-center gap-2 md:gap-3">
+							<Skeleton class="h-6 w-10 rounded-md" />
+							<Skeleton class="h-8 w-8 rounded-full" />
+							<Skeleton class="h-8 w-8 rounded-full" />
+						</div>
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
 {:else}
 	<div class="flex flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
 		<Card>

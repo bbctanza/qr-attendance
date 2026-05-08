@@ -32,7 +32,7 @@
 	import * as Table from '$lib/components/ui/table';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { supabase } from '$lib/supabase';
-	import FullPageLoading from '$lib/components/full-page-loading.svelte';
+	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { formatTimeRange } from '$lib/utils/time';
 	import QRCode from 'qrcode';
 	import {
@@ -244,7 +244,88 @@
 </script>
 
 {#if isLoading}
-	<FullPageLoading message="Loading overview..." />
+	<!-- Mobile Skeleton -->
+	<div class="flex min-h-screen flex-col gap-6 bg-background p-4 pb-28 md:hidden">
+		<!-- Live Event Card Skeleton -->
+		<div class="space-y-6 rounded-3xl border border-border/40 bg-card p-6 shadow-xl">
+			<div class="flex items-center justify-between">
+				<Skeleton class="h-4 w-24" />
+				<Skeleton class="h-4 w-16" />
+			</div>
+			<div class="space-y-2">
+				<Skeleton class="h-8 w-3/4" />
+				<Skeleton class="h-4 w-1/2" />
+			</div>
+			<Skeleton class="h-px w-full" />
+			<div class="flex flex-col gap-3">
+				<Skeleton class="h-14 w-full rounded-2xl" />
+				<Skeleton class="h-14 w-full rounded-2xl" />
+			</div>
+		</div>
+
+		<!-- Stats Grid Skeleton -->
+		<div class="grid grid-cols-3 gap-3">
+			{#each Array(3) as _}
+				<div class="flex flex-col items-center justify-center space-y-2 rounded-3xl border border-border/40 bg-card py-6">
+					<Skeleton class="h-10 w-10 rounded-full" />
+					<Skeleton class="h-8 w-16" />
+					<Skeleton class="h-3 w-12" />
+				</div>
+			{/each}
+		</div>
+
+		<!-- Recent History Skeleton -->
+		<div class="space-y-4">
+			<div class="flex items-center justify-between">
+				<Skeleton class="h-6 w-32" />
+				<Skeleton class="h-4 w-16" />
+			</div>
+			<div class="overflow-hidden rounded-3xl border border-border/40 bg-card">
+				<div class="grid grid-cols-[1.5fr_1fr_0.5fr] px-6 py-3">
+					<Skeleton class="h-3 w-20" />
+					<Skeleton class="mx-auto h-3 w-12" />
+					<Skeleton class="ml-auto h-3 w-10" />
+				</div>
+				{#each Array(4) as _}
+					<div class="grid grid-cols-[1.5fr_1fr_0.5fr] items-center px-6 py-4">
+						<Skeleton class="h-4 w-24" />
+						<Skeleton class="mx-auto h-3 w-16" />
+						<Skeleton class="ml-auto h-5 w-10 rounded-lg" />
+					</div>
+				{/each}
+			</div>
+		</div>
+		
+		<!-- Quick Actions Skeleton -->
+		<div class="grid grid-cols-2 gap-4">
+			{#each Array(2) as _}
+				<div class="flex items-center gap-3 rounded-3xl border border-border/40 bg-card p-4">
+					<Skeleton class="h-12 w-12 rounded-2xl" />
+					<div class="space-y-2">
+						<Skeleton class="h-4 w-20" />
+						<Skeleton class="h-3 w-16" />
+					</div>
+				</div>
+			{/each}
+		</div>
+	</div>
+
+	<!-- Desktop Skeleton -->
+	<div class="hidden flex-1 flex-col gap-4 p-4 pt-6 md:flex">
+		<Skeleton class="h-[250px] w-full rounded-xl" />
+		<div class="grid gap-4 md:grid-cols-3">
+			{#each Array(3) as _}
+				<Skeleton class="h-[120px] w-full rounded-xl" />
+			{/each}
+		</div>
+		<div class="grid gap-4 md:grid-cols-7 lg:grid-cols-8">
+			<Skeleton class="col-span-1 h-[400px] rounded-xl md:col-span-4 lg:col-span-5" />
+			<div class="col-span-1 grid gap-4 md:col-span-3 lg:col-span-3">
+				<Skeleton class="h-[190px] rounded-xl" />
+				<Skeleton class="h-[190px] rounded-xl" />
+			</div>
+		</div>
+	</div>
 {:else}
 	<!-- Mobile Content (Matching provided image) -->
 	<div class="flex min-h-screen flex-col gap-6 bg-background p-4 pb-28 md:hidden">
