@@ -97,7 +97,7 @@
 	}
 </script>
 
-<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:gap-8 md:px-8 md:py-6 lg:px-12 lg:py-8">
+<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:gap-8 md:p-6 lg:p-8">
 	<!-- Header -->
 	<div class="hidden items-center gap-3 sm:flex sm:gap-4">
 		<button

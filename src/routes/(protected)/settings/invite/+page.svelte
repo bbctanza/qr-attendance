@@ -268,7 +268,7 @@
 </script>
 
 {#if pageLoading}
-	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header Skeleton -->
 		<div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
 			<div class="flex items-center gap-4">
@@ -310,7 +310,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header -->
 		<div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
 			<div class="flex items-center gap-4">

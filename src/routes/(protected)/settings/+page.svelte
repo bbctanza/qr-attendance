@@ -83,7 +83,7 @@
 </script>
 
 {#if isLoading}
-	<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+	<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div class="space-y-2">
@@ -128,7 +128,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:px-8 md:py-6 lg:px-12 lg:py-8">
+	<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>
