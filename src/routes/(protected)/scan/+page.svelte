@@ -36,6 +36,7 @@
 	import type { AttendanceEvent } from '$lib/types';
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { devTools } from '$lib/stores/dev';
+	import { systemSettings } from '$lib/stores/settings';
 	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
 	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
 	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
@@ -407,8 +408,12 @@
 						memberName: result.member_name || 'Member',
 						memberId: id
 					};
-					showAlreadyCheckedInModal = true;
-					toast.dismiss(toastId);
+					if ($systemSettings.scanModalEnabled) {
+						showAlreadyCheckedInModal = true;
+						toast.dismiss(toastId);
+					} else {
+						toast.error(`${errorModalData.memberName} is already checked in.`, { id: toastId });
+					}
 				} else {
 					toast.error(result.message, { id: toastId });
 				}
@@ -426,7 +431,13 @@
 				careGroup: groupName,
 				time: time
 			};
-			showSuccessModal = true;
+
+			if ($systemSettings.scanModalEnabled) {
+				showSuccessModal = true;
+				toast.dismiss(toastId);
+			} else {
+				toast.success(`Checked in ${fullName}`, { id: toastId });
+			}
 
 			lastScanned = {
 				id: id,
@@ -439,7 +450,11 @@
 				recentScans = [{ id, name: fullName, time }, ...recentScans];
 			}
 
-			toast.dismiss(toastId);
+			if (!$systemSettings.scanModalEnabled) {
+				// if modal is disabled, we already toasted success above, so do not dismiss it
+			} else {
+				toast.dismiss(toastId);
+			}
 			manualId = ''; // Clear input
 		} catch (e: any) {
 			console.error(e);
@@ -785,6 +800,7 @@
 					memberId={successModalData.memberId}
 					careGroup={successModalData.careGroup}
 					time={successModalData.time}
+					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
 					onClose={() => {
 						showSuccessModal = false;
 					}}
@@ -795,6 +811,7 @@
 					bind:isOpen={showAlreadyCheckedInModal}
 					memberName={errorModalData.memberName}
 					memberId={errorModalData.memberId}
+					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
 					onClose={() => {
 						showAlreadyCheckedInModal = false;
 					}}
@@ -812,6 +829,7 @@
 			memberId={successModalData.memberId}
 			careGroup={successModalData.careGroup}
 			time={successModalData.time}
+			autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
 			onClose={() => {
 				showSuccessModal = false;
 			}}
@@ -822,6 +840,7 @@
 			bind:isOpen={showAlreadyCheckedInModal}
 			memberName={errorModalData.memberName}
 			memberId={errorModalData.memberId}
+			autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
 			onClose={() => {
 				showAlreadyCheckedInModal = false;
 			}}

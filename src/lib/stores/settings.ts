@@ -9,7 +9,9 @@ export const systemSettings = writable({
 	qrHeaderTitle: 'Organization Name',
 	qrSubheaderTitle: 'Tagline or Subtitle',
 	qrCardColor: '#275032',
-	qrBackgroundImage: ''
+	qrBackgroundImage: '',
+	scanModalEnabled: true,
+	scanModalDuration: 5
 });
 
 export const loadSettings = async () => {
@@ -35,7 +37,9 @@ export const loadSettings = async () => {
 				qrHeaderTitle: data.qr_header_title,
 				qrSubheaderTitle: data.qr_subheader_title,
 				qrCardColor: data.qr_card_color,
-				qrBackgroundImage: data.qr_background_image || ''
+				qrBackgroundImage: data.qr_background_image || '',
+				scanModalEnabled: data.scan_modal_enabled ?? true,
+				scanModalDuration: data.scan_modal_duration ?? 5
 			});
 
 			// Apply immediately
@@ -54,6 +58,8 @@ export const applySettings = (settings: {
 	qr_subheader_title: string;
 	qr_card_color: string;
 	qr_background_image?: string;
+	scan_modal_enabled?: boolean;
+	scan_modal_duration?: number;
 }) => {
 	if (!browser) return;
 

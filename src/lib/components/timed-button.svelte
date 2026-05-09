@@ -64,7 +64,7 @@
 	<div class="relative z-10 flex items-center justify-center gap-2">
 		<span>{label}</span>
 		<span class="rounded-lg bg-white/20 px-2 py-1 font-mono text-xs"
-			>({String(Math.ceil(progress / 20)).padStart(1, '0')}s)</span
+			>({Math.ceil((Math.max(0, progress) / 100) * (duration / 1000))}s)</span
 		>
 	</div>
 </button>

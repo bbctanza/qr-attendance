@@ -27,7 +27,8 @@
 		Type,
 		Save,
 		QrCode,
-		Globe
+		Globe,
+		ScanLine
 	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import { goto } from '$app/navigation';
@@ -62,7 +63,9 @@
 		qrHeaderTitle: $systemSettings.qrHeaderTitle || 'Organization Name',
 		qrSubheaderTitle: $systemSettings.qrSubheaderTitle || 'Tagline or Subtitle',
 		qrCardColor: $systemSettings.qrCardColor || '#275032',
-		qrBackgroundImage: $systemSettings.qrBackgroundImage || ''
+		qrBackgroundImage: $systemSettings.qrBackgroundImage || '',
+		scanModalEnabled: $systemSettings.scanModalEnabled ?? true,
+		scanModalDuration: $systemSettings.scanModalDuration ?? 5
 	});
 
 	// Drag and drop state
@@ -139,6 +142,8 @@
 		settings.qrSubheaderTitle = $systemSettings.qrSubheaderTitle;
 		settings.qrCardColor = $systemSettings.qrCardColor;
 		settings.qrBackgroundImage = $systemSettings.qrBackgroundImage || '';
+		settings.scanModalEnabled = $systemSettings.scanModalEnabled ?? true;
+		settings.scanModalDuration = $systemSettings.scanModalDuration ?? 5;
 
 		// Update original settings after loading
 		originalSettings = JSON.parse(JSON.stringify(settings));
@@ -212,7 +217,9 @@
 				qr_header_title: settings.qrHeaderTitle,
 				qr_subheader_title: settings.qrSubheaderTitle,
 				qr_card_color: settings.qrCardColor,
-				qr_background_image: settings.qrBackgroundImage
+				qr_background_image: settings.qrBackgroundImage,
+				scan_modal_enabled: settings.scanModalEnabled,
+				scan_modal_duration: settings.scanModalDuration
 			});
 
 			if (error) throw error;
@@ -272,7 +279,9 @@
 				qrHeaderTitle: $systemSettings.qrHeaderTitle,
 				qrSubheaderTitle: $systemSettings.qrSubheaderTitle,
 				qrCardColor: $systemSettings.qrCardColor,
-				qrBackgroundImage: $systemSettings.qrBackgroundImage || ''
+				qrBackgroundImage: $systemSettings.qrBackgroundImage || '',
+				scanModalEnabled: true,
+				scanModalDuration: 5
 			};
 			document.documentElement.classList.remove('dark');
 			localStorage.setItem('theme', 'light');
@@ -647,6 +656,43 @@
 				</div>
 			</CardContent>
 		</Card>
+
+		<!-- Scan Settings Section -->
+		<div class:opacity-50={isGuest} class:pointer-events-none={isGuest}>
+			<Card class="lg:col-span-1">
+				<CardHeader class="pb-3">
+					<div class="flex items-center gap-2">
+						<ScanLine class="h-5 w-5 shrink-0 text-primary" />
+						<CardTitle class="text-base sm:text-lg">Scan Settings</CardTitle>
+						{#if isGuest}
+							<span class="ml-auto rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400">Restricted</span>
+						{/if}
+					</div>
+				</CardHeader>
+				<CardContent class="space-y-3 sm:space-y-4">
+					<div class="flex items-start justify-between gap-3 sm:items-center">
+						<div class="min-w-0 flex-1">
+							<Label class="text-sm font-medium sm:text-base">Show Scan Modal</Label>
+							<p class="mt-1 text-xs text-muted-foreground sm:text-sm">Display full-screen popup on scan</p>
+						</div>
+						<Switch bind:checked={settings.scanModalEnabled} class="shrink-0" />
+					</div>
+					{#if settings.scanModalEnabled}
+						<div>
+							<Label for="scanModalDuration" class="text-xs font-medium sm:text-sm">Modal Duration (seconds)</Label>
+							<Input
+								id="scanModalDuration"
+								type="number"
+								bind:value={settings.scanModalDuration}
+								min="1"
+								max="15"
+								class="mt-2 text-xs sm:text-sm"
+							/>
+						</div>
+					{/if}
+				</CardContent>
+			</Card>
+		</div>
 
 		<!-- Data Section -->
 		<Card class="lg:col-span-1">

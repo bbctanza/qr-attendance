@@ -9,9 +9,30 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.3.1';
+export const CURRENT_VERSION = '2.4.0';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.4.0',
+		date: 'May 10, 2026',
+		title: 'Configurable Scanning & Premium Loading Experience',
+		items: [
+			// Scan Settings Feature
+			'Customizable Scan Experience - New "Scan Settings" section in App Settings allows toggling the full-screen check-in modal.',
+			'Variable Modal Duration - Fine-tune how long scan results stay on screen (1-15 seconds) with a real-time countdown.',
+			'Fallback Toast Notifications - When the full-screen modal is disabled, scan results are elegantly shown as toast alerts.',
+			'Settings Persistence - Scan preferences are saved to the cloud and synced across all your organization\'s devices.',
+
+			// UI/UX Improvements
+			'Universal Skeleton Screens - Replaced all full-page loading spinners with bespoke skeleton layouts for a smoother, premium feel.',
+			'Zero Layout Shift - Pages now maintain their structure while loading data, eliminating jarring jumps.',
+			'Refined Settings Layout - Optimized margins and padding across all configuration pages for better desktop and tablet readability.',
+
+			// Bug Fixes
+			'Fixed Modal Timer - Resolved a bug where the modal countdown always displayed 5 seconds regardless of actual duration.',
+			'Improved Scanner Stability - Enhanced scan processing logic to prevent duplicate triggers during rapid interactions.'
+		]
+	},
 	{
 		version: '2.3.1',
 		date: 'March 29, 2026',
