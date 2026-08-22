@@ -99,7 +99,9 @@
 
 				// Try different constraint combinations to handle various browsers
 				const constraintOptions = [
-					// Option 1: Rear camera (primary for mobile)
+					// Option 1: Front camera (primary for self check-in)
+					{ facingMode: 'user' },
+					// Option 2: Rear camera fallback
 					{ facingMode: 'environment' },
 					// Option 2: No facingMode constraints (Firefox fallback)
 					{ audio: false, video: { width: { ideal: 1280 }, height: { ideal: 720 } } },

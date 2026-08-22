@@ -64,8 +64,14 @@
 
 	// Camera State
 	let scanner: Html5Qrcode | null = null;
-	let cameras: any[] = [];
-	let currentCameraIndex = 0;
+	let cameras: any[] = $state([]);
+	let currentCameraIndex = $state(0);
+	let isFrontCamera = $derived(
+		cameras.length > 0 &&
+			(cameras[currentCameraIndex]?.label.toLowerCase().includes('front') ||
+				cameras[currentCameraIndex]?.label.toLowerCase().includes('user') ||
+				cameras[currentCameraIndex]?.label.toLowerCase().includes('facing front'))
+	);
 	let isFullscreen = $state(false);
 	let isProcessing = false;
 	let scannerContainer: HTMLElement | undefined = $state();
@@ -738,7 +744,7 @@
 			</div>
 		{:else}
 			<!-- Scanner UI -->
-			<div id="reader-mobile" class="h-full w-full bg-black"></div>
+			<div id="reader-mobile" class="h-full w-full bg-black {isFrontCamera ? 'mirror-camera' : ''}"></div>
 
 			<!-- Controls Overlay -->
 			<div class="scan-controls absolute right-0 bottom-8 left-0 z-10 flex justify-center gap-4">
@@ -1084,7 +1090,7 @@
 			class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 p-16"
 		>
 			{#if isScanning}
-				<div id="reader-desktop" class="h-full min-h-100 w-full bg-black"></div>
+				<div id="reader-desktop" class="h-full w-full bg-black {isFrontCamera ? 'mirror-camera' : ''}"></div>
 				<!-- Controls -->
 				<div class="absolute right-0 bottom-6 left-0 z-10 flex justify-center gap-4">
 					<Button
@@ -1232,6 +1238,14 @@
 		width: 100% !important;
 		height: 100% !important;
 		border-radius: inherit;
+	}
+
+	:global(.mirror-camera video) {
+		transform: scaleX(-1) !important;
+	}
+
+	:global(.mirror-camera canvas) {
+		transform: scaleX(-1) !important;
 	}
 
 	/* Ensure Sonner toasts appear above fullscreen camera */

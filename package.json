@@ -40,7 +40,6 @@
 		"eslint-plugin-svelte": "^3.14.0",
 		"globals": "^17.1.0",
 		"layerchart": "^2.0.0-next.43",
-		"ngrok": "^5.0.0-beta.2",
 		"playwright": "^1.58.0",
 		"prettier": "^3.8.1",
 		"prettier-plugin-svelte": "^3.4.1",
@@ -72,5 +71,12 @@
 		"mode-watcher": "^1.1.0",
 		"qrcode": "^1.5.4",
 		"svelte-turnstile": "^0.11.0"
+	},
+	"overrides": {
+		"cookie": "^0.7.0",
+		"brace-expansion": "^2.1.4",
+		"extract-zip": "^2.0.1",
+		"uuid": "^11.1.1",
+		"@vitest/browser": "^4.1.10"
 	}
 }
