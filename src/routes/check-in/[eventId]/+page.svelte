@@ -21,6 +21,7 @@
 	import type { AttendanceEvent } from '$lib/types';
 	import { goto } from '$app/navigation';
 	import { sanitizeText, sanitizeErrorMessage, sanitizeId } from '$lib/utils/security';
+	import { devTools } from '$lib/stores/dev';
 
 	const eventId = $page.params.eventId;
 	let event = $state<AttendanceEvent | null>(null);
@@ -65,6 +66,19 @@
 
 	onMount(async () => {
 		try {
+			if ($devTools.bypassEventTimeValidation && eventId === 'mock-dev-event-id') {
+				event = {
+					event_id: 'mock-dev-event-id',
+					event_name: 'Dev Test Event (Bypass Mode)',
+					start_datetime: new Date().toISOString(),
+					end_datetime: new Date(Date.now() + 86400000).toISOString(),
+					status: 'ongoing',
+					metadata: { location: 'Test Location' }
+				} as any;
+				loading = false;
+				return;
+			}
+
 			// Fetch Event Details
 			const { data, error: err } = await supabase
 				.from('events')
@@ -193,6 +207,17 @@
 			if (!sanitizedMemberId) {
 				statusMessage = 'Invalid member ID format.';
 				checkInStatus = 'error';
+				return;
+			}
+
+			if ($devTools.bypassEventTimeValidation) {
+				// Mock RPC response
+				playBeep(1000, 150); // Higher pitch beep for success
+				setTimeout(() => playBeep(1000, 150), 150); // Double beep
+				checkInStatus = 'success';
+				statusMessage = `Successfully checked in (Mock Mode)`;
+				memberId = ''; // Reset input
+				checkingIn = false;
 				return;
 			}
 

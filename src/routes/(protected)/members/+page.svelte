@@ -198,16 +198,22 @@
 	// Group filter state
 	let selectedGroups = $state(new Set<string>());
 
-	onMount(async () => {
+	onMount(() => {
+		const handleResize = () => {
+			isMobileView = window.innerWidth < 768;
+		};
+		window.addEventListener('resize', handleResize);
+		handleResize();
+
 		isLoading = true;
-		try {
-			await Promise.all([
-				fetchGroups(),
-				fetchMembers().then(() => fetchStats())
-			]);
-		} finally {
+		Promise.all([
+			fetchGroups(),
+			fetchMembers().then(() => fetchStats())
+		]).finally(() => {
 			isLoading = false;
-		}
+		});
+
+		return () => window.removeEventListener('resize', handleResize);
 	});
 
 	async function fetchStats() {
@@ -295,6 +301,11 @@
 				selectedGroups.add('Unassigned');
 				selectedGroups = new Set(selectedGroups); // Trigger reactivity
 			}
+
+			// Mobile Performance Optimization: Collapse all groups except the first one on initial load
+			if (groupOptions.length > 0) {
+				collapsedGroups = new Set(groupOptions.slice(1));
+			}
 		} else if (error) {
 			console.error('Error fetching members:', error);
 		}
@@ -303,6 +314,13 @@
 	// Sort state
 	let sortColumn = $state('name');
 	let sortDirection = $state<'asc' | 'desc'>('asc');
+
+	// Auto-expand all groups if the user is searching
+	$effect(() => {
+		if (searchQuery.trim().length > 0) {
+			collapsedGroups = new Set<string>();
+		}
+	});
 
 	let filteredMembers = $derived(() => {
 		let filtered = members.filter(
@@ -927,7 +945,8 @@
 
 {#if isLoading}
 	<!-- Mobile View Skeleton -->
-	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20 md:hidden">
+	{#if isMobileView}
+	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20">
 		<!-- Search & Add -->
 		<div class="flex items-center gap-3 px-4 py-2">
 			<Skeleton class="h-14 flex-1 rounded-2xl" />
@@ -970,9 +989,11 @@
 			{/each}
 		</div>
 	</div>
+	{/if}
 
 	<!-- Desktop View Skeleton -->
-	<div class="mx-auto hidden max-w-7xl flex-col gap-6 p-6 md:flex lg:p-8">
+	{#if !isMobileView}
+	<div class="mx-auto flex max-w-7xl flex-col gap-6 p-6 lg:p-8">
 		<!-- Page Header -->
 		<div class="flex items-center justify-between">
 			<div>
@@ -1034,9 +1055,11 @@
 			</div>
 		</div>
 	</div>
+	{/if}
 {:else}
 	<!-- Mobile View -->
-	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20 md:hidden">
+	{#if isMobileView}
+	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20">
 		<!-- Search & Add -->
 		<div class="flex items-center gap-3 px-4 py-2">
 			<div class="relative flex-1">
@@ -1274,9 +1297,11 @@
 			{/each}
 		</div>
 	</div>
+	{/if}
 
 	<!-- Desktop View -->
-	<div class="mx-auto hidden max-w-7xl flex-col gap-6 p-6 md:flex lg:p-8">
+	{#if !isMobileView}
+	<div class="mx-auto flex max-w-7xl flex-col gap-6 p-6 lg:p-8">
 		<!-- Page Header -->
 		<div class="flex items-center justify-between">
 			<div>
@@ -1654,6 +1679,7 @@
 			{/if}
 		{/if}
 	</div>
+	{/if}
 
 	<!-- Add Member Modal - Desktop -->
 	<div class="hidden md:block">

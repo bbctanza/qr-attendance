@@ -171,6 +171,18 @@
 
 				if (bypassEvents && bypassEvents.length > 0) {
 					validEvents = bypassEvents as any;
+				} else {
+					// Mock event if no events exist in DB
+					validEvents = [
+						{
+							event_id: 'mock-dev-event-id',
+							event_name: 'Dev Test Event (Bypass Mode)',
+							start_datetime: new Date().toISOString(),
+							end_datetime: new Date(Date.now() + 86400000).toISOString(),
+							status: 'ongoing',
+							metadata: { location: 'Test Location' }
+						}
+					] as any;
 				}
 			}
 
@@ -405,8 +417,19 @@
 		const toastId = toast.loading('Checking in...');
 
 		try {
-			// Perform atomic Scan using server RPC
-			const result = await attendanceApi.scanMember(id, activeEvent.event_id, null);
+			let result: any;
+			if ($devTools.bypassEventTimeValidation) {
+				// Mock API response if bypass is active to avoid database writes
+				result = {
+					success: true,
+					message: 'Mock scan success',
+					member_name: 'Test Member',
+					care_group: 'Test Group'
+				};
+			} else {
+				// Perform atomic Scan using server RPC
+				result = await attendanceApi.scanMember(id, activeEvent.event_id, null);
+			}
 
 			if (!result.success) {
 				if (result.message.includes('Already')) {
@@ -584,8 +607,13 @@
 
 		for (const m of batchList) {
 			try {
-				await attendanceApi.scanMember(m.id, activeEvent.event_id, null);
-				successCount++;
+				if ($devTools.bypassEventTimeValidation) {
+					// Mock success without writing to DB
+					successCount++;
+				} else {
+					await attendanceApi.scanMember(m.id, activeEvent.event_id, null);
+					successCount++;
+				}
 
 				// Add to recent scans for record
 				const time = await formatLocalTime(new Date().toISOString());

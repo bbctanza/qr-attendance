@@ -9,9 +9,29 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.4.0';
+export const CURRENT_VERSION = '2.4.1';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.4.1',
+		date: 'August 22, 2026',
+		title: 'Analytics Enhancements & Timezone Fixes',
+		items: [
+			// Analytics Improvements
+			'Revamped Group Performance Metric - Switched from group attendance rate to "Share of total attendance" to provide better insights.',
+			'Auto-Scaling Radar Chart - The Group Performance chart now automatically scales to fill the screen, ensuring the data is always clearly readable.',
+			'Analytics Dropdown Filter - The event selector in Analytics now strictly filters out scheduled or cancelled events, only showing completed events.',
+			
+			// Mobile & UI
+			'Mobile Radar Chart Layout - Fixed an issue where the radar chart and legend were squished side-by-side on mobile devices. They now properly stack vertically.',
+			'Optimized Mobile Legends - Reformatted the group performance legend into a compact 2-column grid to save vertical space on mobile screens.',
+			
+			// Bug Fixes
+			'Fixed 8-Hour Time Offset - Resolved a critical timezone bug where check-in times were displayed exactly 8 hours behind local time (GMT+8).',
+			'Dashboard Stability - Resolved underlying reactivity warnings and loop-key issues in the Analytics dashboard.',
+			'Selfie Camera Mirroring - Fixed the camera preview mirroring so it accurately reflects a natural selfie view without confusing orientation.'
+		]
+	},
 	{
 		version: '2.4.0',
 		date: 'May 10, 2026',
