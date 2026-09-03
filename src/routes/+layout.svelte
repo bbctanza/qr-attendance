@@ -184,7 +184,6 @@
 	<link rel="icon" href="/favicon.svg?v={Date.now()}" />
 	<title>{$systemSettings.siteName}</title>
 </svelte:head>
-<Toaster position="top-center" />
 
 {#if $devTools.bypassEventTimeValidation}
 	<div
@@ -248,4 +247,4 @@
 	{@render children()}
 {/if}
 
-<Toaster position="top-center" richColors />
+<Toaster position="top-center" richColors expand={true} />

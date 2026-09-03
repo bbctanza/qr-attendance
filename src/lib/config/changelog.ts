@@ -9,9 +9,22 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.4.1';
+export const CURRENT_VERSION = '2.4.2';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.4.2',
+		date: 'September 3, 2026',
+		title: 'Scan Interface Refinements & Desktop UX',
+		items: [
+			'Sleek Desktop Scan Modals - Redesigned the success/error modals on desktop to appear as minimal floating cards overlaying the right panel instead of screen-blocking overlays.',
+			'Expanded Camera View - Dedicated the entire left column on desktop strictly to the camera feed for a much larger, unobstructed scanning area.',
+			'Responsive Layout Optimizations - The scanner layout now automatically expands to fill unused vertical space on both mobile and desktop screens.',
+			'Fixed Recent Scans Scrolling - Prevented the entire page from overflowing off-screen; the Recent Scans panel now correctly handles its own internal scrolling.',
+			'Streamlined Notifications - Removed redundant text checkmarks from status modals to keep the interface clean and rely strictly on primary visual icons.',
+			'Fixed Toast Notification Stacking - Resolved an issue where multiple toast notifications would overlap and hide text when scanning rapidly.'
+		]
+	},
 	{
 		version: '2.4.1',
 		date: 'August 22, 2026',

@@ -75,6 +75,7 @@
 	let isFullscreen = $state(false);
 	let isProcessing = false;
 	let scannerContainer: HTMLElement | undefined = $state();
+	let scannerContainerDesktop: HTMLElement | undefined = $state();
 	let isWideScan = $state(false); // false = Normal (250px), true = Wide (Full)
 
 	/* Recently scanned members in this session */
@@ -346,14 +347,15 @@
 	}
 
 	function toggleFullscreen() {
-		if (!scannerContainer) return;
+		const container = window.innerWidth >= 768 ? scannerContainerDesktop : scannerContainer;
+		if (!container) return;
 
 		if (!isFullscreen) {
 			try {
-				if (scannerContainer.requestFullscreen) {
-					scannerContainer.requestFullscreen();
-				} else if ((scannerContainer as any).webkitRequestFullscreen) {
-					(scannerContainer as any).webkitRequestFullscreen();
+				if (container.requestFullscreen) {
+					container.requestFullscreen();
+				} else if ((container as any).webkitRequestFullscreen) {
+					(container as any).webkitRequestFullscreen();
 				}
 				isFullscreen = true;
 
@@ -720,7 +722,7 @@
 </script>
 
 <!-- Mobile View -->
-<div class="flex flex-col gap-6 p-4 pb-24 md:hidden">
+<div class="flex flex-1 flex-col gap-6 p-4 pb-24 md:hidden">
 	<!-- Active Event Info (Mobile) -->
 	{#if session}
 		<div class="rounded-xl border border-primary/20 bg-primary/10 p-4">
@@ -745,12 +747,11 @@
 	{/if}
 
 	<!-- Camera Scan card -->
-	<!-- Camera Scan card -->
 	<div
 		bind:this={scannerContainer}
 		class={isFullscreen
-			? 'fixed inset-0 z-100 flex flex-col items-center justify-center overflow-visible bg-black'
-			: 'relative flex min-h-75 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
+			? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
+			: 'relative flex flex-1 min-h-0 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
 	>
 		{#if !isScanning}
 			<div class="flex flex-col items-center gap-6 p-6">
@@ -854,32 +855,6 @@
 		{/if}
 	</div>
 
-	<!-- Modals for non-fullscreen mode -->
-	{#if !isFullscreen}
-		<!-- Check-in Success Modal -->
-		<CheckInSuccessModal
-			bind:isOpen={showSuccessModal}
-			memberName={successModalData.memberName}
-			memberId={successModalData.memberId}
-			careGroup={successModalData.careGroup}
-			time={successModalData.time}
-			autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-			onClose={() => {
-				showSuccessModal = false;
-			}}
-		/>
-
-		<!-- Already Checked In Error Modal -->
-		<AlreadyCheckedInModal
-			bind:isOpen={showAlreadyCheckedInModal}
-			memberName={errorModalData.memberName}
-			memberId={errorModalData.memberId}
-			autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-			onClose={() => {
-				showAlreadyCheckedInModal = false;
-			}}
-		/>
-	{/if}
 
 	<!-- OR divider -->
 	<div class="flex items-center gap-3">
@@ -1098,24 +1073,15 @@
 </div>
 
 <!-- Desktop View -->
-<div class="hidden gap-6 p-6 md:grid md:min-h-[calc(100vh-240px)] md:grid-cols-3 lg:p-8">
+<div class="hidden h-[calc(100vh-100px)] w-full gap-6 p-6 md:grid md:grid-cols-3 lg:p-8">
 	<!-- Left Column: Scanner -->
 	<div class="col-span-2 flex h-full flex-col gap-6">
-		<!-- Active Event Banner -->
-		{#if session}
-			<Card class="border-primary/20 bg-primary/5">
-				<CardHeader>
-					<CardTitle class="text-primary">{session.title}</CardTitle>
-					<CardDescription
-						>{session.timeStart} - {session.timeEnd} • {session.location}</CardDescription
-					>
-				</CardHeader>
-			</Card>
-		{/if}
-
 		<!-- Scanner Area -->
 		<div
-			class="relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 p-16"
+			bind:this={scannerContainerDesktop}
+			class={isFullscreen
+				? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
+				: `relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 ${isScanning ? 'p-0 border-0' : 'p-16'}`}
 		>
 			{#if isScanning}
 				<div id="reader-desktop" class="h-full w-full bg-black {isFrontCamera ? 'mirror-camera' : ''}"></div>
@@ -1128,6 +1094,14 @@
 						onclick={stopScanner}
 					>
 						<StopCircle class="mr-2 h-5 w-5" /> Stop Scanning
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
+						onclick={toggleScanSize}
+					>
+						<ScanLine class="h-5 w-5" />
 					</Button>
 				</div>
 			{:else}
@@ -1159,7 +1133,19 @@
 	</div>
 
 	<!-- Right Column: Manual Entry + Recent -->
-	<aside class="col-span-1 flex h-full flex-col space-y-6">
+	<aside class="col-span-1 relative flex h-full flex-col space-y-6 overflow-hidden rounded-2xl">
+		<!-- Active Event Banner -->
+		{#if session}
+			<Card class="border-primary/20 bg-primary/5">
+				<CardHeader>
+					<CardTitle class="text-primary">{session.title}</CardTitle>
+					<CardDescription
+						>{session.timeStart} - {session.timeEnd} • {session.location}</CardDescription
+					>
+				</CardHeader>
+			</Card>
+		{/if}
+
 		<!-- Manual Entry -->
 		<Card class="z-20 overflow-visible">
 			<CardHeader>
@@ -1239,8 +1225,64 @@
 				</div>
 			</ScrollArea>
 		</Card>
+
+		<!-- Desktop Right-Column Modals -->
+		{#if !isFullscreen}
+			<!-- Check-in Success Modal -->
+			<CheckInSuccessModal
+				bind:isOpen={showSuccessModal}
+				memberName={successModalData.memberName}
+				memberId={successModalData.memberId}
+				careGroup={successModalData.careGroup}
+				time={successModalData.time}
+				autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
+				onClose={() => {
+					showSuccessModal = false;
+				}}
+			/>
+
+			<!-- Already Checked In Error Modal -->
+			<AlreadyCheckedInModal
+				bind:isOpen={showAlreadyCheckedInModal}
+				memberName={errorModalData.memberName}
+				memberId={errorModalData.memberId}
+				autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
+				onClose={() => {
+					showAlreadyCheckedInModal = false;
+				}}
+			/>
+		{/if}
 	</aside>
 </div>
+
+<!-- Global Modals for Mobile non-fullscreen mode -->
+{#if !isFullscreen}
+<div class="md:hidden">
+	<!-- Check-in Success Modal -->
+	<CheckInSuccessModal
+		bind:isOpen={showSuccessModal}
+		memberName={successModalData.memberName}
+		memberId={successModalData.memberId}
+		careGroup={successModalData.careGroup}
+		time={successModalData.time}
+		autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
+		onClose={() => {
+			showSuccessModal = false;
+		}}
+	/>
+
+	<!-- Already Checked In Error Modal -->
+	<AlreadyCheckedInModal
+		bind:isOpen={showAlreadyCheckedInModal}
+		memberName={errorModalData.memberName}
+		memberId={errorModalData.memberId}
+		autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
+		onClose={() => {
+			showAlreadyCheckedInModal = false;
+		}}
+	/>
+</div>
+{/if}
 
 <style>
 	@keyframes scan {

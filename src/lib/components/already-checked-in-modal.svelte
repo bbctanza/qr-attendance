@@ -19,10 +19,10 @@
 </script>
 
 {#if isOpen}
-	<div class="pointer-events-auto fixed inset-0 z-150 flex items-center justify-center p-4">
+	<div class="pointer-events-auto fixed inset-0 z-[150] flex items-center justify-center p-4 md:absolute md:inset-0 md:z-50 md:p-6">
 		<!-- Backdrop -->
 		<div
-			class="pointer-events-auto absolute inset-0 bg-black/40 backdrop-blur-sm"
+			class="pointer-events-auto absolute inset-0 bg-black/40 backdrop-blur-sm md:bg-background/80 md:backdrop-blur-md"
 			role="button"
 			tabindex="0"
 			onkeydown={(e) => e.key === 'Escape' && handleClose()}
@@ -35,7 +35,7 @@
 			class="pointer-events-auto relative z-10 w-full max-w-sm animate-in rounded-3xl border border-border/40 bg-card shadow-2xl duration-300 fade-in zoom-in"
 		>
 			<!-- Modal Content -->
-			<div class="relative space-y-6 p-6 sm:p-8">
+			<div class="relative space-y-6 p-6 sm:p-8 md:space-y-4 md:p-5">
 				<!-- Close Button -->
 				<button
 					onclick={handleClose}
@@ -47,14 +47,14 @@
 
 				<!-- Error Icon -->
 				<div class="flex justify-center">
-					<div class="rounded-full bg-red-500/10 p-4">
-						<AlertCircle class="h-12 w-12 text-red-500" />
+					<div class="rounded-full bg-red-500/10 p-4 md:p-3">
+						<AlertCircle class="h-12 w-12 text-red-500 md:h-8 md:w-8" />
 					</div>
 				</div>
 
 				<!-- Error Message -->
 				<div class="space-y-1 text-center">
-					<h2 class="text-2xl font-bold text-red-600">Already Checked In</h2>
+					<h2 class="text-2xl font-bold text-red-600 md:text-xl">Already Checked In</h2>
 					<p class="text-sm text-muted-foreground">
 						This member has already been checked in for this event
 					</p>
