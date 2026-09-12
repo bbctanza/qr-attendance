@@ -549,7 +549,7 @@
 </script>
 
 {#if isLoading}
-	<div class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div class="hidden sm:block space-y-2">
 				<Skeleton class="h-8 w-64" />
@@ -580,9 +580,7 @@
 		</div>
 	</div>
 {:else}
-	<div
-		class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12"
-	>
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header with Add Button -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>

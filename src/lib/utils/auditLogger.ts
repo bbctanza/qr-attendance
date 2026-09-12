@@ -278,9 +278,10 @@ export async function getAllAuditLogs(
 		startDate?: Date;
 		endDate?: Date;
 	},
-	limit: number = 100
+	limit: number = 200
 ) {
 	try {
+		await processBatch();
 		let query = supabase.from('audit_logs').select('*');
 
 		if (filters) {
@@ -304,10 +305,10 @@ export async function getAllAuditLogs(
 		const { data, error } = await query.order('created_at', { ascending: false }).limit(limit);
 
 		if (error) throw error;
-		return { success: true, data };
+		return { success: true, data: (data || []) as AuditLogRecord[] };
 	} catch (error) {
 		console.error('Error fetching all audit logs:', error);
-		return { success: false, error };
+		return { success: false, error, data: [] as AuditLogRecord[] };
 	}
 }
 

@@ -1,7 +1,7 @@
 {
 	"name": "qr-attendance",
 	"private": true,
-	"version": "2.3.1",
+	"version": "2.4.3",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev --host",
@@ -64,6 +64,7 @@
 	"dependencies": {
 		"@supabase/supabase-js": "^2.93.2",
 		"@types/qrcode": "^1.5.6",
+		"d3-shape": "^3.2.0",
 		"html5-qrcode": "^2.3.8",
 		"jspdf": "^4.1.0",
 		"jspdf-autotable": "^5.0.7",

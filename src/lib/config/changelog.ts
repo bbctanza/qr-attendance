@@ -9,9 +9,28 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.4.2';
+export const CURRENT_VERSION = '2.4.3';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.4.3',
+		date: 'September 12, 2026',
+		title: 'Developer Tools, Security Hardening & Staff Management UI Unified',
+		items: [
+			// Staff & User Management UI
+			'Unified Staff Directory & Invite Form - Integrated invitation and directory controls into a single, cohesive stacked layout in Manage Staff settings.',
+			'Data Table Edge Alignment & Pagination Footer - Enhanced Staff Directory table with responsive edge padding, custom per-page items selector, and pagination controls.',
+			'Resilient Profile Loading - Updated staff directory fetching to query Supabase profiles table directly with automatic Edge Function fallback.',
+
+			// Security Hardening
+			'Multi-Layer Attendance Wipe Lock - Added passcode verification, re-authentication password check, and explicit "WIPE" phrase confirmation to database clear action.',
+			'Secured Developer RPCs - Updated clear_attendance_history PostgreSQL function to enforce developer role checks and RPC passcode validation.',
+
+			// UI/UX Polish & Navigation
+			'Unified Developer Tools UI - Modernized Developer Tools with modular Card layouts, Lucide icons, and interactive AlertDialog confirm modals.',
+			'Fixed Header Breadcrumbs - Corrected desktop layout breadcrumb mappings for /settings/invite, /settings/dev, and /settings/audit-logs.'
+		]
+	},
 	{
 		version: '2.4.2',
 		date: 'September 3, 2026',

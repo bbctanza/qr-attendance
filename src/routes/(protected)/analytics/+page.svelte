@@ -422,7 +422,7 @@
 	</div>
 
 	<!-- Desktop View -->
-	<div class="mx-auto hidden max-w-7xl flex-col gap-6 p-6 md:flex lg:p-8">
+	<div class="hidden w-full flex-col gap-6 p-4 md:flex md:p-6 lg:p-8">
 		<!-- Header -->
 		<div class="flex items-center justify-between">
 			<div class="space-y-2">
@@ -737,7 +737,7 @@
 	</div>
 
 	<!-- Desktop View -->
-	<div class="mx-auto hidden max-w-7xl flex-col gap-6 p-6 md:flex lg:p-8">
+	<div class="hidden w-full flex-col gap-6 p-4 md:flex md:p-6 lg:p-8">
 		<!-- Header -->
 		<div class="flex items-center justify-between">
 			<div>

@@ -52,7 +52,29 @@ export default defineConfig({
 		})
 	],
 	server: {
-		allowedHosts: true
+		allowedHosts: true,
+		warmup: {
+			clientFiles: [
+				'./src/routes/+layout.svelte',
+				'./src/routes/+page.svelte',
+				'./src/routes/(protected)/overview/+page.svelte',
+				'./src/routes/(protected)/scan/+page.svelte',
+				'./src/routes/(protected)/attendance/+page.svelte'
+			]
+		}
+	},
+	optimizeDeps: {
+		include: [
+			'@lucide/svelte',
+			'lucide-svelte',
+			'@tanstack/table-core',
+			'@supabase/supabase-js',
+			'bits-ui',
+			'mode-watcher',
+			'clsx',
+			'tailwind-merge',
+			'd3-shape'
+		]
 	},
 	ssr: {
 		noExternal: ['svelte-turnstile']

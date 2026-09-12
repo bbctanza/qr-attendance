@@ -34,6 +34,7 @@
 	import { goto } from '$app/navigation';
 	import { mode } from 'mode-watcher';
 	import { systemSettings, loadSettings } from '$lib/stores/settings';
+	import { logAuditChange } from '$lib/utils/auditLogger';
 	import { supabase } from '$lib/supabase';
 	import ColorPicker from 'svelte-awesome-color-picker';
 	import { fly } from 'svelte/transition';
@@ -223,6 +224,21 @@
 			});
 
 			if (error) throw error;
+
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			await logAuditChange(
+				{
+					entityType: 'settings',
+					entityId: 'app-settings',
+					action: 'update',
+					before: originalSettings ? JSON.parse(JSON.stringify(originalSettings)) : undefined,
+					after: JSON.parse(JSON.stringify(settings)),
+					reason: 'Updated system settings'
+				},
+				session
+			);
 
 			// Apply Local Storage Settings (Theme & Time)
 			localStorage.setItem('time_format', settings.timeFormat);
@@ -432,7 +448,7 @@
 	}
 </script>
 
-<div class="mx-auto flex max-w-6xl flex-col gap-6 p-4 md:gap-8 md:p-6 lg:p-8">
+<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 	<!-- Header -->
 	<div class="hidden items-center gap-3 sm:flex sm:gap-4">
 		<button

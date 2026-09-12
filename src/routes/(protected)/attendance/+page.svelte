@@ -78,17 +78,15 @@
 			.maybeSingle();
 
 		if (data) {
-			const { count: presentCount } = await supabase
-				.from('attendance_scans')
-				.select('*', { count: 'exact', head: true })
-				.eq('event_id', data.event_id);
-
-			const { count: memberCount } = await supabase
-				.from('members')
-				.select('*', { count: 'exact', head: true });
-
-			const start = new Date(data.start_datetime);
-			const end = new Date(data.end_datetime);
+			const [{ count: presentCount }, { count: memberCount }] = await Promise.all([
+				supabase
+					.from('attendance_scans')
+					.select('*', { count: 'exact', head: true })
+					.eq('event_id', data.event_id),
+				supabase
+					.from('members')
+					.select('*', { count: 'exact', head: true })
+			]);
 
 			currentEvent = {
 				id: data.event_id,
@@ -135,7 +133,8 @@
 		const { data } = await supabase
 			.from('attendance_scans')
 			.select('*, members(*)')
-			.order('scan_datetime', { ascending: false });
+			.order('scan_datetime', { ascending: false })
+			.limit(20);
 
 		if (data) {
 			recentScans = await Promise.all(
@@ -454,10 +453,8 @@
 									data: [d]
 								}))}
 								props={{
-									arc: { track: { fill: 'var(--muted)' }, motion: 'tween' },
-									tooltip: { context: { hideDelay: 350 } }
+									arc: { track: { fill: 'var(--muted)' }, motion: 'tween' }
 								}}
-								tooltip={false}
 							>
 								{#snippet belowMarks()}
 									<circle cx="0" cy="0" r="42" class="fill-background" />
@@ -662,10 +659,8 @@
 											data: [d]
 										}))}
 										props={{
-											arc: { track: { fill: 'var(--muted)' }, motion: 'tween' },
-											tooltip: { context: { hideDelay: 350 } }
+											arc: { track: { fill: 'var(--muted)' }, motion: 'tween' }
 										}}
-										tooltip={false}
 									>
 										{#snippet belowMarks()}
 											<circle cx="0" cy="0" r="55" class="fill-background" />

@@ -29,6 +29,7 @@
 	import * as Select from '$lib/components/ui/select';
 	import { Plus, Edit, Trash2, Search, Users, ChevronDown } from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
+	import { logAuditChange } from '$lib/utils/auditLogger';
 	import { onMount } from 'svelte';
 	import Color from 'svelte-awesome-color-picker';
 	import { supabase } from '$lib/supabase';
@@ -249,6 +250,20 @@
 				return;
 			}
 
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			await logAuditChange(
+				{
+					entityType: 'settings',
+					entityId: trimmedName,
+					action: 'create',
+					after: { group_code: trimmedName, name: trimmedDescription },
+					reason: `Created group ${trimmedName}`
+				},
+				session
+			);
+
 			console.log('Insert successful:', data);
 			toast.success(`Group "${trimmedName}" created`);
 		}
@@ -271,6 +286,7 @@
 
 		isDeletingGroup = true;
 		try {
+			const targetGroup = groups.find((g) => g.group_id === id);
 			const { error } = await supabase.from('groups').delete().eq('group_id', id);
 
 			if (error) {
@@ -278,6 +294,20 @@
 				toast.error(error.message || 'Failed to delete group');
 				return;
 			}
+
+			const {
+				data: { session }
+			} = await supabase.auth.getSession();
+			await logAuditChange(
+				{
+					entityType: 'settings',
+					entityId: targetGroup?.group_code || String(id),
+					action: 'delete',
+					before: targetGroup ? JSON.parse(JSON.stringify(targetGroup)) : undefined,
+					reason: `Deleted group ${targetGroup?.name || id}`
+				},
+				session
+			);
 
 			await fetchGroups();
 			toast.success('Group deleted');
@@ -310,7 +340,7 @@
 </script>
 
 {#if isLoading}
-	<div class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div class="hidden sm:block space-y-2">
@@ -378,9 +408,7 @@
 		</div>
 	</div>
 {:else}
-	<div
-		class="mx-auto flex max-w-7xl flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12"
-	>
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Header with Add Button -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 			<div>

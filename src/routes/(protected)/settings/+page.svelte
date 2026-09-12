@@ -212,7 +212,7 @@
 					{#if user.role === 'Admin' || user.role === 'Developer'}
 						<button
 							class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-							onclick={() => open('/analytics/audit-logs')}
+							onclick={() => open('/settings/audit-logs')}
 						>
 							<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
 								<ShieldAlert class="h-5 w-5" />

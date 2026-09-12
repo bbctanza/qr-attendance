@@ -36,9 +36,7 @@
 		try {
 			const { error } = await supabase.auth.resetPasswordForEmail(email, {
 				redirectTo: `${window.location.origin}/update-password`,
-				options: {
-					captchaToken: token
-				}
+				captchaToken: token
 			});
 
 			if (error) {

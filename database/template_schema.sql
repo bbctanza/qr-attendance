@@ -369,13 +369,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function D: Developer Tools - Clear History
-CREATE OR REPLACE FUNCTION clear_attendance_history()
+CREATE OR REPLACE FUNCTION clear_attendance_history(passcode TEXT DEFAULT NULL)
 RETURNS void AS $$
 DECLARE
     curr_role user_role;
 BEGIN
     SELECT role INTO curr_role FROM profiles WHERE id = auth.uid();
-    IF curr_role != 'developer' THEN RAISE EXCEPTION 'Access denied'; END IF;
+    IF curr_role != 'developer' THEN 
+        RAISE EXCEPTION 'Access denied: Developer role required.'; 
+    END IF;
+
+    IF passcode IS NULL OR passcode != 'WIPE_ATTENDANCE_HISTORY_CONFIRMED' THEN
+        RAISE EXCEPTION 'Security restriction: Invalid or missing wipe security passcode.';
+    END IF;
 
     DELETE FROM attendance_present;
     DELETE FROM attendance_absent;

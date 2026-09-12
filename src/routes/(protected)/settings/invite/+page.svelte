@@ -2,22 +2,21 @@
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
+	import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import {
 		ChevronLeft,
-		Mail,
-		ShieldCheck,
-		Lock,
+		ChevronRight,
 		Send,
-		CheckCircle2,
-		AlertCircle,
 		Loader2,
 		Eye,
 		EyeOff,
 		Users,
 		UserMinus,
-		RefreshCw
+		RefreshCw,
+		Search,
+		UserPlus
 	} from '@lucide/svelte';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
@@ -26,9 +25,16 @@
 	import { logAuditChange } from '$lib/utils/auditLogger';
 	import { onMount } from 'svelte';
 	import { toast } from 'svelte-sonner';
+	import {
+		Table,
+		TableBody,
+		TableCell,
+		TableHead,
+		TableHeader,
+		TableRow
+	} from '$lib/components/ui/table';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 
-	let activeTab = $state('invite'); // "invite" or "manage"
 	let inviteEmail = $state('');
 	let inviteRole = $state('staff');
 	let adminPassword = $state('');
@@ -37,7 +43,8 @@
 	let adminProfile = $state<any>(null);
 	let pageLoading = $state(true);
 
-	// Management State
+	// Management & Directory State
+	let searchQuery = $state('');
 	let staffUsers = $state<any[]>([]);
 	let isFetchingUsers = $state(false);
 	let isDeleteDialogOpen = $state(false);
@@ -48,9 +55,36 @@
 	const roles = [
 		{ value: 'admin', label: 'Administrator' },
 		{ value: 'staff', label: 'Staff' },
-		{ value: 'guest', label: 'Guest' },
-		{ value: 'developer', label: 'Developer' }
+		{ value: 'guest', label: 'Guest' }
 	];
+
+	// Filtered staff list by search query
+	let filteredStaff = $derived(
+		staffUsers.filter((u) => {
+			const q = searchQuery.trim().toLowerCase();
+			if (!q) return true;
+			const name = (u.full_name || '').toLowerCase();
+			const email = (u.email || '').toLowerCase();
+			const role = (u.role || '').toLowerCase();
+			return name.includes(q) || email.includes(q) || role.includes(q);
+		})
+	);
+
+	// Pagination State
+	let currentPage = $state(1);
+	let pageSize = $state(10);
+
+	$effect(() => {
+		searchQuery;
+		currentPage = 1;
+	});
+
+	let totalPages = $derived(Math.max(1, Math.ceil(filteredStaff.length / pageSize)));
+
+	let paginatedStaff = $derived.by(() => {
+		const start = (currentPage - 1) * pageSize;
+		return filteredStaff.slice(start, start + pageSize);
+	});
 
 	onMount(async () => {
 		try {
@@ -74,6 +108,7 @@
 				return;
 			}
 			adminProfile = profile;
+			await fetchUsers();
 		} catch (e) {
 			console.error(e);
 			goto('/settings');
@@ -85,26 +120,34 @@
 	async function fetchUsers() {
 		isFetchingUsers = true;
 		try {
+			// 1. Direct database query to profiles table (fast & always accessible)
+			const { data: dbProfiles, error: dbError } = await supabase
+				.from('profiles')
+				.select('*')
+				.order('created_at', { ascending: false });
+
+			if (!dbError && dbProfiles && dbProfiles.length > 0) {
+				staffUsers = dbProfiles;
+				return;
+			}
+
+			// 2. Fallback to invitation-service edge function if direct client query returned empty/error
 			const { data, error } = await supabase.functions.invoke('invitation-service', {
 				body: { action: 'list-users' }
 			});
 			if (error) throw error;
-			staffUsers = data.users || [];
+			staffUsers = data?.users || dbProfiles || [];
 		} catch (e: any) {
-			toast.error(e.message || 'Failed to fetch users');
+			console.error('Error fetching staff directory:', e);
+			toast.error(e.message || 'Failed to fetch staff directory');
 		} finally {
 			isFetchingUsers = false;
 		}
 	}
 
-	$effect(() => {
-		if (activeTab === 'manage' && staffUsers.length === 0) {
-			fetchUsers().catch(console.error);
-		}
-	});
-
-	async function handleUpdateRole(userId: string, newRole: string) {
-		adminPassword = ''; // Clear for modal
+	function handleUpdateRole(userId: string, newRole: string) {
+		adminPassword = '';
+		showPassword = false;
 		roleUpdateData = { userId, newRole };
 		isRoleUpdateOpen = true;
 	}
@@ -116,7 +159,6 @@
 		}
 
 		try {
-			// Get the user profile before the update for audit logging
 			const { data: userBefore } = await supabase
 				.from('profiles')
 				.select('*')
@@ -133,12 +175,10 @@
 			});
 			if (error) throw error;
 
-			// Get current session for audit logging
 			const {
 				data: { session }
 			} = await supabase.auth.getSession();
 
-			// Log the role change
 			await logAuditChange(
 				{
 					entityType: 'user',
@@ -152,7 +192,7 @@
 				session
 			);
 
-			toast.success('Role updated successfully');
+			toast.success('User role updated successfully');
 			await fetchUsers();
 			isRoleUpdateOpen = false;
 		} catch (e: any) {
@@ -162,8 +202,9 @@
 		}
 	}
 
-	async function handleDeleteUser(userId: string) {
-		adminPassword = ''; // Clear for modal
+	function handleDeleteUser(userId: string) {
+		adminPassword = '';
+		showPassword = false;
 		userToDelete = staffUsers.find((u) => u.id === userId);
 		isDeleteDialogOpen = true;
 	}
@@ -175,7 +216,6 @@
 		}
 
 		try {
-			// Store user data before deletion for audit logging
 			const userEmail = userToDelete.email;
 			const userRole = userToDelete.role;
 			const userId = userToDelete.id;
@@ -189,12 +229,10 @@
 			});
 			if (error) throw error;
 
-			// Get current session for audit logging
 			const {
 				data: { session }
 			} = await supabase.auth.getSession();
 
-			// Log the user deletion
 			await logAuditChange(
 				{
 					entityType: 'user',
@@ -207,7 +245,7 @@
 				session
 			);
 
-			toast.success('User removed from system');
+			toast.success('Staff member removed successfully');
 			await fetchUsers();
 			isDeleteDialogOpen = false;
 		} catch (e: any) {
@@ -225,7 +263,6 @@
 
 		isLoading = true;
 		try {
-			// Use Supabase Edge Function to verify password and send invite
 			const { data, error } = await supabase.functions.invoke('invitation-service', {
 				body: {
 					action: 'send-invite',
@@ -238,16 +275,14 @@
 			if (error) throw error;
 			if (data?.error) throw new Error(data.error);
 
-			// Get current session for audit logging
 			const {
 				data: { session }
 			} = await supabase.auth.getSession();
 
-			// Log the invitation
 			await logAuditChange(
 				{
 					entityType: 'user',
-					entityId: inviteEmail, // Use email as identifier for new invites
+					entityId: inviteEmail,
 					action: 'create',
 					after: { email: inviteEmail, role: inviteRole },
 					reason: `Invitation sent to ${inviteEmail} with ${inviteRole} role`,
@@ -258,6 +293,8 @@
 
 			toast.success('Invitation sent successfully!');
 			inviteEmail = '';
+			adminPassword = '';
+			await fetchUsers();
 		} catch (e: any) {
 			console.error(e);
 			toast.error(e.message || 'Failed to send invitation');
@@ -268,360 +305,427 @@
 </script>
 
 {#if pageLoading}
-	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Header Skeleton -->
-		<div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
-			<div class="flex items-center gap-4">
-				<Skeleton class="h-10 w-10 rounded-xl" />
-				<div class="space-y-2">
-					<Skeleton class="h-8 w-40" />
-					<Skeleton class="h-4 w-32" />
-				</div>
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+		<div class="flex items-center gap-4">
+			<Skeleton class="h-10 w-10 rounded-lg" />
+			<div class="space-y-2">
+				<Skeleton class="h-8 w-40" />
+				<Skeleton class="h-4 w-32" />
 			</div>
-			<Skeleton class="h-10 w-full sm:w-48 rounded-xl" />
 		</div>
-
-		<!-- Content Skeleton (Invite Tab Layout) -->
 		<div class="space-y-6">
-			<div class="space-y-4 rounded-2xl border border-border/30 bg-card p-6">
-				<Skeleton class="h-5 w-40 mb-4" />
-				<div class="space-y-2">
-					<Skeleton class="h-4 w-32" />
-					<Skeleton class="h-10 w-full" />
-				</div>
-				<div class="space-y-2">
-					<Skeleton class="h-4 w-24" />
-					<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-						<Skeleton class="h-9 w-full" />
-						<Skeleton class="h-9 w-full" />
-						<Skeleton class="h-9 w-full" />
-					</div>
-				</div>
-			</div>
-			<div class="space-y-4 rounded-2xl border border-border/30 bg-card p-6">
-				<Skeleton class="h-5 w-48 mb-4" />
-				<div class="space-y-2">
-					<Skeleton class="h-4 w-32" />
-					<Skeleton class="h-10 w-full" />
-					<Skeleton class="h-3 w-64 mt-1" />
-				</div>
-				<Skeleton class="h-12 w-full rounded-xl" />
-			</div>
+			<Skeleton class="h-48 w-full rounded-xl" />
+			<Skeleton class="h-96 w-full rounded-xl" />
 		</div>
 	</div>
 {:else}
-	<div class="mx-auto flex max-w-3xl flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Header -->
-		<div class="flex flex-col justify-between gap-6 sm:flex-row sm:items-center">
-			<div class="flex items-center gap-4">
-				<Button
-					variant="ghost"
-					size="icon"
-					onclick={() => goto('/settings')}
-					class="shrink-0 rounded-xl"
-				>
-					<ChevronLeft class="h-5 w-5" />
-				</Button>
-				<div class="min-w-0">
-					<h1 class="truncate text-2xl font-bold md:text-3xl">Administration</h1>
-					<p class="mt-1 text-sm text-muted-foreground md:text-base">Manage System Access</p>
-				</div>
-			</div>
-
-			<div class="flex w-full rounded-xl bg-muted p-1 sm:w-auto">
-				<button
-					class="flex-1 rounded-lg px-4 py-2 text-xs font-bold transition-all sm:flex-none {activeTab ===
-					'invite'
-						? 'bg-background shadow-sm'
-						: 'text-muted-foreground'}"
-					onclick={() => (activeTab = 'invite')}
-				>
-					Invite
-				</button>
-				<button
-					class="flex-1 rounded-lg px-4 py-2 text-xs font-bold transition-all sm:flex-none {activeTab ===
-					'manage'
-						? 'bg-background shadow-sm'
-						: 'text-muted-foreground'}"
-					onclick={() => (activeTab = 'manage')}
-				>
-					Staff List
-				</button>
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+		<!-- Header with System Breadcrumb -->
+		<div class="hidden items-center gap-3 sm:flex sm:gap-4">
+			<button
+				onclick={() => goto('/settings')}
+				class="shrink-0 rounded-lg p-2 transition hover:bg-muted"
+			>
+				<ChevronLeft class="h-5 w-5 sm:h-6 sm:w-6" />
+			</button>
+			<div class="min-w-0 flex-1">
+				<h1 class="text-2xl font-bold md:text-3xl">Manage Staff</h1>
+				<p class="mt-1 hidden text-sm text-muted-foreground sm:block">
+					Invite new staff members, assign user roles, and manage permissions
+				</p>
 			</div>
 		</div>
 
-		<div class="space-y-6">
-			{#if activeTab === 'invite'}
-				<!-- Step 1: Basic Info -->
-				<div class="space-y-4 rounded-2xl border border-border/30 bg-card p-6">
-					<div
-						class="mb-2 flex items-center gap-2 text-sm font-bold tracking-widest text-primary uppercase"
-					>
-						<Mail class="h-4 w-4" /> 1. Invitation Details
-					</div>
+		<!-- Mobile Header -->
+		<div class="flex items-center gap-3 sm:hidden">
+			<button
+				onclick={() => goto('/settings')}
+				class="shrink-0 rounded-lg p-2 transition hover:bg-muted"
+			>
+				<ChevronLeft class="h-5 w-5" />
+			</button>
+			<div>
+				<h1 class="text-xl font-bold">Manage Staff</h1>
+				<p class="text-xs text-muted-foreground">Invite & manage user roles</p>
+			</div>
+		</div>
 
-					<div class="space-y-2">
-						<Label for="email">Invitee Email Address</Label>
+		<!-- 1. Invite New Staff Member Card -->
+		<Card>
+			<CardHeader class="pb-3">
+				<div class="flex items-center gap-2">
+					<UserPlus class="h-5 w-5 shrink-0 text-primary" />
+					<div>
+						<CardTitle class="text-base font-bold sm:text-lg">Invite New Staff Member</CardTitle>
+						<CardDescription class="mt-0.5 text-xs text-muted-foreground">
+							Send an invitation email to grant system access and assign user roles.
+						</CardDescription>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent class="p-4 sm:p-6">
+				<form
+					onsubmit={(e) => {
+						e.preventDefault();
+						handleSendInvite();
+					}}
+					class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 items-end"
+				>
+					<!-- Email Input -->
+					<div class="space-y-1.5">
+						<Label for="email" class="text-xs font-medium text-foreground">Invitee Email Address</Label>
 						<Input
 							id="email"
 							type="email"
-							placeholder="name@example.com"
+							placeholder="colleague@organization.com"
 							bind:value={inviteEmail}
+							class="h-9 text-xs"
 						/>
 					</div>
 
-					<div class="space-y-2">
-						<Label for="role">Assign Role</Label>
-						<div class="grid grid-cols-1 gap-2 sm:grid-cols-3">
-							{#each roles.filter((r) => r.value !== 'developer') as role}
-								<button
-									class="rounded-xl border px-3 py-2 text-xs font-bold transition-all {inviteRole ===
-									role.value
-										? 'border-primary bg-primary text-primary-foreground'
-										: 'border-border/40 bg-card hover:bg-muted'}"
-									onclick={() => (inviteRole = role.value)}
-								>
-									{role.label}
-								</button>
-							{/each}
-						</div>
-					</div>
-				</div>
-
-				<!-- Step 2: Authentication -->
-				<div class="space-y-4 rounded-2xl border border-border/30 bg-card p-6">
-					<div
-						class="mb-2 flex items-center gap-2 text-sm font-bold tracking-widest text-primary uppercase"
-					>
-						<Lock class="h-4 w-4" /> 2. Security Verification
+					<!-- Role Selector -->
+					<div class="space-y-1.5">
+						<Label class="text-xs font-medium text-foreground">Assign System Role</Label>
+						<Select.Root type="single" bind:value={inviteRole}>
+							<Select.Trigger class="h-9 w-full text-xs">
+								{roles.find((r) => r.value === inviteRole)?.label || 'Select Role'}
+							</Select.Trigger>
+							<Select.Content>
+								{#each roles as r}
+									<Select.Item value={r.value} class="text-xs">{r.label}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
 					</div>
 
-					<div class="space-y-2">
-						<Label for="password">Your Password</Label>
+					<!-- Password Input -->
+					<div class="space-y-1.5">
+						<Label for="password" class="text-xs font-medium text-foreground">Your Password</Label>
 						<div class="relative">
 							<Input
 								id="password"
 								type={showPassword ? 'text' : 'password'}
-								placeholder="Enter your current password"
+								placeholder="Confirm password"
 								bind:value={adminPassword}
-								class="pr-10"
+								class="h-9 pr-8 text-xs"
 							/>
 							<button
 								type="button"
-								class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+								class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition hover:text-foreground focus:outline-none"
 								onclick={() => (showPassword = !showPassword)}
+								title={showPassword ? 'Hide password' : 'Show password'}
 							>
 								{#if showPassword}
-									<EyeOff class="h-4 w-4" />
+									<EyeOff class="h-3.5 w-3.5" />
 								{:else}
-									<Eye class="h-4 w-4" />
+									<Eye class="h-3.5 w-3.5" />
 								{/if}
 							</button>
 						</div>
-						<p class="text-[10px] text-muted-foreground italic">
-							Required to prevent unauthorized accounts from sending invites.
-						</p>
 					</div>
 
-					<Button
-						class="h-12 w-full rounded-xl font-bold"
-						onclick={handleSendInvite}
-						disabled={isLoading || !inviteEmail || !adminPassword}
-					>
-						{#if isLoading}
-							<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-							Sending...
-						{:else}
-							<Send class="mr-2 h-4 w-4" />
-							Send Invitation
-						{/if}
-					</Button>
-				</div>
-
-				<div class="flex items-start gap-3 rounded-2xl border border-border/10 bg-muted/30 p-4">
-					<AlertCircle class="h-5 w-5 shrink-0 text-muted-foreground" />
-					<p class="text-xs leading-relaxed font-medium text-muted-foreground">
-						The invitee will receive an email directly from Supabase to set up their account. This
-						invitation bypasses 2FA for convenience.
-					</p>
-				</div>
-			{:else}
-				<!-- Manage Users View -->
-				<div class="overflow-hidden rounded-2xl border border-border/30 bg-card">
-					<div
-						class="flex items-center justify-between border-b border-border/30 bg-muted/20 px-6 py-4"
-					>
-						<div
-							class="flex items-center gap-2 text-sm font-bold tracking-widest text-primary uppercase"
+					<!-- Submit Button -->
+					<div>
+						<Button
+							type="submit"
+							class="h-9 w-full text-xs font-medium gap-1.5"
+							disabled={isLoading || !inviteEmail || !adminPassword}
 						>
-							<Users class="h-4 w-4" /> Staff List
-						</div>
-						<Button variant="ghost" size="icon" onclick={fetchUsers} disabled={isFetchingUsers}>
-							<RefreshCw class="h-4 w-4 {isFetchingUsers ? 'animate-spin' : ''}" />
+							{#if isLoading}
+								<Loader2 class="h-3.5 w-3.5 animate-spin" />
+								Sending...
+							{:else}
+								<Send class="h-3.5 w-3.5" />
+								Send Invite
+							{/if}
 						</Button>
 					</div>
+				</form>
+			</CardContent>
+		</Card>
 
-					<div class="divide-y divide-border/30">
-						{#if isFetchingUsers}
-							<div class="flex flex-col items-center justify-center gap-4 p-12">
-								<Loader2 class="h-8 w-8 animate-spin text-primary" />
-								<p class="text-sm text-muted-foreground">Loading staff members...</p>
+		<!-- 2. Staff Directory Card (Full Width Table) -->
+		<Card>
+			<CardHeader class="px-4 py-3 sm:px-6">
+				<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+					<div class="flex items-center gap-2">
+						<Users class="h-5 w-5 text-primary shrink-0" />
+						<div>
+							<div class="flex items-center gap-2">
+								<CardTitle class="text-base font-bold sm:text-lg">Staff Directory</CardTitle>
+								<Badge variant="secondary" class="text-[10px]">{staffUsers.length} Accounts</Badge>
 							</div>
-						{:else if staffUsers.length === 0}
-							<div class="p-12 text-center text-muted-foreground">No staff members found.</div>
-						{:else}
-							{#each staffUsers as staff}
-								<div
-									class="flex flex-col justify-between gap-4 p-4 transition-colors hover:bg-muted/10 sm:flex-row sm:items-center"
-								>
-									<div class="flex min-w-0 flex-1 items-center gap-4">
-										<Avatar class="h-10 w-10 border border-border/30">
-											<AvatarImage src={staff.avatar_url} />
-											<AvatarFallback>{staff.full_name?.charAt(0) || '?'}</AvatarFallback>
-										</Avatar>
-										<div class="min-w-0 flex-1">
-											<div class="truncate text-sm font-bold">
-												{staff.full_name || 'Anonymous User'}
-											</div>
-											<div class="truncate text-[10px] text-muted-foreground italic">
-												{staff.email}
-											</div>
-										</div>
-										<Badge
-											variant="outline"
-											class="h-5 px-1.5 text-[9px] tracking-tighter uppercase">{staff.role}</Badge
-										>
-									</div>
-
-									<div class="flex items-center gap-2">
-										<Select.Root
-											type="single"
-											value={staff.role}
-											disabled={staff.role === 'developer'}
-											onValueChange={(v) => handleUpdateRole(staff.id, v)}
-										>
-											<Select.Trigger class="h-8 w-28 rounded-lg px-2 text-xs font-bold">
-												{staff.role.charAt(0).toUpperCase() + staff.role.slice(1)}
-											</Select.Trigger>
-											<Select.Content class="rounded-xl border border-border/30 shadow-xl">
-												{#each roles.filter((r) => r.value !== 'developer') as r}
-													<Select.Item value={r.value} class="rounded-lg py-2 text-xs font-bold">
-														{r.label}
-													</Select.Item>
-												{/each}
-											</Select.Content>
-										</Select.Root>
-
-										<Button
-											variant="ghost"
-											size="icon"
-											class="h-8 w-8 rounded-lg text-red-500 hover:bg-red-500/10 hover:text-red-600"
-											onclick={() => handleDeleteUser(staff.id)}
-											disabled={staff.id === adminProfile.id || staff.role === 'developer'}
-										>
-											<UserMinus class="h-4 w-4" />
-										</Button>
-									</div>
-								</div>
-							{/each}
-						{/if}
+							<CardDescription class="mt-0.5 text-xs text-muted-foreground">
+								Manage active staff accounts, modify user roles, or remove permissions.
+							</CardDescription>
+						</div>
+					</div>
+					<div class="flex items-center gap-2">
+						<div class="relative flex-1 sm:w-56 sm:flex-initial">
+							<Search class="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+							<Input
+								type="search"
+								placeholder="Search staff members..."
+								bind:value={searchQuery}
+								class="h-8 pl-8 text-xs"
+							/>
+						</div>
+						<Button
+							variant="outline"
+							size="sm"
+							onclick={fetchUsers}
+							disabled={isFetchingUsers}
+							class="h-8 shrink-0 px-2.5 text-xs gap-1.5"
+						>
+							<RefreshCw class="h-3.5 w-3.5 {isFetchingUsers ? 'animate-spin' : ''}" />
+							<span class="hidden sm:inline">Refresh</span>
+						</Button>
 					</div>
 				</div>
+			</CardHeader>
+			<CardContent class="p-0">
+				{#if isFetchingUsers}
+					<div class="flex flex-col items-center justify-center gap-2 py-12">
+						<Loader2 class="h-6 w-6 animate-spin text-primary" />
+						<p class="text-xs text-muted-foreground">Loading staff directory...</p>
+					</div>
+				{:else if filteredStaff.length === 0}
+					<div class="p-12 text-center text-xs text-muted-foreground">
+						{#if searchQuery}
+							No staff members matching "{searchQuery}"
+						{:else}
+							No staff members found.
+						{/if}
+					</div>
+				{:else}
+					<div class="overflow-x-auto">
+						<Table>
+							<TableHeader>
+								<TableRow class="bg-muted/50">
+									<TableHead class="px-4 sm:px-6 font-semibold text-xs text-muted-foreground">Staff Member</TableHead>
+									<TableHead class="px-4 sm:px-6 w-44 font-semibold text-xs text-muted-foreground">System Role</TableHead>
+									<TableHead class="px-4 sm:px-6 w-28 text-right font-semibold text-xs text-muted-foreground">Actions</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{#each paginatedStaff as staff}
+									<TableRow class="transition-colors hover:bg-muted/30">
+										<TableCell class="px-4 sm:px-6">
+											<div class="flex items-center gap-3">
+												<Avatar class="h-8 w-8 shrink-0 border">
+													<AvatarImage src={staff.avatar_url} />
+													<AvatarFallback class="text-xs font-semibold">
+														{staff.full_name?.charAt(0) || staff.email?.charAt(0) || '?'}
+													</AvatarFallback>
+												</Avatar>
+												<div class="min-w-0 flex-1">
+													<div class="flex items-center gap-2">
+														<span class="truncate text-xs font-semibold text-foreground">
+															{staff.full_name || 'Anonymous User'}
+														</span>
+														{#if staff.id === adminProfile?.id}
+															<Badge variant="secondary" class="h-4 px-1 text-[9px]">You</Badge>
+														{/if}
+													</div>
+													<div class="truncate text-[11px] text-muted-foreground">
+														{staff.email}
+													</div>
+												</div>
+											</div>
+										</TableCell>
+										<TableCell class="px-4 sm:px-6">
+											<Select.Root
+												type="single"
+												value={staff.role}
+												disabled={staff.role === 'developer'}
+												onValueChange={(v) => handleUpdateRole(staff.id, v)}
+											>
+												<Select.Trigger class="h-8 w-32 text-xs font-medium">
+													{staff.role ? staff.role.charAt(0).toUpperCase() + staff.role.slice(1) : 'Select'}
+												</Select.Trigger>
+												<Select.Content>
+													// eslint-disable-next-line svelte/require-each-key
+													{#each roles as r}
+														<Select.Item value={r.value} class="text-xs">
+															{r.label}
+														</Select.Item>
+													{/each}
+												</Select.Content>
+											</Select.Root>
+										</TableCell>
+										<TableCell class="px-4 sm:px-6 text-right">
+											<Button
+												variant="ghost"
+												size="icon"
+												class="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+												onclick={() => handleDeleteUser(staff.id)}
+												disabled={staff.id === adminProfile?.id || staff.role === 'developer'}
+												title="Remove User"
+											>
+												<UserMinus class="h-4 w-4" />
+											</Button>
+										</TableCell>
+									</TableRow>
+								{/each}
+							</TableBody>
+						</Table>
+					</div>
+				{/if}
+			</CardContent>
+
+			<!-- Pagination Footer -->
+			{#if filteredStaff.length > 0}
+				<CardFooter class="border-t px-4 py-2.5 sm:px-6 sm:py-2.5 flex flex-col sm:flex-row items-center justify-between gap-3">
+					<div class="flex items-center gap-4 text-xs text-muted-foreground">
+						<span>
+							Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredStaff.length)}</strong> to{' '}
+							<strong>{Math.min(currentPage * pageSize, filteredStaff.length)}</strong> of{' '}
+							<strong>{filteredStaff.length}</strong> staff members
+						</span>
+						<div class="flex items-center gap-1.5">
+							<span>Per page:</span>
+							<select
+								bind:value={pageSize}
+								onchange={() => (currentPage = 1)}
+								class="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+							>
+								<option value={10}>10</option>
+								<option value={25}>25</option>
+								<option value={50}>50</option>
+								<option value={100}>100</option>
+							</select>
+						</div>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={currentPage === 1}
+							onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+							class="h-8 gap-1 px-3 text-xs"
+						>
+							<ChevronLeft class="h-3.5 w-3.5" />
+							Previous
+						</Button>
+						<span class="px-2 text-xs font-medium text-muted-foreground">
+							Page {currentPage} of {totalPages}
+						</span>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={currentPage >= totalPages}
+							onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
+							class="h-8 gap-1 px-3 text-xs"
+						>
+							Next
+							<ChevronRight class="h-3.5 w-3.5" />
+						</Button>
+					</div>
+				</CardFooter>
 			{/if}
-		</div>
+		</Card>
 	</div>
 {/if}
 
+<!-- Confirm Delete User Modal -->
 <AlertDialog.Root bind:open={isDeleteDialogOpen}>
-	<AlertDialog.Content class="rounded-2xl">
-		<AlertDialog.Header>
-			<AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
-			<AlertDialog.Description>
-				This will permanently delete <span class="font-bold text-foreground"
-					>{userToDelete?.full_name || userToDelete?.email || 'this user'}</span
-				>. Enter your password to confirm this action.
+	<AlertDialog.Content class="max-w-md p-6">
+		<AlertDialog.Header class="space-y-2">
+			<AlertDialog.Title class="text-lg font-bold text-destructive">Remove Staff Member</AlertDialog.Title>
+			<AlertDialog.Description class="text-xs leading-relaxed text-muted-foreground">
+				Are you sure you want to remove <strong class="text-foreground">{userToDelete?.full_name || userToDelete?.email}</strong> from the system?
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 
-		<div class="space-y-2 py-4">
-			<Label for="del-password">Your Password</Label>
+		<div class="space-y-2 py-3">
+			<Label for="del-password" class="text-xs font-medium">Enter your password to confirm</Label>
 			<div class="relative">
 				<Input
 					id="del-password"
 					type={showPassword ? 'text' : 'password'}
 					placeholder="Confirm your password"
 					bind:value={adminPassword}
-					class="rounded-xl pr-10"
+					class="pr-10 text-xs"
 				/>
 				<button
 					type="button"
-					class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+					class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition hover:text-foreground focus:outline-none"
 					onclick={() => (showPassword = !showPassword)}
 				>
 					{#if showPassword}
-						<EyeOff class="h-4 w-4" />
+						<EyeOff class="h-3.5 w-3.5" />
 					{:else}
-						<Eye class="h-4 w-4" />
+						<Eye class="h-3.5 w-3.5" />
 					{/if}
 				</button>
 			</div>
 		</div>
 
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel class="rounded-xl">Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
+		<AlertDialog.Footer class="mt-3 gap-2 sm:gap-2">
+			<AlertDialog.Cancel class="h-9 px-3 text-xs" onclick={() => (isDeleteDialogOpen = false)}>
+				Cancel
+			</AlertDialog.Cancel>
+			<Button
+				variant="destructive"
+				size="sm"
+				class="h-9 px-3 text-xs"
 				onclick={confirmDelete}
-				class="text-destructive-foreground rounded-xl bg-destructive hover:bg-destructive/90"
+				disabled={!adminPassword}
 			>
-				Permanently Delete
-			</AlertDialog.Action>
+				Remove Member
+			</Button>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>
 
+<!-- Confirm Role Update Modal -->
 <AlertDialog.Root bind:open={isRoleUpdateOpen}>
-	<AlertDialog.Content class="rounded-2xl">
-		<AlertDialog.Header>
-			<AlertDialog.Title>Confirm Role Change</AlertDialog.Title>
-			<AlertDialog.Description>
-				Are you sure you want to change this user's role to <span
-					class="font-bold text-foreground uppercase">{roleUpdateData?.newRole}</span
-				>? Enter your password to confirm.
+	<AlertDialog.Content class="max-w-md p-6">
+		<AlertDialog.Header class="space-y-2">
+			<AlertDialog.Title class="text-lg font-bold">Update Role Permission</AlertDialog.Title>
+			<AlertDialog.Description class="text-xs leading-relaxed text-muted-foreground">
+				Change role to <strong class="font-semibold text-foreground uppercase">{roleUpdateData?.newRole}</strong>?
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 
-		<div class="space-y-2 py-4">
-			<Label for="role-password">Your Password</Label>
+		<div class="space-y-2 py-3">
+			<Label for="role-password" class="text-xs font-medium">Enter your password to confirm</Label>
 			<div class="relative">
 				<Input
 					id="role-password"
 					type={showPassword ? 'text' : 'password'}
 					placeholder="Confirm your password"
 					bind:value={adminPassword}
-					class="rounded-xl pr-10"
+					class="pr-10 text-xs"
 				/>
 				<button
 					type="button"
-					class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+					class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition hover:text-foreground focus:outline-none"
 					onclick={() => (showPassword = !showPassword)}
 				>
 					{#if showPassword}
-						<EyeOff class="h-4 w-4" />
+						<EyeOff class="h-3.5 w-3.5" />
 					{:else}
-						<Eye class="h-4 w-4" />
+						<Eye class="h-3.5 w-3.5" />
 					{/if}
 				</button>
 			</div>
 		</div>
 
-		<AlertDialog.Footer>
-			<AlertDialog.Cancel class="rounded-xl">Cancel</AlertDialog.Cancel>
-			<AlertDialog.Action
+		<AlertDialog.Footer class="mt-3 gap-2 sm:gap-2">
+			<AlertDialog.Cancel class="h-9 px-3 text-xs" onclick={() => (isRoleUpdateOpen = false)}>
+				Cancel
+			</AlertDialog.Cancel>
+			<Button
+				size="sm"
+				class="h-9 px-3 text-xs"
 				onclick={confirmRoleUpdate}
-				class="rounded-xl bg-primary text-primary-foreground hover:bg-primary/90"
+				disabled={!adminPassword}
 			>
-				Confirm Change
-			</AlertDialog.Action>
+				Confirm Role Change
+			</Button>
 		</AlertDialog.Footer>
 	</AlertDialog.Content>
 </AlertDialog.Root>
+

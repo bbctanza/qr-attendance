@@ -135,30 +135,30 @@
 
 	async function fetchDashboardData() {
 		try {
-			// 1. Total Members
-			const { count: totalCount } = await supabase
-				.from('members')
-				.select('*', { count: 'exact', head: true });
-
-			const total = totalCount || 0;
-
-			// 2. Get ONLY Ongoing Events (currently happening)
 			const now = new Date();
-			let currentEventData = null;
+			const [membersRes, ongoingRes, historyRes] = await Promise.all([
+				supabase.from('members').select('*', { count: 'exact', head: true }),
+				supabase
+					.from('events')
+					.select('*')
+					.eq('status', 'ongoing')
+					.lte('start_datetime', now.toISOString())
+					.gte('end_datetime', now.toISOString())
+					.limit(1),
+				supabase
+					.from('events')
+					.select('*')
+					.eq('status', 'completed')
+					.or('metadata->>record_absents.eq.true,metadata->>record_absents.is.null')
+					.order('end_datetime', { ascending: false })
+					.limit(4)
+			]);
 
-			const { data: ongoingEvents } = await supabase
-				.from('events')
-				.select('*')
-				.eq('status', 'ongoing')
-				.lte('start_datetime', now.toISOString())
-				.gte('end_datetime', now.toISOString())
-				.limit(1);
+			const total = membersRes.count || 0;
+			const ongoingEvents = ongoingRes.data;
+			const historyEvents = historyRes.data;
 
-			if (ongoingEvents && ongoingEvents.length > 0) {
-				currentEventData = ongoingEvents[0];
-			}
-
-			console.log('Current event data:', currentEventData);
+			let currentEventData = ongoingEvents && ongoingEvents.length > 0 ? ongoingEvents[0] : null;
 
 			// 3. Process Live/Current Event
 			let present = 0;
@@ -190,16 +190,6 @@
 				present,
 				absent: total - present
 			};
-
-			// 4. Recent Events (completed events) - Exclude events where record_absents is false
-			const { data: historyEvents } = await supabase
-				.from('events')
-				.select('*')
-				.eq('status', 'completed')
-				.or('metadata->>record_absents.eq.true,metadata->>record_absents.is.null') // Only include events that record absents
-				.neq('event_id', currentEventData?.event_id || -1)
-				.order('end_datetime', { ascending: false })
-				.limit(4);
 
 			if (historyEvents) {
 				recentEvents = await Promise.all(

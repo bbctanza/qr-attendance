@@ -123,19 +123,19 @@
 		else newSet.add(id);
 		selectedMemberIds = newSet;
 		// update selectAllFiltered flag
-		selectAllFiltered = filteredMembers().every((m) => newSet.has(m.id));
+		selectAllFiltered = filteredMembers.every((m: any) => newSet.has(m.id));
 	}
 
 	function toggleSelectAllFiltered() {
 		if (selectAllFiltered) {
 			// unselect all filtered
 			const newSet = new Set(selectedMemberIds);
-			filteredMembers().forEach((m) => newSet.delete(m.id));
+			filteredMembers.forEach((m: any) => newSet.delete(m.id));
 			selectedMemberIds = newSet;
 			selectAllFiltered = false;
 		} else {
 			const newSet = new Set(selectedMemberIds);
-			filteredMembers().forEach((m) => newSet.add(m.id));
+			filteredMembers.forEach((m: any) => newSet.add(m.id));
 			selectedMemberIds = newSet;
 			selectAllFiltered = true;
 		}
@@ -208,7 +208,8 @@
 		isLoading = true;
 		Promise.all([
 			fetchGroups(),
-			fetchMembers().then(() => fetchStats())
+			fetchMembers(),
+			fetchStats()
 		]).finally(() => {
 			isLoading = false;
 		});
@@ -218,20 +219,25 @@
 
 	async function fetchStats() {
 		try {
-			// 1. Growth calculation (last 30 days)
 			const thirtyDaysAgo = new Date();
 			thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-			// Total now
-			const total = members.length;
+			// Run count and active data queries in parallel
+			const [totalRes, lastMonthRes, activeRes] = await Promise.all([
+				supabase.from('members').select('*', { count: 'exact', head: true }),
+				supabase
+					.from('members')
+					.select('*', { count: 'exact', head: true })
+					.lt('created_at', thirtyDaysAgo.toISOString()),
+				supabase
+					.from('attendance_present')
+					.select('member_id')
+					.gt('scan_datetime', thirtyDaysAgo.toISOString())
+			]);
 
-			// Total 30 days ago (members created before 30 days ago)
-			const { count: lastMonthTotal } = await supabase
-				.from('members')
-				.select('*', { count: 'exact', head: true })
-				.lt('created_at', thirtyDaysAgo.toISOString());
+			const total = totalRes.count || 0;
+			const prevTotal = lastMonthRes.count || 0;
 
-			const prevTotal = lastMonthTotal || 0;
 			let growth = 0;
 			if (prevTotal > 0) {
 				growth = Math.round(((total - prevTotal) / prevTotal) * 100);
@@ -239,14 +245,7 @@
 				growth = 100;
 			}
 
-			// 2. Active members based on attendance_present (last 30 days)
-			// Get unique member_ids who attended ANY event in the last 30 days
-			const { data: activeData } = await supabase
-				.from('attendance_present')
-				.select('member_id')
-				.gt('scan_datetime', thirtyDaysAgo.toISOString());
-
-			const uniqueActiveIds = new Set(activeData?.map((d) => d.member_id) || []);
+			const uniqueActiveIds = new Set(activeRes.data?.map((d) => d.member_id) || []);
 
 			stats = {
 				total,
@@ -322,9 +321,9 @@
 		}
 	});
 
-	let filteredMembers = $derived(() => {
+	let filteredMembers = $derived.by(() => {
 		let filtered = members.filter(
-			(m) =>
+			(m: any) =>
 				(m.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
 					(m.email && m.email.toLowerCase().includes(searchQuery.toLowerCase())) ||
 					m.group.toLowerCase().includes(searchQuery.toLowerCase())) &&
@@ -332,7 +331,7 @@
 		);
 
 		// Sort the filtered results
-		return filtered.sort((a, b) => {
+		return filtered.sort((a: any, b: any) => {
 			let aValue: string | number;
 			let bValue: string | number;
 
@@ -363,6 +362,26 @@
 		});
 	});
 
+	// Pagination State
+	let currentPage = $state(1);
+	let pageSize = $state(10);
+
+	$effect(() => {
+		// Reset to page 1 whenever filters or sorting changes
+		searchQuery;
+		selectedGroups;
+		sortColumn;
+		sortDirection;
+		currentPage = 1;
+	});
+
+	let totalPages = $derived(Math.max(1, Math.ceil(filteredMembers.length / pageSize)));
+
+	let paginatedMembers = $derived.by(() => {
+		const start = (currentPage - 1) * pageSize;
+		return filteredMembers.slice(start, start + pageSize);
+	});
+
 	// Statistics for web
 	let statistics = $derived({
 		total: stats.total,
@@ -375,9 +394,9 @@
 	});
 
 	// Group members by their group
-	let groupedMembers = $derived(() => {
+	let groupedMembers = $derived.by(() => {
 		const groups: Record<string, typeof members> = {};
-		filteredMembers().forEach((m) => {
+		filteredMembers.forEach((m: any) => {
 			if (!groups[m.group]) groups[m.group] = [];
 			groups[m.group].push(m);
 		});
@@ -877,7 +896,7 @@
 		const chosen =
 			selectedMemberIds && selectedMemberIds.size > 0
 				? members.filter((m) => selectedMemberIds.has(m.id))
-				: filteredMembers();
+				: filteredMembers;
 
 		return chosen.map((m) => ({
 			member_id: m.qrId || m.id,
@@ -993,7 +1012,7 @@
 
 	<!-- Desktop View Skeleton -->
 	{#if !isMobileView}
-	<div class="mx-auto flex max-w-7xl flex-col gap-6 p-6 lg:p-8">
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Page Header -->
 		<div class="flex items-center justify-between">
 			<div>
@@ -1187,7 +1206,7 @@
 
 		<!-- Grouped List -->
 		<div class="flex-1 space-y-8 px-4 py-4">
-			{#each Object.entries(groupedMembers()) as [groupName, groupMembers]}
+			{#each Object.entries(groupedMembers) as [groupName, groupMembers]}
 				<Collapsible.Root
 					open={!collapsedGroups.has(groupName)}
 					onOpenChange={(open) => {
@@ -1301,7 +1320,7 @@
 
 	<!-- Desktop View -->
 	{#if !isMobileView}
-	<div class="mx-auto flex max-w-7xl flex-col gap-6 p-6 lg:p-8">
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<!-- Page Header -->
 		<div class="flex items-center justify-between">
 			<div>
@@ -1503,7 +1522,7 @@
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
-						{#if filteredMembers().length === 0}
+						{#if filteredMembers.length === 0}
 							<Table.Row>
 								<Table.Cell colspan={6} class="h-24 text-center text-muted-foreground">
 									<div class="flex flex-col items-center justify-center">
@@ -1513,7 +1532,7 @@
 								</Table.Cell>
 							</Table.Row>
 						{:else}
-							{#each filteredMembers() as member (member.id)}
+							{#each paginatedMembers as member (member.id)}
 								<Table.Row class="transition-colors hover:bg-muted/50">
 									<Table.Cell>
 										<input
@@ -1600,7 +1619,7 @@
 
 		<!-- Card View -->
 		{#if webViewMode === 'card'}
-			{#if filteredMembers().length === 0}
+			{#if filteredMembers.length === 0}
 				<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
 					<Search class="mb-4 h-12 w-12 opacity-20" />
 					<p class="font-medium">No members found</p>
@@ -1608,7 +1627,7 @@
 				</div>
 			{:else}
 				<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-					{#each filteredMembers() as member (member.id)}
+					{#each paginatedMembers as member (member.id)}
 						<Card class="transition-all hover:border-primary/50 hover:shadow-md">
 							<CardContent class="p-6">
 								<div class="mb-4 flex items-start justify-between">
@@ -1677,6 +1696,60 @@
 					{/each}
 				</div>
 			{/if}
+		{/if}
+
+		<!-- Desktop Pagination Controls -->
+		{#if filteredMembers.length > 0}
+			<div
+				class="mt-4 flex flex-col items-center justify-between gap-4 rounded-lg border bg-card p-4 shadow-sm sm:flex-row"
+			>
+				<div class="flex items-center gap-4 text-xs text-muted-foreground">
+					<span>
+						Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredMembers.length)}</strong> to{' '}
+						<strong>{Math.min(currentPage * pageSize, filteredMembers.length)}</strong> of{' '}
+						<strong>{filteredMembers.length}</strong> members
+					</span>
+					<div class="flex items-center gap-1.5">
+						<span>Per page:</span>
+						<select
+							bind:value={pageSize}
+							onchange={() => (currentPage = 1)}
+							class="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+						>
+							<option value={10}>10</option>
+							<option value={25}>25</option>
+							<option value={50}>50</option>
+							<option value={100}>100</option>
+						</select>
+					</div>
+				</div>
+
+				<div class="flex items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={currentPage === 1}
+						onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+						class="h-8 gap-1 px-3 text-xs"
+					>
+						<ChevronLeft class="h-3.5 w-3.5" />
+						Previous
+					</Button>
+					<span class="px-2 text-xs font-medium text-muted-foreground">
+						Page {currentPage} of {totalPages}
+					</span>
+					<Button
+						variant="outline"
+						size="sm"
+						disabled={currentPage >= totalPages}
+						onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
+						class="h-8 gap-1 px-3 text-xs"
+					>
+						Next
+						<ChevronRight class="h-3.5 w-3.5" />
+					</Button>
+				</div>
+			</div>
 		{/if}
 	</div>
 	{/if}

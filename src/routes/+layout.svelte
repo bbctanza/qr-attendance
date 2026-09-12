@@ -40,21 +40,23 @@
 	let { children } = $props();
 
 	onMount(() => {
-		// Register service worker if available
-		if ('serviceWorker' in navigator && pwaInfo) {
+		// Register service worker if available (skip in development)
+		if ('serviceWorker' in navigator && pwaInfo && !import.meta.env.DEV) {
 			navigator.serviceWorker.register('/sw.js', { scope: '/' });
 		}
 
 		let activityInterval: ReturnType<typeof setInterval>;
 
 		(async () => {
-			await loadSettings();
 			devTools.init();
 
-			// Global Auth Guard
-			const {
-				data: { session }
-			} = await supabase.auth.getSession();
+			// Run settings and session checks in parallel
+			const [_, authRes] = await Promise.all([
+				loadSettings(),
+				supabase.auth.getSession()
+			]);
+
+			const session = authRes.data?.session;
 			const path = $page.url.pathname;
 			const publicRoutes = ['/', '/login', '/forgot-password'];
 			const isPublicRoute =
@@ -70,7 +72,7 @@
 
 			// Update session activity on initial load
 			if (session) {
-				await updateCurrentSessionActivity();
+				updateCurrentSessionActivity().catch(console.error);
 			}
 
 			// Update session activity every 5 minutes
@@ -144,6 +146,12 @@
 			return [{ name: 'Options', href: '/settings' }, { name: 'Profile' }];
 		if (path === '/settings/app')
 			return [{ name: 'Options', href: '/settings' }, { name: 'App Settings' }];
+		if (path === '/settings/invite')
+			return [{ name: 'Options', href: '/settings' }, { name: 'Manage Staff' }];
+		if (path === '/settings/dev')
+			return [{ name: 'Options', href: '/settings' }, { name: 'Developer Tools' }];
+		if (path === '/settings/audit-logs')
+			return [{ name: 'Options', href: '/settings' }, { name: 'Audit Logs' }];
 
 		// Attendance routes (under Options)
 		if (path === '/attendance') return [{ name: 'Attendance' }];

@@ -526,7 +526,7 @@
 </script>
 
 {#if isLoading}
-	<div class="flex flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between pb-2">
 				<Skeleton class="h-6 w-40" />
@@ -584,7 +584,7 @@
 		</div>
 	</div>
 {:else}
-	<div class="flex flex-col gap-4 p-4 md:gap-6 md:px-12 md:py-10 lg:px-16 lg:py-12">
+	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
 		<Card>
 			<CardHeader class="flex flex-row items-center justify-between pb-2">
 				<CardTitle>Total Attendance</CardTitle>
