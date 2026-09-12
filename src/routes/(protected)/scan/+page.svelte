@@ -25,8 +25,13 @@
 		ScanLine,
 		Trash2,
 		CheckSquare,
-		ArrowRight
+		ArrowRight,
+		ArrowUp,
+		ArrowDown,
+		FlipHorizontal
 	} from '@lucide/svelte';
+	import { useSidebar } from '$lib/components/ui/sidebar';
+	import { fly } from 'svelte/transition';
 	import { toast } from 'svelte-sonner';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { ScrollArea } from '$lib/components/ui/scroll';
@@ -41,6 +46,23 @@
 	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
 	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
+
+	// Tooltip state
+	let sidebar: any;
+	try {
+		sidebar = useSidebar();
+	} catch (e) {
+		console.warn('Sidebar context not found');
+	}
+	let cameraGuidePosition = $state('top');
+	let cameraGuideIdleTime = $state(5);
+	let isCameraIdle = $state(false);
+	let idleSeconds = $state(0);
+	let motionCanvas: HTMLCanvasElement;
+	let motionCtx: CanvasRenderingContext2D | null = null;
+	let movementCheckInterval: ReturnType<typeof setInterval> | null = null;
+	let lastFrameData: Uint8ClampedArray | null = null;
+	let continuousMovementCount = 0;
 
 	let manualId = $state('');
 	let lastScanned = $state<{ id: string; name: string; timestamp: string } | null>(null);
@@ -66,12 +88,17 @@
 	let scanner: Html5Qrcode | null = null;
 	let cameras: any[] = $state([]);
 	let currentCameraIndex = $state(0);
-	let isFrontCamera = $derived(
-		cameras.length > 0 &&
-			(cameras[currentCameraIndex]?.label.toLowerCase().includes('front') ||
-				cameras[currentCameraIndex]?.label.toLowerCase().includes('user') ||
-				cameras[currentCameraIndex]?.label.toLowerCase().includes('facing front'))
-	);
+	let isMirrored = $state(false);
+
+	$effect(() => {
+		// Auto-detect mirror preference when camera changes
+		if (cameras.length > 0 && typeof window !== 'undefined') {
+			const label = cameras[currentCameraIndex]?.label.toLowerCase() || '';
+			// Automatically treat as front cam (mirrored) unless explicitly labeled as 'back'
+			isMirrored = !label.includes('back');
+		}
+	});
+
 	let isFullscreen = $state(false);
 	let isProcessing = false;
 	let scannerContainer: HTMLElement | undefined = $state();
@@ -134,6 +161,11 @@
 	}
 
 	onMount(() => {
+		if (typeof window !== 'undefined') {
+			cameraGuidePosition = localStorage.getItem('cameraGuidePosition') || 'top';
+			cameraGuideIdleTime = parseInt(localStorage.getItem('cameraGuideIdleTime') || '5', 10);
+		}
+
 		loadActiveEvent();
 		document.addEventListener('fullscreenchange', handleFullscreenChange);
 		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
@@ -237,6 +269,27 @@
 			toast.error('No active event! Cannot start scanner.');
 			return;
 		}
+
+		// Auto-collapse sidebar when camera actually starts on desktop
+		if (typeof window !== 'undefined' && window.innerWidth >= 768 && sidebar && sidebar.open) {
+			sidebar.setOpen(false);
+		}
+
+		// Auto-fullscreen the entire browser window
+		if (typeof document !== 'undefined' && document.documentElement) {
+			try {
+				if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
+					if (document.documentElement.requestFullscreen) {
+						document.documentElement.requestFullscreen();
+					} else if ((document.documentElement as any).webkitRequestFullscreen) {
+						(document.documentElement as any).webkitRequestFullscreen();
+					}
+				}
+			} catch (err) {
+				console.error('Browser fullscreen request failed', err);
+			}
+		}
+
 		isScanning = true;
 		// Wait for DOM to render the #reader div
 		setTimeout(async () => {
@@ -288,6 +341,12 @@
 		if (typeof document !== 'undefined' && document.fullscreenElement) {
 			await document.exitFullscreen().catch((e) => console.error(e));
 		}
+		
+		// Restore sidebar for desktop
+		if (typeof window !== 'undefined' && window.innerWidth >= 768 && sidebar && !sidebar.open) {
+			sidebar.setOpen(true);
+		}
+
 		if (scanner) {
 			try {
 				if (scanner.isScanning) {
@@ -719,6 +778,68 @@
 		}
 		if (typeof document !== 'undefined') document.body.classList.remove('hide-mobile-nav');
 	});
+
+	// Camera Idle Detection Effect
+	$effect(() => {
+		if (isScanning && cameraGuidePosition !== 'off' && typeof window !== 'undefined' && window.innerWidth >= 768) {
+			if (!motionCanvas) {
+				motionCanvas = document.createElement('canvas');
+				motionCanvas.width = 32;
+				motionCanvas.height = 32;
+				motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
+			}
+			
+			movementCheckInterval = setInterval(() => {
+				const video = document.querySelector('#reader-desktop video') as HTMLVideoElement;
+				if (!video || !motionCtx || video.readyState < 2) return;
+				
+				try {
+					motionCtx.drawImage(video, 0, 0, 32, 32);
+					const currentFrame = motionCtx.getImageData(0, 0, 32, 32).data;
+					
+					if (lastFrameData) {
+						let diffCount = 0;
+						for (let i = 0; i < currentFrame.length; i += 4) {
+							const diff = Math.abs(currentFrame[i] - lastFrameData[i]) +
+										 Math.abs(currentFrame[i+1] - lastFrameData[i+1]) +
+										 Math.abs(currentFrame[i+2] - lastFrameData[i+2]);
+							// Threshold for visual change (reduces noise)
+							if (diff > 60) diffCount++;
+						}
+						
+						// If less than 50 pixels changed significantly, consider it idle
+						if (diffCount < 50) {
+							idleSeconds += 0.5;
+							continuousMovementCount = 0;
+						} else {
+							idleSeconds = 0;
+							continuousMovementCount++;
+							// Require 1.5 seconds (3 intervals) of continuous movement to hide the guide
+							if (continuousMovementCount >= 3) {
+								isCameraIdle = false;
+							}
+						}
+						
+						if (idleSeconds >= cameraGuideIdleTime) {
+							isCameraIdle = true;
+						}
+					}
+					
+					lastFrameData = new Uint8ClampedArray(currentFrame);
+				} catch (e) {
+					// Ignore cross-origin canvas errors or video ready errors
+				}
+			}, 500);
+		} else {
+			if (movementCheckInterval) clearInterval(movementCheckInterval);
+			isCameraIdle = false;
+			idleSeconds = 0;
+		}
+		
+		return () => {
+			if (movementCheckInterval) clearInterval(movementCheckInterval);
+		};
+	});
 </script>
 
 <!-- Mobile View -->
@@ -773,10 +894,19 @@
 			</div>
 		{:else}
 			<!-- Scanner UI -->
-			<div id="reader-mobile" class="h-full w-full bg-black {isFrontCamera ? 'mirror-camera' : ''}"></div>
+			<div id="reader-mobile" class="h-full w-full bg-black {isMirrored ? 'mirror-camera' : ''}"></div>
 
 			<!-- Controls Overlay -->
 			<div class="scan-controls absolute right-0 bottom-8 left-0 z-10 flex justify-center gap-4">
+				<Button
+					variant="outline"
+					size="icon"
+					class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
+					onclick={() => isMirrored = !isMirrored}
+					title="Mirror Camera"
+				>
+					<FlipHorizontal class="h-5 w-5" />
+				</Button>
 				<Button
 					variant="outline"
 					size="icon"
@@ -1084,8 +1214,7 @@
 				: `relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 ${isScanning ? 'p-0 border-0' : 'p-16'}`}
 		>
 			{#if isScanning}
-				<div id="reader-desktop" class="h-full w-full bg-black {isFrontCamera ? 'mirror-camera' : ''}"></div>
-				<!-- Controls -->
+				<div id="reader-desktop" class="h-full w-full bg-black {isMirrored ? 'mirror-camera' : ''}"></div>
 				<div class="absolute right-0 bottom-6 left-0 z-10 flex justify-center gap-4">
 					<Button
 						variant="destructive"
@@ -1099,11 +1228,38 @@
 						variant="outline"
 						size="icon"
 						class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
+						onclick={() => isMirrored = !isMirrored}
+						title="Mirror Camera"
+					>
+						<FlipHorizontal class="h-5 w-5" />
+					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
 						onclick={toggleScanSize}
 					>
 						<ScanLine class="h-5 w-5" />
 					</Button>
 				</div>
+				
+				<!-- Desktop Camera Guide Tooltip -->
+				{#if (isCameraIdle || cameraGuideIdleTime === 0) && cameraGuidePosition !== 'off'}
+					<div 
+						transition:fly={{ y: cameraGuidePosition === 'top' ? -20 : 20, duration: 300 }}
+						class="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none {cameraGuidePosition === 'top' ? 'top-4' : 'bottom-8'}"
+					>
+						{#if cameraGuidePosition === 'top'}
+							<ArrowUp class="h-8 w-8 text-primary animate-bounce drop-shadow-md" />
+						{/if}
+						<div class="rounded-full bg-primary/90 backdrop-blur px-6 py-3 text-sm font-bold text-white shadow-xl ring-2 ring-white/20">
+							Show your QR code here
+						</div>
+						{#if cameraGuidePosition === 'bottom'}
+							<ArrowDown class="h-8 w-8 text-primary animate-bounce drop-shadow-md" />
+						{/if}
+					</div>
+				{/if}
 			{:else}
 				<div class="w-full max-w-xl text-center">
 					<div class="mx-auto w-max">

@@ -66,7 +66,9 @@
 		qrCardColor: $systemSettings.qrCardColor || '#275032',
 		qrBackgroundImage: $systemSettings.qrBackgroundImage || '',
 		scanModalEnabled: $systemSettings.scanModalEnabled ?? true,
-		scanModalDuration: $systemSettings.scanModalDuration ?? 5
+		scanModalDuration: $systemSettings.scanModalDuration ?? 5,
+		cameraGuidePosition: 'top',
+		cameraGuideIdleTime: '5'
 	});
 
 	// Drag and drop state
@@ -145,6 +147,8 @@
 		settings.qrBackgroundImage = $systemSettings.qrBackgroundImage || '';
 		settings.scanModalEnabled = $systemSettings.scanModalEnabled ?? true;
 		settings.scanModalDuration = $systemSettings.scanModalDuration ?? 5;
+		settings.cameraGuidePosition = localStorage.getItem('cameraGuidePosition') || 'top';
+		settings.cameraGuideIdleTime = localStorage.getItem('cameraGuideIdleTime') || '5';
 
 		// Update original settings after loading
 		originalSettings = JSON.parse(JSON.stringify(settings));
@@ -240,8 +244,10 @@
 				session
 			);
 
-			// Apply Local Storage Settings (Theme & Time)
+			// Apply Local Storage Settings (Theme & Time & Camera Guide)
 			localStorage.setItem('time_format', settings.timeFormat);
+			localStorage.setItem('cameraGuidePosition', settings.cameraGuidePosition);
+			localStorage.setItem('cameraGuideIdleTime', settings.cameraGuideIdleTime);
 
 			if (settings.darkMode) {
 				document.documentElement.classList.add('dark');
@@ -297,10 +303,14 @@
 				qrCardColor: $systemSettings.qrCardColor,
 				qrBackgroundImage: $systemSettings.qrBackgroundImage || '',
 				scanModalEnabled: true,
-				scanModalDuration: 5
+				scanModalDuration: 5,
+				cameraGuidePosition: 'top',
+				cameraGuideIdleTime: '5'
 			};
 			document.documentElement.classList.remove('dark');
 			localStorage.setItem('theme', 'light');
+			localStorage.setItem('cameraGuidePosition', 'top');
+			localStorage.setItem('cameraGuideIdleTime', '5');
 			toast.success('Settings reset to defaults');
 		}
 	}
@@ -496,8 +506,8 @@
 		</div>
 	{/if}
 
-	<!-- Settings Sections Grid -->
-	<div class="grid auto-rows-max grid-cols-1 gap-6 lg:grid-cols-2">
+	<!-- Settings Sections Masonry -->
+	<div class="columns-1 gap-6 lg:columns-2 [&>*]:mb-6 [&>*]:break-inside-avoid">
 		<!-- Branding Section -->
 		<div class:opacity-50={isGuest} class:pointer-events-none={isGuest}>
 			<Card class="border-primary/20 bg-primary/5 lg:col-span-1">
@@ -706,6 +716,40 @@
 							/>
 						</div>
 					{/if}
+					
+					<div class="mt-4 pt-4 border-t border-border/10 space-y-4">
+						<div>
+							<Label for="cameraGuidePosition" class="text-xs font-medium sm:text-sm">Camera Guide Position</Label>
+							<Select.Root type="single" bind:value={settings.cameraGuidePosition} disabled={isGuest}>
+								<Select.Trigger class="w-full mt-2" disabled={isGuest}>
+									{settings.cameraGuidePosition === 'top' ? 'Top' : settings.cameraGuidePosition === 'bottom' ? 'Bottom' : 'Off'}
+								</Select.Trigger>
+								<Select.Content>
+									<Select.Item value="top">Top</Select.Item>
+									<Select.Item value="bottom">Bottom</Select.Item>
+									<Select.Item value="off">Off</Select.Item>
+								</Select.Content>
+							</Select.Root>
+							<p class="mt-1 text-xs text-muted-foreground">Shows a tooltip pointing to your physical camera on desktop.</p>
+						</div>
+
+						{#if settings.cameraGuidePosition !== 'off'}
+							<div>
+								<Label for="cameraGuideIdleTime" class="text-xs font-medium sm:text-sm">Idle Time Before Showing (seconds)</Label>
+								<Select.Root type="single" bind:value={settings.cameraGuideIdleTime} disabled={isGuest}>
+									<Select.Trigger class="w-full mt-2" disabled={isGuest}>
+										{settings.cameraGuideIdleTime === '0' ? 'Always Show (Indefinite)' : `${settings.cameraGuideIdleTime} seconds`}
+									</Select.Trigger>
+									<Select.Content>
+										<Select.Item value="0">Always Show (Indefinite)</Select.Item>
+										<Select.Item value="3">3 seconds</Select.Item>
+										<Select.Item value="5">5 seconds</Select.Item>
+										<Select.Item value="10">10 seconds</Select.Item>
+									</Select.Content>
+								</Select.Root>
+							</div>
+						{/if}
+					</div>
 				</CardContent>
 			</Card>
 		</div>
@@ -798,10 +842,11 @@
 				</div>
 			</CardContent>
 		</Card>
+	</div>
 
-		<!-- QR Code Details Section -->
-		<div class:opacity-50={isGuest} class:pointer-events-none={isGuest} class="lg:col-span-2">
-			<Card class="lg:col-span-2">
+	<!-- QR Code Details Section -->
+	<div class:opacity-50={isGuest} class:pointer-events-none={isGuest} class="w-full">
+		<Card class="w-full">
 				<CardHeader class="mb-6 border-b border-border/10 pb-3">
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2">
@@ -1163,7 +1208,6 @@
 				</CardContent>
 			</Card>
 		</div>
-	</div>
 
 	<!-- Action Buttons -->
 	<div class="flex flex-col gap-3 sm:flex-row">

@@ -9,9 +9,21 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.4.3';
+export const CURRENT_VERSION = '2.4.4';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.4.4',
+		date: 'September 13, 2026',
+		title: 'Desktop Camera Guide & Settings Enhancements',
+		items: [
+			'Smart Camera Guide Tooltip - Added an animated, customizable tooltip on desktop to help users locate the camera for QR scanning.',
+			'Intelligent Motion Detection - The camera guide automatically hides when movement is detected using an optimized pixel-diffing algorithm, with configurable idle timeouts (including an Indefinite option).',
+			'Camera Mirroring Controls - Auto-detects desktop cameras to provide a natural mirrored selfie view, and added a manual "Flip Horizontal" toggle button for both desktop and mobile.',
+			'Immersive Fullscreen Scanning - Clicking "Start Camera" now automatically collapses the sidebar and triggers browser fullscreen mode for a distraction-free scanning experience.',
+			'Masonry Settings Layout - Refactored the App Settings page layout to use a true CSS masonry design, eliminating awkward vertical gaps between configuration cards.'
+		]
+	},
 	{
 		version: '2.4.3',
 		date: 'September 12, 2026',
