@@ -47,6 +47,28 @@
 	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
 
+	function playBeep(frequency = 800, duration = 200) {
+		try {
+			const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+			const oscillator = audioContext.createOscillator();
+			const gainNode = audioContext.createGain();
+
+			oscillator.connect(gainNode);
+			gainNode.connect(audioContext.destination);
+
+			oscillator.frequency.value = frequency;
+			oscillator.type = 'sine';
+
+			gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+			gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
+
+			oscillator.start(audioContext.currentTime);
+			oscillator.stop(audioContext.currentTime + duration / 1000);
+		} catch (err) {
+			console.error('Beep error:', err);
+		}
+	}
+
 	// Tooltip state
 	let sidebar: any;
 	try {
@@ -493,6 +515,7 @@
 			}
 
 			if (!result.success) {
+				playBeep(400, 300); // Error beep
 				if (result.message.includes('Already')) {
 					errorModalData = {
 						memberName: result.member_name || 'Member',
@@ -509,6 +532,10 @@
 				}
 				return;
 			}
+
+			// Success beep
+			playBeep(1000, 150); // Higher pitch beep for success
+			setTimeout(() => playBeep(1000, 150), 150); // Double beep
 
 			// Success UI - Show modal instead of toast
 			const time = await formatLocalTime(new Date().toISOString());
@@ -686,6 +713,10 @@
 				console.error(`Failed to scan ${m.name}`, e);
 			}
 		}
+
+		// Success beep for batch submission
+		playBeep(1000, 150);
+		setTimeout(() => playBeep(1000, 150), 150);
 
 		toast.success(`Successfully checked in ${successCount} members`, { id: toastId });
 		batchList = []; // Clear
