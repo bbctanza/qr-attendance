@@ -41,33 +41,12 @@
 	import type { AttendanceEvent } from '$lib/types';
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { devTools } from '$lib/stores/dev';
+	import { playBeep, setupAudioUnlock } from '$lib/utils/beep';
 	import { systemSettings } from '$lib/stores/settings';
 	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
 	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
 	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
-
-	function playBeep(frequency = 800, duration = 200) {
-		try {
-			const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-			const oscillator = audioContext.createOscillator();
-			const gainNode = audioContext.createGain();
-
-			oscillator.connect(gainNode);
-			gainNode.connect(audioContext.destination);
-
-			oscillator.frequency.value = frequency;
-			oscillator.type = 'sine';
-
-			gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-			gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + duration / 1000);
-
-			oscillator.start(audioContext.currentTime);
-			oscillator.stop(audioContext.currentTime + duration / 1000);
-		} catch (err) {
-			console.error('Beep error:', err);
-		}
-	}
 
 	// Tooltip state
 	let sidebar: any;
@@ -183,6 +162,7 @@
 	}
 
 	onMount(() => {
+		setupAudioUnlock();
 		if (typeof window !== 'undefined') {
 			cameraGuidePosition = localStorage.getItem('cameraGuidePosition') || 'top';
 			cameraGuideIdleTime = parseInt(localStorage.getItem('cameraGuideIdleTime') || '5', 10);
@@ -1272,8 +1252,21 @@
 					>
 						<ScanLine class="h-5 w-5" />
 					</Button>
+					<Button
+						variant="outline"
+						size="icon"
+						class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
+						onclick={toggleFullscreen}
+						title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+					>
+						{#if isFullscreen}
+							<Minimize class="h-5 w-5" />
+						{:else}
+							<Maximize class="h-5 w-5" />
+						{/if}
+					</Button>
 				</div>
-				
+
 				<!-- Desktop Camera Guide Tooltip -->
 				{#if (isCameraIdle || cameraGuideIdleTime === 0) && cameraGuidePosition !== 'off'}
 					<div 
