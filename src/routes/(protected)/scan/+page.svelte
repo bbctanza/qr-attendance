@@ -28,7 +28,10 @@
 		ArrowRight,
 		ArrowUp,
 		ArrowDown,
-		FlipHorizontal
+		FlipHorizontal,
+		Usb,
+		PanelRightClose,
+		PanelRightOpen
 	} from '@lucide/svelte';
 	import { useSidebar } from '$lib/components/ui/sidebar';
 	import { fly } from 'svelte/transition';
@@ -42,9 +45,11 @@
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { devTools } from '$lib/stores/dev';
 	import { playBeep, setupAudioUnlock } from '$lib/utils/beep';
+	import { listenForUsbScanner } from '$lib/utils/usbScanner';
 	import { systemSettings } from '$lib/stores/settings';
 	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
 	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
+	import UsbScannerGuide from '$lib/components/usb-scanner-guide.svelte';
 	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
 
@@ -57,6 +62,13 @@
 	}
 	let cameraGuidePosition = $state('top');
 	let cameraGuideIdleTime = $state(5);
+	let usbScannerEnabled = $state(true);
+	// USB scanner mode: camera off, guide on. Entered from the "USB Scanner" button or
+	// automatically on the first real scanner burst. Not remembered: each visit starts on the choice screen.
+	let usbMode = $state(false);
+	let usbScanTick = $state(0);
+	// Desktop: hide the right panel (event, manual check-in, recent scans) to widen the scan area
+	let isPanelCollapsed = $state(false);
 	let isCameraIdle = $state(false);
 	let idleSeconds = $state(0);
 	let motionCanvas: HTMLCanvasElement;
@@ -102,6 +114,9 @@
 
 	let isFullscreen = $state(false);
 	let isProcessing = false;
+	// Scan lock: isProcessing stays true until this timer fires
+	let unlockTimer: ReturnType<typeof setTimeout> | null = null;
+	let unlockCooldown = 0;
 	let scannerContainer: HTMLElement | undefined = $state();
 	let scannerContainerDesktop: HTMLElement | undefined = $state();
 	let isWideScan = $state(false); // false = Normal (250px), true = Wide (Full)
@@ -166,25 +181,75 @@
 		if (typeof window !== 'undefined') {
 			cameraGuidePosition = localStorage.getItem('cameraGuidePosition') || 'top';
 			cameraGuideIdleTime = parseInt(localStorage.getItem('cameraGuideIdleTime') || '5', 10);
+			usbScannerEnabled = localStorage.getItem('usbScannerEnabled') !== 'false';
+			isPanelCollapsed = localStorage.getItem('scanPanelCollapsed') === 'true';
 		}
+
+		// USB QR scanners type the code + Enter like a keyboard; works without the camera.
+		// Browsers can't list keyboard-type devices, so the first scan is what detects one.
+		const stopUsbScanner = usbScannerEnabled
+			? listenForUsbScanner({
+					onScan: (code) => {
+						// No event: handleScan shows the error; don't switch into USB mode
+						if (!usbMode && activeEvent) enterUsbMode();
+						usbScanTick++;
+						handleScan(code, 'usb');
+					}
+				})
+			: null;
 
 		loadActiveEvent();
 		document.addEventListener('fullscreenchange', handleFullscreenChange);
 		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+		window.addEventListener('keydown', handleEscape);
 
 		// Poll for event updates every 30 seconds
 		const interval = setInterval(() => loadActiveEvent(true), 30000);
 		return () => {
 			clearInterval(interval);
+			stopUsbScanner?.();
 			document.removeEventListener('fullscreenchange', handleFullscreenChange);
 			document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+			window.removeEventListener('keydown', handleEscape);
 		};
 	});
+
+	// True while the app itself leaves fullscreen (Stop, Minimize, switching to USB), so only a
+	// user exit (Esc, F11, the browser's exit UI) ends the scan session.
+	let exitingFullscreenOnPurpose = false;
+
+	async function exitFullscreenOnPurpose() {
+		exitingFullscreenOnPurpose = true;
+		try {
+			if (document.exitFullscreen) await document.exitFullscreen();
+			else (document as any).webkitExitFullscreen?.();
+		} catch (e) {
+			console.error('Exit fullscreen error:', e);
+		} finally {
+			setTimeout(() => (exitingFullscreenOnPurpose = false), 100);
+		}
+	}
 
 	function handleFullscreenChange() {
 		if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
 			isFullscreen = false;
+			if (!exitingFullscreenOnPurpose) endScanSession();
 		}
+	}
+
+	// In fullscreen the browser uses Esc to exit (handled above); this covers Esc outside fullscreen
+	function handleEscape(e: KeyboardEvent) {
+		if (e.key !== 'Escape' || document.fullscreenElement) return;
+		if (showSuccessModal || showAlreadyCheckedInModal) return;
+		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+		endScanSession();
+	}
+
+	// Stop the camera / leave USB mode, exit fullscreen and bring the sidebar back
+	function endScanSession() {
+		if (!isScanning && !usbMode) return;
+		usbMode = false;
+		stopScanner();
 	}
 
 	async function loadActiveEvent(silent = false) {
@@ -266,23 +331,18 @@
 		return { width: 250, height: 250 };
 	}
 
-	async function startScanner() {
-		if (!activeEvent) {
-			toast.error('No active event! Cannot start scanner.');
-			return;
-		}
-
-		// Auto-collapse sidebar when camera actually starts on desktop
+	// Collapse the sidebar on desktop and put the whole browser window in fullscreen.
+	// Must run from a user gesture (click, or a scanner keystroke) or the browser refuses.
+	function enterKioskView() {
 		if (typeof window !== 'undefined' && window.innerWidth >= 768 && sidebar && sidebar.open) {
 			sidebar.setOpen(false);
 		}
 
-		// Auto-fullscreen the entire browser window
 		if (typeof document !== 'undefined' && document.documentElement) {
 			try {
 				if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
 					if (document.documentElement.requestFullscreen) {
-						document.documentElement.requestFullscreen();
+						document.documentElement.requestFullscreen().catch(() => {});
 					} else if ((document.documentElement as any).webkitRequestFullscreen) {
 						(document.documentElement as any).webkitRequestFullscreen();
 					}
@@ -291,6 +351,15 @@
 				console.error('Browser fullscreen request failed', err);
 			}
 		}
+	}
+
+	async function startScanner() {
+		if (!activeEvent) {
+			toast.error('No active event! Cannot start scanner.');
+			return;
+		}
+
+		enterKioskView();
 
 		isScanning = true;
 		// Wait for DOM to render the #reader div
@@ -341,9 +410,9 @@
 
 	async function stopScanner() {
 		if (typeof document !== 'undefined' && document.fullscreenElement) {
-			await document.exitFullscreen().catch((e) => console.error(e));
+			await exitFullscreenOnPurpose();
 		}
-		
+
 		// Restore sidebar for desktop
 		if (typeof window !== 'undefined' && window.innerWidth >= 768 && sidebar && !sidebar.open) {
 			sidebar.setOpen(true);
@@ -355,6 +424,71 @@
 					await scanner.stop();
 					await scanner.clear();
 				}
+			} catch (e) {
+				console.error('Error stopping scanner:', e);
+			}
+		}
+		isScanning = false;
+	}
+
+	function useUsbScanner() {
+		if (!activeEvent) {
+			toast.error('No active event! Cannot start scanner.');
+			return;
+		}
+		enterKioskView();
+		usbMode = true;
+		if (isScanning) stopCameraFeed();
+	}
+
+	function enterUsbMode() {
+		if (isScanning) toast.success('USB scanner detected — camera turned off');
+		useUsbScanner();
+	}
+
+	function useCameraInstead() {
+		usbMode = false;
+		startScanner();
+	}
+
+	function togglePanel() {
+		isPanelCollapsed = !isPanelCollapsed;
+		localStorage.setItem('scanPanelCollapsed', String(isPanelCollapsed));
+
+		// After the width transition: the camera's scan box is sized in px at start, so restart it;
+		// when re-opening, jump straight to the search box for manual check-in.
+		const opened = !isPanelCollapsed;
+		setTimeout(() => {
+			restartCameraFeed();
+			if (opened) document.getElementById('memberIdDesktop')?.focus();
+		}, 250);
+	}
+
+	async function restartCameraFeed() {
+		if (!scanner?.isScanning) return;
+		try {
+			await scanner.stop();
+			await scanner.start(
+				cameras[currentCameraIndex].id,
+				{ fps: 10, qrbox: getQrBoxConfig() },
+				(decodedText) => handleScan(decodedText),
+				() => {}
+			);
+		} catch (e) {
+			console.error('Camera restart failed:', e);
+		}
+	}
+
+	// Unlike stopScanner, keeps the page in browser fullscreen (kiosk) and the sidebar collapsed
+	async function stopCameraFeed() {
+		if (isFullscreen) {
+			await exitFullscreenOnPurpose();
+			isFullscreen = false;
+		}
+		if (scanner?.isScanning) {
+			try {
+				await scanner.stop();
+				await scanner.clear();
 			} catch (e) {
 				console.error('Error stopping scanner:', e);
 			}
@@ -454,23 +588,35 @@
 				toast.error(`${title}: ${msg}`);
 			}
 		} else {
-			try {
-				if (document.exitFullscreen) {
-					document.exitFullscreen();
-				} else if ((document as any).webkitExitFullscreen) {
-					(document as any).webkitExitFullscreen();
-				}
-				isFullscreen = false;
-			} catch (err) {
-				console.error('Exit fullscreen error:', err);
-				const msg = getErrorMessage(err);
-				toast.error(`Fullscreen error: ${msg}`);
-			}
+			exitFullscreenOnPurpose();
+			isFullscreen = false;
 		}
 	}
 
-	async function handleScan(id: string) {
-		if (!id || isProcessing) return;
+	function unlockScansAfter(ms: number) {
+		if (unlockTimer) clearTimeout(unlockTimer);
+		unlockTimer = setTimeout(() => {
+			isProcessing = false;
+			unlockTimer = null;
+		}, ms);
+	}
+
+	// A result modal closed early (tapped away): unlock now instead of waiting out its duration
+	$effect(() => {
+		if (!showSuccessModal && !showAlreadyCheckedInModal && unlockTimer) {
+			unlockScansAfter(unlockCooldown);
+		}
+	});
+
+	async function handleScan(id: string, source: 'camera' | 'usb' | 'manual' = 'camera') {
+		if (!id) return;
+		if (isProcessing) {
+			// The camera re-reads codes every frame, so only USB / manual are deliberate retries
+			if (source !== 'camera') {
+				toast.info('Please wait — finishing the previous check-in', { id: 'scan-busy' });
+			}
+			return;
+		}
 		if (!activeEvent) {
 			toast.error('No active event found to scan into.');
 			return;
@@ -563,10 +709,15 @@
 				toast.error(`${title}: ${msg}`, { id: toastId });
 			}
 		} finally {
-			// Delay buffer to prevent double-scan
-			setTimeout(() => {
-				isProcessing = false;
-			}, 2000);
+			// Cooldown stops the camera re-reading the same code every frame.
+			// USB scanners fire once per trigger pull, so they need none.
+			unlockCooldown = source === 'camera' ? 2000 : 0;
+			if (showSuccessModal || showAlreadyCheckedInModal) {
+				// Hold the next scan while the result modal is up (it auto-closes after scanModalDuration)
+				unlockScansAfter(($systemSettings.scanModalDuration ?? 5) * 1000 + unlockCooldown);
+			} else {
+				unlockScansAfter(unlockCooldown);
+			}
 		}
 	}
 
@@ -616,12 +767,19 @@
 		}
 	}
 
+	// The pending batch list + Save button only exist in the mobile layout
+	function isDesktopLayout() {
+		return typeof window !== 'undefined' && window.innerWidth >= 768;
+	}
+
 	function selectMember(member: { member_id: string; first_name: string; last_name: string }) {
-		manualId = member.member_id;
 		searchResults = [];
-		// handleScan(member.member_id); <-- Replaced with adding to batch
-		addToBatch(member.member_id, `${member.first_name} ${member.last_name}`);
-		manualId = ''; // Clear input after adding
+		manualId = '';
+		if (isDesktopLayout()) {
+			handleScan(member.member_id, 'manual');
+		} else {
+			addToBatch(member.member_id, `${member.first_name} ${member.last_name}`);
+		}
 	}
 
 	async function addToBatch(id: string, name?: string) {
@@ -703,9 +861,18 @@
 	}
 
 	function handleManualSubmit() {
-		// Now acts as "Add to List"
-		if (!manualId) return;
-		addToBatch(manualId);
+		const id = manualId.trim();
+		if (!id) return;
+		if (isDesktopLayout()) {
+			// Desktop checks in right away; a typed name resolves to its single search match
+			const target = searchResults.length === 1 ? searchResults[0].member_id : id;
+			searchResults = [];
+			manualId = '';
+			handleScan(target, 'manual');
+		} else {
+			// Mobile: add to the list, saved with "Save Attendance"
+			addToBatch(id);
+		}
 	}
 
 	function toggleCamera() {
@@ -885,7 +1052,15 @@
 			? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
 			: 'relative flex flex-1 min-h-0 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
 	>
-		{#if !isScanning}
+		{#if usbMode && !isScanning}
+			<UsbScannerGuide
+				compact
+				connected={usbScanTick > 0}
+				scanTick={usbScanTick}
+				{lastScanned}
+				onUseCamera={useCameraInstead}
+			/>
+		{:else if !isScanning}
 			<div class="flex flex-col items-center gap-6 p-6">
 				<div class="rounded-lg border border-border/20 bg-card/20 p-6">
 					<Camera class="h-10 w-10 text-primary" />
@@ -902,6 +1077,11 @@
 				>
 					<QrCode class="mr-2 h-4 w-4" /> Start Camera
 				</Button>
+				{#if usbScannerEnabled}
+					<Button variant="outline" class="-mt-3 h-12 w-56 rounded-2xl font-bold" onclick={useUsbScanner}>
+						<Usb class="mr-2 h-4 w-4" /> Use USB Scanner
+					</Button>
+				{/if}
 			</div>
 		{:else}
 			<!-- Scanner UI -->
@@ -926,6 +1106,18 @@
 				>
 					<RefreshCcw class="h-5 w-5" />
 				</Button>
+				{#if usbScannerEnabled}
+					<Button
+						variant="outline"
+						size="icon"
+						class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
+						onclick={useUsbScanner}
+						title="Use USB Scanner"
+						aria-label="Use USB Scanner"
+					>
+						<Usb class="h-5 w-5" />
+					</Button>
+				{/if}
 				<Button
 					variant="destructive"
 					size="icon"
@@ -1214,9 +1406,13 @@
 </div>
 
 <!-- Desktop View -->
-<div class="hidden h-[calc(100vh-100px)] w-full gap-6 p-6 md:grid md:grid-cols-3 lg:p-8">
+<div
+	class="relative hidden h-[calc(100vh-100px)] w-full grid-rows-[minmax(0,1fr)] p-6 transition-[grid-template-columns,column-gap] duration-200 ease-out motion-reduce:transition-none md:grid lg:p-8 {isPanelCollapsed
+		? 'grid-cols-[minmax(0,1fr)_minmax(0,0fr)] gap-x-0'
+		: 'grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-x-6'}"
+>
 	<!-- Left Column: Scanner -->
-	<div class="col-span-2 flex h-full flex-col gap-6">
+	<div class="flex h-full min-h-0 min-w-0 flex-col gap-6">
 		<!-- Scanner Area -->
 		<div
 			bind:this={scannerContainerDesktop}
@@ -1252,6 +1448,18 @@
 					>
 						<ScanLine class="h-5 w-5" />
 					</Button>
+					{#if usbScannerEnabled}
+						<Button
+							variant="outline"
+							size="icon"
+							class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
+							onclick={useUsbScanner}
+							title="Use USB Scanner"
+							aria-label="Use USB Scanner"
+						>
+							<Usb class="h-5 w-5" />
+						</Button>
+					{/if}
 					<Button
 						variant="outline"
 						size="icon"
@@ -1284,6 +1492,13 @@
 						{/if}
 					</div>
 				{/if}
+			{:else if usbMode}
+				<UsbScannerGuide
+					connected={usbScanTick > 0}
+					scanTick={usbScanTick}
+					{lastScanned}
+					onUseCamera={useCameraInstead}
+				/>
 			{:else}
 				<div class="w-full max-w-xl text-center">
 					<div class="mx-auto w-max">
@@ -1295,7 +1510,7 @@
 					<p class="mt-3 text-base text-muted-foreground">
 						Point your camera at the member's QR code
 					</p>
-					<div class="mt-8">
+					<div class="mt-8 flex flex-wrap items-center justify-center gap-3">
 						<Button
 							class="inline-flex h-14 items-center gap-3 rounded-full bg-(--stat-success) px-8 text-base text-white shadow-[0_6px_18px_rgba(0,0,0,0.12)]"
 							onclick={toggleCamera}
@@ -1306,14 +1521,82 @@
 							>
 							<span>Start Camera</span>
 						</Button>
+						{#if usbScannerEnabled}
+							<Button
+								variant="outline"
+								class="inline-flex h-14 items-center gap-3 rounded-full px-8 text-base"
+								onclick={useUsbScanner}
+							>
+								<Usb class="h-5 w-5" />
+								<span>Use USB Scanner</span>
+							</Button>
+						{/if}
 					</div>
 				</div>
+			{/if}
+
+			{#if isPanelCollapsed && session && !isFullscreen}
+				<div
+					class="absolute top-4 left-4 z-10 rounded-full border border-border/50 bg-background/85 px-4 py-1.5 text-xs backdrop-blur"
+				>
+					<span class="font-semibold text-primary">{session.title}</span>
+					<span class="text-muted-foreground"> · {session.timeStart} - {session.timeEnd}</span>
+				</div>
+			{/if}
+
+			<!-- Result modals over the scan area while the right panel is hidden or this area is fullscreen -->
+			{#if isPanelCollapsed || isFullscreen}
+				<CheckInSuccessModal
+					bind:isOpen={showSuccessModal}
+					memberName={successModalData.memberName}
+					memberId={successModalData.memberId}
+					careGroup={successModalData.careGroup}
+					time={successModalData.time}
+					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
+					onClose={() => {
+						showSuccessModal = false;
+					}}
+				/>
+				<AlreadyCheckedInModal
+					bind:isOpen={showAlreadyCheckedInModal}
+					memberName={errorModalData.memberName}
+					memberId={errorModalData.memberId}
+					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
+					onClose={() => {
+						showAlreadyCheckedInModal = false;
+					}}
+				/>
 			{/if}
 		</div>
 	</div>
 
+	<!-- Edge tab to bring the right panel back -->
+	{#if isPanelCollapsed && !isFullscreen}
+		<button
+			class="absolute top-1/2 right-0 z-20 flex h-16 w-6 -translate-y-1/2 items-center justify-center rounded-l-lg border border-r-0 border-border bg-card text-muted-foreground shadow-sm transition-colors hover:bg-muted hover:text-foreground"
+			onclick={togglePanel}
+			title="Show panel"
+			aria-label="Show panel"
+		>
+			<PanelRightOpen class="h-4 w-4" />
+		</button>
+	{/if}
+
 	<!-- Right Column: Manual Entry + Recent -->
-	<aside class="col-span-1 relative flex h-full flex-col space-y-6 overflow-hidden rounded-2xl">
+	<aside
+		class="relative flex h-full min-h-0 min-w-0 flex-col space-y-6 overflow-hidden rounded-2xl transition-opacity duration-200 motion-reduce:transition-none {isPanelCollapsed
+			? 'opacity-0'
+			: 'opacity-100'}"
+		inert={isPanelCollapsed}
+	>
+		<button
+			class="absolute top-3 right-3 z-30 flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+			onclick={togglePanel}
+			title="Hide panel"
+			aria-label="Hide panel"
+		>
+			<PanelRightClose class="h-4 w-4" />
+		</button>
 		<!-- Active Event Banner -->
 		{#if session}
 			<Card class="border-primary/20 bg-primary/5">
@@ -1407,7 +1690,7 @@
 		</Card>
 
 		<!-- Desktop Right-Column Modals -->
-		{#if !isFullscreen}
+		{#if !isFullscreen && !isPanelCollapsed}
 			<!-- Check-in Success Modal -->
 			<CheckInSuccessModal
 				bind:isOpen={showSuccessModal}

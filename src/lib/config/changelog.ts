@@ -9,9 +9,38 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.4.4';
+export const CURRENT_VERSION = '2.5.0';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.5.0',
+		date: 'October 4, 2026',
+		title: 'USB QR Scanner Support & Scan Page Overhaul',
+		items: [
+			// USB QR Scanner
+			'USB QR Scanner Support - Plug-and-play USB QR scanners (no driver needed) now work on the Scan page. Just scan; no need to start the camera.',
+			'Automatic Scanner Detection - The first scan from a USB scanner switches the page to USB Scanner mode and turns the camera off.',
+			'"Use USB Scanner" Button - Choose USB Scanner mode directly from the Scan page or from the camera controls. It opens in fullscreen with the sidebar collapsed.',
+			'Visual Scanner Guide - USB Scanner mode shows an animated guide on how to hold the QR code over the scanner, plus the last person checked in.',
+			'USB Scanner Setting - Turn USB scanner support on or off per device in App Settings.',
+			'Event Required - USB Scanner mode, like the camera, cannot start when there is no active event.',
+
+			// Scan Results
+			'Easier-to-See Scan Results - The check-in and "Already Checked In" popups now cover the whole screen with a dark backdrop and larger text, so members can see the result at a glance.',
+			'Scan Pacing - A new scan waits until the result popup closes (after the Modal Duration setting, or when dismissed), so results are not skipped.',
+			'Reliable Scan Beeps - Success and error beeps now play consistently, including the first scan after opening the page.',
+
+			// Layout & Controls
+			'Hideable Side Panel - Hide the right panel (event, manual check-in, recent scans) on desktop for a larger scan area, and bring it back with the tab on the right edge.',
+			'Escape to Stop - Pressing Esc or leaving fullscreen now stops scanning, exits fullscreen and brings the sidebar back.',
+
+			// Bug Fixes
+			'Fixed Desktop Manual Check-In - "Check In" and search results on desktop now check the member in immediately and add them to Recent Scans.',
+			'Fixed Popup Stuck Open - Scanning quickly in a row no longer leaves the result popup stuck at 0 seconds.',
+			'Fixed Camera Overflow - The camera view no longer extends past the bottom of the screen when the side panel is hidden.',
+			'Fixed Fullscreen Results - Scan results now appear when the camera view is in fullscreen on desktop.'
+		]
+	},
 	{
 		version: '2.4.4',
 		date: 'September 13, 2026',

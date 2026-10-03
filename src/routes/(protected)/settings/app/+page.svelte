@@ -68,7 +68,8 @@
 		scanModalEnabled: $systemSettings.scanModalEnabled ?? true,
 		scanModalDuration: $systemSettings.scanModalDuration ?? 5,
 		cameraGuidePosition: 'top',
-		cameraGuideIdleTime: '5'
+		cameraGuideIdleTime: '5',
+		usbScannerEnabled: true
 	});
 
 	// Drag and drop state
@@ -149,6 +150,7 @@
 		settings.scanModalDuration = $systemSettings.scanModalDuration ?? 5;
 		settings.cameraGuidePosition = localStorage.getItem('cameraGuidePosition') || 'top';
 		settings.cameraGuideIdleTime = localStorage.getItem('cameraGuideIdleTime') || '5';
+		settings.usbScannerEnabled = localStorage.getItem('usbScannerEnabled') !== 'false';
 
 		// Update original settings after loading
 		originalSettings = JSON.parse(JSON.stringify(settings));
@@ -248,6 +250,7 @@
 			localStorage.setItem('time_format', settings.timeFormat);
 			localStorage.setItem('cameraGuidePosition', settings.cameraGuidePosition);
 			localStorage.setItem('cameraGuideIdleTime', settings.cameraGuideIdleTime);
+			localStorage.setItem('usbScannerEnabled', String(settings.usbScannerEnabled));
 
 			if (settings.darkMode) {
 				document.documentElement.classList.add('dark');
@@ -305,12 +308,14 @@
 				scanModalEnabled: true,
 				scanModalDuration: 5,
 				cameraGuidePosition: 'top',
-				cameraGuideIdleTime: '5'
+				cameraGuideIdleTime: '5',
+				usbScannerEnabled: true
 			};
 			document.documentElement.classList.remove('dark');
 			localStorage.setItem('theme', 'light');
 			localStorage.setItem('cameraGuidePosition', 'top');
 			localStorage.setItem('cameraGuideIdleTime', '5');
+			localStorage.setItem('usbScannerEnabled', 'true');
 			toast.success('Settings reset to defaults');
 		}
 	}
@@ -718,6 +723,16 @@
 					{/if}
 					
 					<div class="mt-4 pt-4 border-t border-border/10 space-y-4">
+						<div class="flex items-start justify-between gap-3 sm:items-center">
+							<div class="min-w-0 flex-1">
+								<Label class="text-sm font-medium sm:text-base">USB QR Scanner</Label>
+								<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+									Accept scans from plug-and-play USB scanners on the Scan page
+								</p>
+							</div>
+							<Switch bind:checked={settings.usbScannerEnabled} class="shrink-0" disabled={isGuest} />
+						</div>
+
 						<div>
 							<Label for="cameraGuidePosition" class="text-xs font-medium sm:text-sm">Camera Guide Position</Label>
 							<Select.Root type="single" bind:value={settings.cameraGuidePosition} disabled={isGuest}>
