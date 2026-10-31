@@ -36,6 +36,7 @@
 	import { goto } from '$app/navigation';
 	import { systemSettings } from '$lib/stores/settings';
 	import { supabase } from '$lib/supabase';
+	import { endCurrentSession } from '$lib/utils/sessions';
 	import { onMount } from 'svelte';
 
 	// Menu items
@@ -105,6 +106,9 @@
 	});
 
 	async function handleLogout() {
+		// Retire this device's session row first, so it stops showing as active
+		// in Active Sessions on the user's other devices.
+		await endCurrentSession();
 		await supabase.auth.signOut();
 		goto('/');
 	}

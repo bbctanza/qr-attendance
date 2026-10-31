@@ -18,6 +18,7 @@
 		ChartNoAxesCombined
 	} from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
+	import { endCurrentSession } from '$lib/utils/sessions';
 	import { onMount } from 'svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import AboutModal from '$lib/components/about-modal.svelte';
@@ -73,6 +74,8 @@
 	}
 
 	async function handleLogout() {
+		// Retire this device's session row before signing out (see app-sidebar).
+		await endCurrentSession();
 		const { error } = await supabase.auth.signOut();
 		if (error) {
 			console.error('Error logging out:', error);
@@ -113,7 +116,9 @@
 					<Skeleton class="mb-4 h-4 w-32" />
 					<div class="space-y-3 sm:space-y-4">
 						{#each Array(3) as _}
-							<div class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 sm:px-6">
+							<div
+								class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 sm:px-6"
+							>
 								<Skeleton class="h-11 w-11 rounded-md" />
 								<div class="flex-1 space-y-2">
 									<Skeleton class="h-4 w-24 sm:w-32" />

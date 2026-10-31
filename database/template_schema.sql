@@ -78,6 +78,8 @@ DROP TABLE IF EXISTS user_sessions CASCADE;
 CREATE TABLE user_sessions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+    -- `session_id` claim from the access-token JWT: the device's stable identity
+    auth_session_id UUID,
     device_name TEXT DEFAULT 'Unknown Device',
     browser TEXT DEFAULT 'Unknown Browser',
     ip_address TEXT,
@@ -90,6 +92,14 @@ CREATE TABLE user_sessions (
 CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
 CREATE INDEX idx_user_sessions_last_active ON user_sessions(last_active);
 CREATE INDEX idx_user_sessions_is_active ON user_sessions(is_active);
+CREATE INDEX idx_user_sessions_user_active ON user_sessions(user_id, is_active);
+-- One row per auth session. Postgres allows many NULLs here, and a non-partial index is
+-- required for the ON CONFLICT inference that registerSession() upserts against.
+CREATE UNIQUE INDEX idx_user_sessions_auth_session_id ON user_sessions(auth_session_id);
+
+-- Realtime delivers the revocation kick to the target device.
+-- FULL so change payloads carry user_id for RLS filtering on every event type.
+ALTER TABLE user_sessions REPLICA IDENTITY FULL;
 
 -- 3. CORE TABLES
 
@@ -538,6 +548,17 @@ CREATE POLICY "Users can view their own sessions" ON user_sessions FOR SELECT TO
 CREATE POLICY "System can create sessions" ON user_sessions FOR INSERT TO authenticated WITH CHECK (user_id = auth.uid());
 CREATE POLICY "Users can update their own sessions" ON user_sessions FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 CREATE POLICY "Users can delete their own sessions" ON user_sessions FOR DELETE TO authenticated USING (user_id = auth.uid());
+
+-- Publish user_sessions changes so a revoked device can sign itself out immediately.
+-- The SELECT policy above is what filters the stream per user.
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE user_sessions;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN
+        RAISE NOTICE 'supabase_realtime publication not found; enable Realtime for user_sessions in the dashboard';
+END $$;
 
 -- 7. STORAGE POLICIES
 -- QR Background Image Storage Policies

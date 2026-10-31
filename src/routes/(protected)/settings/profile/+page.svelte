@@ -12,16 +12,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
-	import {
-		ChevronLeft,
-		Lock,
-		Shield,
-		Smartphone,
-		Eye,
-		EyeOff,
-		Trash2,
-		LogOut
-	} from '@lucide/svelte';
+	import { ChevronLeft, Lock, Shield, Smartphone, Eye, EyeOff, Trash2 } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { supabase } from '$lib/supabase';
@@ -31,11 +22,22 @@
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import {
 		getUserSessions,
-		deleteSession,
-		deleteAllOtherSessions,
-		formatLastActive,
+		revokeSession,
+		revokeAllOtherSessions,
 		type UserSession
 	} from '$lib/utils/sessions';
+	import ActiveSessionsList from '$lib/components/active-sessions-list.svelte';
+	import {
+		AlertDialog,
+		AlertDialogAction,
+		AlertDialogCancel,
+		AlertDialogContent,
+		AlertDialogDescription,
+		AlertDialogFooter,
+		AlertDialogHeader,
+		AlertDialogTitle
+	} from '$lib/components/ui/alert-dialog';
+	import type { RealtimeChannel } from '@supabase/supabase-js';
 
 	// Profile state
 	let profile = $state({
@@ -70,6 +72,17 @@
 	let twoFaEnabled = $state(false);
 
 	let activeSessions: UserSession[] = $state([]);
+	let pendingSessionId: string | null = $state(null);
+	let isRevokingAll = $state(false);
+
+	// Confirmation dialog state (replaces native confirm(), which blocks the page).
+	// Open state is tracked separately from the target so the dialog's exit animation still
+	// has a device name to render instead of blanking out.
+	let sessionToRevoke: UserSession | null = $state(null);
+	let showRevokeDialog = $state(false);
+	let showRevokeAllDialog = $state(false);
+
+	let sessionsChannel: RealtimeChannel | null = null;
 
 	// Check if there are unsaved changes
 	let hasUnsavedChanges = $derived(
@@ -78,10 +91,46 @@
 			passwordForm.newPassword !== ''
 	);
 
-	onMount(async () => {
-		await fetchProfile();
-		await loadSessions();
+	onMount(() => {
+		(async () => {
+			await fetchProfile();
+			await loadSessions();
+			await subscribeToSessions();
+		})();
+
+		return () => {
+			if (sessionsChannel) supabase.removeChannel(sessionsChannel);
+		};
 	});
+
+	/**
+	 * Keep the list in step with reality: rows change when another device signs in, signs out,
+	 * or is revoked from here. Without this the list silently goes stale.
+	 */
+	async function subscribeToSessions() {
+		const {
+			data: { user }
+		} = await supabase.auth.getUser();
+		if (!user) return;
+
+		sessionsChannel = supabase
+			.channel(`profile-sessions:${user.id}`)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'user_sessions',
+					filter: `user_id=eq.${user.id}`
+				},
+				() => {
+					// Refetch rather than patching in place: getUserSessions() also recomputes
+					// is_current and applies the staleness cutoff.
+					loadSessions();
+				}
+			)
+			.subscribe();
+	}
 
 	async function fetchProfile() {
 		isLoading = true;
@@ -292,35 +341,51 @@
 		}
 	}
 
-	async function handleLogoutSession(sessionId: string) {
+	function requestRevoke(session: UserSession) {
+		sessionToRevoke = session;
+		showRevokeDialog = true;
+	}
+
+	async function confirmRevoke() {
+		const target = sessionToRevoke;
+		showRevokeDialog = false;
+		if (!target) return;
+
+		pendingSessionId = target.id;
 		try {
-			const success = await deleteSession(sessionId);
+			const success = await revokeSession(target.id);
 			if (success) {
-				activeSessions = activeSessions.filter((s) => s.id !== sessionId);
-				toast.success('Session logged out');
+				activeSessions = activeSessions.filter((s) => s.id !== target.id);
+				toast.success(`${target.device_name} signed out`, {
+					description: 'That device will be returned to the login screen.'
+				});
 			} else {
-				toast.error('Failed to logout session');
+				toast.error('Failed to sign out that device');
 			}
 		} catch (e) {
-			toast.error('Failed to logout session');
+			console.error('Error revoking session:', e);
+			toast.error('Failed to sign out that device');
+		} finally {
+			pendingSessionId = null;
 		}
 	}
 
-	async function handleLogoutAllSessions() {
-		if (!confirm('Are you sure? You will be logged out of all devices except this one.')) {
-			return;
-		}
-
+	async function confirmRevokeAll() {
+		showRevokeAllDialog = false;
+		isRevokingAll = true;
 		try {
-			const success = await deleteAllOtherSessions();
+			const success = await revokeAllOtherSessions();
 			if (success) {
 				await loadSessions();
-				toast.success('Logged out of all other sessions');
+				toast.success('Signed out of all other devices');
 			} else {
-				toast.error('Failed to logout all sessions');
+				toast.error('Failed to sign out other devices');
 			}
 		} catch (e) {
-			toast.error('Failed to logout all sessions');
+			console.error('Error revoking sessions:', e);
+			toast.error('Failed to sign out other devices');
+		} finally {
+			isRevokingAll = false;
 		}
 	}
 </script>
@@ -380,7 +445,7 @@
 				</CardHeader>
 				<CardContent class="space-y-4">
 					<div class="space-y-3 border-b border-border/20 pb-4">
-						<Skeleton class="h-4 w-32 mb-2" />
+						<Skeleton class="mb-2 h-4 w-32" />
 						{#each Array(3) as _}
 							<div class="space-y-2">
 								<Skeleton class="h-3 w-24" />
@@ -475,7 +540,7 @@
 					</CardHeader>
 					<CardContent class="space-y-6">
 						<div class="space-y-4 border-b border-border/20 pb-6">
-							<Skeleton class="h-5 w-32 mb-2" />
+							<Skeleton class="mb-2 h-5 w-32" />
 							<div class="grid grid-cols-1 gap-4">
 								<div class="space-y-2">
 									<Skeleton class="h-4 w-32" />
@@ -717,47 +782,15 @@
 						</div>
 					</div>
 				</CardHeader>
-				<CardContent class="space-y-3">
-					{#if isLoadingSessions}
-						<p class="py-4 text-center text-xs text-muted-foreground">Loading sessions...</p>
-					{:else if activeSessions.length === 0}
-						<p class="py-4 text-center text-xs text-muted-foreground">No active sessions found</p>
-					{:else}
-						{#each activeSessions as session}
-							<div class="flex items-start justify-between rounded-lg bg-card/50 p-3">
-								<div class="min-w-0 flex-1">
-									<div class="flex items-center gap-2">
-										<span class="text-sm font-medium">{session.device_name}</span>
-										{#if session.is_current}
-											<Badge class="text-xs">Current</Badge>
-										{/if}
-									</div>
-									<p class="mt-1 text-xs text-muted-foreground">{session.browser}</p>
-									<p class="text-xs text-muted-foreground">{session.location}</p>
-									<p class="text-xs text-muted-foreground">
-										Last active: {formatLastActive(session.last_active)}
-									</p>
-								</div>
-								{#if !session.is_current}
-									<button
-										onclick={() => handleLogoutSession(session.id)}
-										class="shrink-0 p-2 text-muted-foreground transition hover:text-red-500"
-									>
-										<LogOut class="h-4 w-4" />
-									</button>
-								{/if}
-							</div>
-						{/each}
-						{#if activeSessions.length > 1}
-							<Button
-								variant="outline"
-								class="w-full text-xs text-red-500 hover:text-red-600"
-								onclick={handleLogoutAllSessions}
-							>
-								Log out all other sessions
-							</Button>
-						{/if}
-					{/if}
+				<CardContent>
+					<ActiveSessionsList
+						sessions={activeSessions}
+						isLoading={isLoadingSessions}
+						pendingId={pendingSessionId}
+						{isRevokingAll}
+						onRevoke={requestRevoke}
+						onRevokeAll={() => (showRevokeAllDialog = true)}
+					/>
 				</CardContent>
 			</Card>
 		</div>
@@ -949,54 +982,51 @@
 							</div>
 						</div>
 					</CardHeader>
-					<CardContent class="space-y-3">
-						{#if isLoadingSessions}
-							<p class="py-4 text-center text-xs text-muted-foreground">Loading sessions...</p>
-						{:else if activeSessions.length === 0}
-							<p class="py-4 text-center text-xs text-muted-foreground">No active sessions found</p>
-						{:else}
-							{#each activeSessions as session}
-								<div
-									class="flex items-start justify-between rounded-lg border border-border/20 bg-card/50 p-3"
-								>
-									<div class="min-w-0 flex-1">
-										<div class="flex items-center gap-2">
-											<span class="text-sm font-medium">{session.device_name}</span>
-											{#if session.is_current}
-												<Badge class="text-xs">Current</Badge>
-											{/if}
-										</div>
-										<p class="mt-1 text-xs text-muted-foreground">{session.browser}</p>
-										<p class="text-xs text-muted-foreground">{session.location}</p>
-										<p class="text-xs text-muted-foreground">
-											Last active: {formatLastActive(session.last_active)}
-										</p>
-									</div>
-									{#if !session.is_current}
-										<button
-											onclick={() => handleLogoutSession(session.id)}
-											class="shrink-0 p-2 text-muted-foreground transition hover:text-red-500"
-											title="Logout"
-										>
-											<LogOut class="h-4 w-4" />
-										</button>
-									{/if}
-								</div>
-							{/each}
-							{#if activeSessions.length > 1}
-								<Button
-									variant="outline"
-									size="sm"
-									class="w-full text-xs text-red-500 hover:text-red-600"
-									onclick={handleLogoutAllSessions}
-								>
-									Log out all other sessions
-								</Button>
-							{/if}
-						{/if}
+					<CardContent>
+						<ActiveSessionsList
+							sessions={activeSessions}
+							isLoading={isLoadingSessions}
+							pendingId={pendingSessionId}
+							{isRevokingAll}
+							onRevoke={requestRevoke}
+							onRevokeAll={() => (showRevokeAllDialog = true)}
+						/>
 					</CardContent>
 				</Card>
 			</div>
 		</div>
 	</div>
 {/if}
+
+<!-- Revoke a single device -->
+<AlertDialog bind:open={showRevokeDialog}>
+	<AlertDialogContent>
+		<AlertDialogHeader>
+			<AlertDialogTitle>Sign out this device?</AlertDialogTitle>
+			<AlertDialogDescription>
+				{sessionToRevoke?.device_name} ({sessionToRevoke?.browser}) will be returned to the login
+				screen. You can sign in again on it at any time.
+			</AlertDialogDescription>
+		</AlertDialogHeader>
+		<AlertDialogFooter>
+			<AlertDialogCancel>Cancel</AlertDialogCancel>
+			<AlertDialogAction onclick={confirmRevoke}>Sign out device</AlertDialogAction>
+		</AlertDialogFooter>
+	</AlertDialogContent>
+</AlertDialog>
+
+<!-- Revoke every other device -->
+<AlertDialog bind:open={showRevokeAllDialog}>
+	<AlertDialogContent>
+		<AlertDialogHeader>
+			<AlertDialogTitle>Log out all other devices?</AlertDialogTitle>
+			<AlertDialogDescription>
+				Every device except this one will be signed out. This device stays signed in.
+			</AlertDialogDescription>
+		</AlertDialogHeader>
+		<AlertDialogFooter>
+			<AlertDialogCancel>Cancel</AlertDialogCancel>
+			<AlertDialogAction onclick={confirmRevokeAll}>Log out all others</AlertDialogAction>
+		</AlertDialogFooter>
+	</AlertDialogContent>
+</AlertDialog>

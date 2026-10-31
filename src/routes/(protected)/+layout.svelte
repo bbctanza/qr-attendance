@@ -9,6 +9,8 @@
 	import { automation } from '$lib/logic/automation';
 	import { changelogStore } from '$lib/stores/changelog';
 	import { CURRENT_VERSION, changelog } from '$lib/config/changelog';
+	import { registerSession } from '$lib/utils/sessions';
+	import { startSessionWatchdog } from '$lib/utils/session-watchdog';
 
 	let { children } = $props();
 	let isLoading = $state(true);
@@ -16,6 +18,7 @@
 
 	onMount(() => {
 		let mounted = true;
+		let stopWatchdog: (() => void) | null = null;
 
 		// Check for new version and show changelog if needed
 		const shouldShow = changelogStore.checkAndShowChangelog(CURRENT_VERSION);
@@ -46,6 +49,23 @@
 				if (!session) {
 					goto('/');
 				} else {
+					// Track this device and watch for it being signed out elsewhere.
+					// This lives here rather than in the login form so that every route to a
+					// session is covered - password, magic link, recovery and token refresh.
+					// Not awaited: it makes a network round-trip for IP/location and must not
+					// delay first paint. The watchdog runs its own revocation check on start.
+					stopWatchdog = startSessionWatchdog();
+					registerSession()
+						.then(async (result) => {
+							if (!mounted) return;
+							if (result.status === 'revoked') {
+								// Signed out from another device while this one was away.
+								// The SIGNED_OUT handler below owns the redirect.
+								await supabase.auth.signOut({ scope: 'local' });
+							}
+						})
+						.catch((e) => console.error('Session registration failed:', e));
+
 					// Check if user needs onboarding
 					const { data: profile, error } = await supabase
 						.from('profiles')
@@ -75,6 +95,7 @@
 		return () => {
 			mounted = false;
 			subscription.unsubscribe();
+			stopWatchdog?.();
 			// Don't stop the automation engine - it's shared across all sessions
 		};
 	});

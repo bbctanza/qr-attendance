@@ -10,7 +10,6 @@
 	import { Turnstile } from 'svelte-turnstile';
 	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import * as Dialog from '$lib/components/ui/dialog';
-	import { createSession, setCurrentSessionId } from '$lib/utils/sessions';
 	import { onMount } from 'svelte';
 	import { sanitizeErrorMessage, isValidEmail } from '$lib/utils/security';
 
@@ -58,15 +57,8 @@
 				// Sanitize error message to prevent information disclosure
 				errorMessage = sanitizeErrorMessage(error);
 			} else {
-				// Login successful - create session
-				const session = await createSession();
-				if (session) {
-					// Store the session ID for activity tracking
-					setCurrentSessionId(session.id);
-					console.log('Session created:', session.id, 'Last active:', session.last_active);
-				} else {
-					console.warn('Failed to create session');
-				}
+				// Session tracking is registered by the (protected) layout, which covers every
+				// way a session can appear - not just this form.
 				goto('/overview');
 			}
 		} catch (e) {

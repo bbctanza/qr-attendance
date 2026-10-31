@@ -23,7 +23,7 @@
 	import { onboardingState } from '$lib/stores/onboarding';
 	import { supabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
-	import { updateCurrentSessionActivity, getCurrentSessionId } from '$lib/utils/sessions';
+	import { touchSession } from '$lib/utils/sessions';
 	import { pwaInfo } from 'virtual:pwa-info';
 
 	// Initialize theme synchronously from localStorage before render
@@ -51,10 +51,7 @@
 			devTools.init();
 
 			// Run settings and session checks in parallel
-			const [_, authRes] = await Promise.all([
-				loadSettings(),
-				supabase.auth.getSession()
-			]);
+			const [_, authRes] = await Promise.all([loadSettings(), supabase.auth.getSession()]);
 
 			const session = authRes.data?.session;
 			const path = $page.url.pathname;
@@ -70,15 +67,15 @@
 				goto('/overview');
 			}
 
-			// Update session activity on initial load
+			// Keep this device's last-active timestamp fresh so it doesn't look stale in the
+			// Active Sessions list. Revocation is handled by the watchdog in (protected).
 			if (session) {
-				updateCurrentSessionActivity().catch(console.error);
+				touchSession().catch(console.error);
 			}
 
-			// Update session activity every 5 minutes
 			activityInterval = setInterval(
 				async () => {
-					await updateCurrentSessionActivity();
+					await touchSession();
 				},
 				5 * 60 * 1000
 			);
@@ -91,10 +88,6 @@
 					currentPath.startsWith('/check-in/') ||
 					currentPath.startsWith('/display/');
 				if (event === 'SIGNED_OUT') {
-					// Clear session ID on logout
-					if (typeof window !== 'undefined') {
-						localStorage.removeItem('currentSessionId');
-					}
 					if (!isPublic) goto('/login');
 					clearInterval(activityInterval);
 				} else if (event === 'SIGNED_IN' || session) {
