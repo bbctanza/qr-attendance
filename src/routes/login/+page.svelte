@@ -124,7 +124,17 @@
 					</div>
 				{/if}
 
-				<div class="grid gap-4">
+				<!-- A real <form> rather than loose inputs: it is what password managers,
+				     assistive tech and automated classifiers all expect of a sign-in. The previous
+				     markup collected credentials from unlabelled, un-autocompleted inputs outside
+				     any form, which reads as ad-hoc credential harvesting. -->
+				<form
+					class="grid gap-4"
+					onsubmit={(e) => {
+						e.preventDefault();
+						startLogin();
+					}}
+				>
 					<div class="grid gap-2">
 						<Label for="email" class="text-foreground">Email address</Label>
 						<div class="relative">
@@ -135,12 +145,14 @@
 							</div>
 							<Input
 								id="email"
+								name="email"
 								type="email"
+								autocomplete="email"
+								required
 								placeholder="you@example.com"
 								bind:value={email}
 								disabled={isLoading}
 								class="border-transparent bg-secondary/50 pl-10 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
-								onkeydown={(e) => e.key === 'Enter' && startLogin()}
 							/>
 						</div>
 					</div>
@@ -155,12 +167,14 @@
 							</div>
 							<Input
 								id="password"
+								name="password"
 								type={showPassword ? 'text' : 'password'}
+								autocomplete="current-password"
+								required
 								placeholder="••••••••"
 								bind:value={password}
 								disabled={isLoading}
 								class="border-transparent bg-secondary/50 pr-10 pl-10 text-foreground placeholder:text-muted-foreground focus-visible:ring-primary focus-visible:ring-offset-0"
-								onkeydown={(e) => e.key === 'Enter' && startLogin()}
 							/>
 							<div class="absolute inset-y-0 right-0 flex items-center pr-3">
 								<button
@@ -202,8 +216,8 @@
 					</div>
 
 					<Button
+						type="submit"
 						class="w-full bg-primary font-medium text-primary-foreground hover:bg-primary/90"
-						onclick={startLogin}
 						disabled={isLoading}
 					>
 						{#if isLoading}
@@ -213,13 +227,15 @@
 							Sign in
 						{/if}
 					</Button>
-				</div>
+				</form>
 			</div>
 
 			<!-- Footer outside the card -->
 			<div class="flex flex-col items-center space-y-1 text-center text-muted-foreground">
-				<p class="text-xs font-medium">Bible Baptist Church Tanza © 2026</p>
-				<p class="text-[10px] italic">"John 12:32 A Place Where Christ is Lifted Up"</p>
+				<p class="text-xs font-medium">
+					{siteConfig.organization.name} © {new Date().getFullYear()}
+				</p>
+				<p class="text-[10px] italic">"{siteConfig.organization.tagline}"</p>
 			</div>
 		</div>
 	</div>

@@ -1,3 +1,31 @@
-# allow crawling everything by default
+# QR Attendance System - Bible Baptist Church Tanza
+#
+# The landing page is intentionally crawlable: it is the public, legitimate face of this
+# deployment and the thing that distinguishes it from an anonymous credential form.
+# Everything behind the sign-in is private and has no reason to be indexed.
+
 User-agent: *
-Disallow:
+
+# Public surface
+Allow: /$
+Allow: /check-in/
+
+# Sign-in and password flows - no value in the index, and indexing a bare credential
+# form is itself a reputation signal we do not want.
+Disallow: /login
+Disallow: /forgot-password
+Disallow: /update-password
+
+# Authenticated application
+Disallow: /overview
+Disallow: /scan
+Disallow: /members
+Disallow: /groups
+Disallow: /events
+Disallow: /attendance
+Disallow: /analytics
+Disallow: /history
+Disallow: /notifications
+Disallow: /settings
+Disallow: /display/
+Disallow: /api/

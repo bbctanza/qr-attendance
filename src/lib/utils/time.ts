@@ -121,6 +121,42 @@ export function formatTimeColumn(timeString: string): string {
  * @param dateString - ISO datetime string or database string
  * @returns Formatted time in user's timezone and format preference
  */
+/**
+ * Synchronous time formatter for latency-sensitive paths.
+ *
+ * formatLocalTime() awaits getUserTimezone(), which falls back to a `system_settings` query
+ * when the store has not loaded - putting a second network round-trip on the critical path.
+ * Scan check-in already has the user waiting on an RPC, so it uses this instead: store-only,
+ * no awaits, falling back to the default timezone rather than going to the database.
+ */
+export function formatTimeSync(date: Date): string {
+	const use12HourFormat =
+		typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
+
+	let timezone = 'Asia/Manila';
+	try {
+		const settings = get(systemSettings);
+		if (settings?.timezone) timezone = settings.timezone;
+	} catch {
+		// Store unavailable; the default stands.
+	}
+
+	try {
+		return new Intl.DateTimeFormat('en-US', {
+			timeZone: timezone,
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: use12HourFormat
+		}).format(date);
+	} catch {
+		return date.toLocaleTimeString([], {
+			hour: '2-digit',
+			minute: '2-digit',
+			hour12: use12HourFormat
+		});
+	}
+}
+
 export async function formatLocalTime(dateString: string): Promise<string> {
 	if (!dateString) return '';
 

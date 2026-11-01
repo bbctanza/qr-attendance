@@ -44,13 +44,40 @@
 	import type { AttendanceEvent } from '$lib/types';
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { devTools } from '$lib/stores/dev';
-	import { playBeep, setupAudioUnlock } from '$lib/utils/beep';
+	import {
+		playBeep,
+		setupAudioUnlock,
+		playAccepted,
+		playSuccess,
+		playDuplicate,
+		playRejected,
+		playError
+	} from '$lib/utils/beep';
 	import { listenForUsbScanner } from '$lib/utils/usbScanner';
+	import {
+		createScanQueue,
+		type ScanOutcome,
+		type ScanQueueState,
+		type ScanRejection,
+		type ScanSource
+	} from '$lib/utils/scanQueue';
+	import ScanStatusModal from '$lib/components/scan-status-modal.svelte';
+
+	/** How long a result stays up while others are still waiting behind it. */
+	const BUSY_RESULT_MS = 1500;
+
+	/** How long a "that scan didn't count" notice stays on the overlay. */
+	const REJECTION_NOTICE_MS = 2500;
+
+	type ScanResult = {
+		success: boolean;
+		message: string;
+		member_name?: string;
+		care_group?: string;
+	};
 	import { systemSettings } from '$lib/stores/settings';
-	import CheckInSuccessModal from '$lib/components/check-in-success-modal.svelte';
-	import AlreadyCheckedInModal from '$lib/components/already-checked-in-modal.svelte';
 	import UsbScannerGuide from '$lib/components/usb-scanner-guide.svelte';
-	import { formatLocalTime, formatTimeRange } from '$lib/utils/time';
+	import { formatLocalTime, formatTimeRange, formatTimeSync } from '$lib/utils/time';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
 
 	// Tooltip state
@@ -83,20 +110,6 @@
 	let activeEvent = $state<AttendanceEvent | null>(null);
 	let isLoading = $state(true);
 
-	// Modal State
-	let showSuccessModal = $state(false);
-	let showAlreadyCheckedInModal = $state(false);
-	let successModalData = $state({
-		memberName: '',
-		memberId: '',
-		careGroup: '',
-		time: ''
-	});
-	let errorModalData = $state({
-		memberName: '',
-		memberId: ''
-	});
-
 	// Camera State
 	let scanner: Html5Qrcode | null = null;
 	let cameras: any[] = $state([]);
@@ -113,10 +126,6 @@
 	});
 
 	let isFullscreen = $state(false);
-	let isProcessing = false;
-	// Scan lock: isProcessing stays true until this timer fires
-	let unlockTimer: ReturnType<typeof setTimeout> | null = null;
-	let unlockCooldown = 0;
 	let scannerContainer: HTMLElement | undefined = $state();
 	let scannerContainerDesktop: HTMLElement | undefined = $state();
 	let isWideScan = $state(false); // false = Normal (250px), true = Wide (Full)
@@ -189,6 +198,7 @@
 		// Browsers can't list keyboard-type devices, so the first scan is what detects one.
 		const stopUsbScanner = usbScannerEnabled
 			? listenForUsbScanner({
+					suppressStrayEnter: () => scanState.phase !== 'idle',
 					onScan: (code) => {
 						// No event: handleScan shows the error; don't switch into USB mode
 						if (!usbMode && activeEvent) enterUsbMode();
@@ -208,6 +218,9 @@
 		return () => {
 			clearInterval(interval);
 			stopUsbScanner?.();
+			// Drops any pending scans and clears the result-hold timer.
+			scanQueue.destroy();
+			if (rejectionTimer) clearTimeout(rejectionTimer);
 			document.removeEventListener('fullscreenchange', handleFullscreenChange);
 			document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
 			window.removeEventListener('keydown', handleEscape);
@@ -240,7 +253,7 @@
 	// In fullscreen the browser uses Esc to exit (handled above); this covers Esc outside fullscreen
 	function handleEscape(e: KeyboardEvent) {
 		if (e.key !== 'Escape' || document.fullscreenElement) return;
-		if (showSuccessModal || showAlreadyCheckedInModal) return;
+		if (scanState.phase !== 'idle') return;
 		if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 		endScanSession();
 	}
@@ -593,40 +606,17 @@
 		}
 	}
 
-	function unlockScansAfter(ms: number) {
-		if (unlockTimer) clearTimeout(unlockTimer);
-		unlockTimer = setTimeout(() => {
-			isProcessing = false;
-			unlockTimer = null;
-		}, ms);
-	}
-
-	// A result modal closed early (tapped away): unlock now instead of waiting out its duration
-	$effect(() => {
-		if (!showSuccessModal && !showAlreadyCheckedInModal && unlockTimer) {
-			unlockScansAfter(unlockCooldown);
-		}
-	});
-
-	async function handleScan(id: string, source: 'camera' | 'usb' | 'manual' = 'camera') {
-		if (!id) return;
-		if (isProcessing) {
-			// The camera re-reads codes every frame, so only USB / manual are deliberate retries
-			if (source !== 'camera') {
-				toast.info('Please wait — finishing the previous check-in', { id: 'scan-busy' });
-			}
-			return;
-		}
+	/**
+	 * Performs one check-in. Runs inside the scan queue, one at a time, so it never has to
+	 * guard against concurrency itself.
+	 */
+	async function processScan(id: string, _source: ScanSource): Promise<ScanOutcome> {
 		if (!activeEvent) {
-			toast.error('No active event found to scan into.');
-			return;
+			return { phase: 'error', memberId: id, message: 'No active event found to scan into.' };
 		}
-
-		isProcessing = true;
-		const toastId = toast.loading('Checking in...');
 
 		try {
-			let result: any;
+			let result: ScanResult;
 			if ($devTools.bypassEventTimeValidation) {
 				// Mock API response if bypass is active to avoid database writes
 				result = {
@@ -641,84 +631,159 @@
 			}
 
 			if (!result.success) {
-				playBeep(400, 300); // Error beep
-				if (result.message.includes('Already')) {
-					errorModalData = {
+				const isDuplicate = result.message?.includes('Already');
+				if (isDuplicate) {
+					playDuplicate();
+					return {
+						phase: 'duplicate',
 						memberName: result.member_name || 'Member',
-						memberId: id
+						memberId: id,
+						message: result.message
 					};
-					if ($systemSettings.scanModalEnabled) {
-						showAlreadyCheckedInModal = true;
-						toast.dismiss(toastId);
-					} else {
-						toast.error(`${errorModalData.memberName} is already checked in.`, { id: toastId });
-					}
-				} else {
-					toast.error(result.message, { id: toastId });
 				}
-				return;
+
+				playError();
+				return { phase: 'error', memberId: id, message: result.message };
 			}
 
-			// Success beep
-			playBeep(1000, 150); // Higher pitch beep for success
-			setTimeout(() => playBeep(1000, 150), 150); // Double beep
+			playSuccess();
 
-			// Success UI - Show modal instead of toast
-			const time = await formatLocalTime(new Date().toISOString());
+			// Formatted from the already-loaded settings store rather than the async helper,
+			// which can fall back to a system_settings query and add a round-trip here.
+			const time = formatTimeSync(new Date());
 			const fullName = result.member_name || 'Member';
 			const groupName = result.care_group || 'N/A';
 
-			successModalData = {
-				memberName: fullName,
-				memberId: id,
-				careGroup: groupName,
-				time: time
-			};
+			lastScanned = { id, name: fullName, timestamp: time };
 
-			if ($systemSettings.scanModalEnabled) {
-				showSuccessModal = true;
-				toast.dismiss(toastId);
-			} else {
-				toast.success(`Checked in ${fullName}`, { id: toastId });
-			}
-
-			lastScanned = {
-				id: id,
-				name: fullName,
-				timestamp: time
-			};
-
-			// Add to local list if not already there
-			if (!recentScans.find((s) => s.id === id)) {
+			if (!recentScans.find((scan) => scan.id === id)) {
 				recentScans = [{ id, name: fullName, time }, ...recentScans];
 			}
 
-			if (!$systemSettings.scanModalEnabled) {
-				// if modal is disabled, we already toasted success above, so do not dismiss it
-			} else {
-				toast.dismiss(toastId);
-			}
 			manualId = ''; // Clear input
+
+			return {
+				phase: 'success',
+				memberName: fullName,
+				memberId: id,
+				careGroup: groupName,
+				time
+			};
 		} catch (e: any) {
 			console.error(e);
+			playError();
 			const msg = getErrorMessage(e);
 			const title = getErrorTitle(e);
-			if (e.message?.includes('duplicate')) {
-				toast.info(`Already checked in: ${msg}`, { id: toastId });
-			} else {
-				toast.error(`${title}: ${msg}`, { id: toastId });
+
+			if (e?.message?.includes('duplicate')) {
+				return { phase: 'duplicate', memberId: id, message: msg };
 			}
-		} finally {
-			// Cooldown stops the camera re-reading the same code every frame.
-			// USB scanners fire once per trigger pull, so they need none.
-			unlockCooldown = source === 'camera' ? 2000 : 0;
-			if (showSuccessModal || showAlreadyCheckedInModal) {
-				// Hold the next scan while the result modal is up (it auto-closes after scanModalDuration)
-				unlockScansAfter(($systemSettings.scanModalDuration ?? 5) * 1000 + unlockCooldown);
-			} else {
-				unlockScansAfter(unlockCooldown);
-			}
+			return { phase: 'error', memberId: id, message: `${title}: ${msg}` };
 		}
+	}
+
+	const scanQueue = createScanQueue({
+		process: processScan,
+		// Keep the line moving when people are waiting, but give a relaxed desk the full
+		// configured time to read the confirmation.
+		resultHoldMs: (depth) =>
+			depth > 0 ? BUSY_RESULT_MS : ($systemSettings.scanModalDuration ?? 5) * 1000
+	});
+
+	let scanState = $state<ScanQueueState>({
+		phase: 'idle',
+		currentCode: null,
+		currentSource: null,
+		outcome: null,
+		queueDepth: 0
+	});
+
+	$effect(() => {
+		const unsubscribe = scanQueue.subscribe((value) => {
+			scanState = value;
+		});
+		return unsubscribe;
+	});
+
+	/**
+	 * A scan the queue turned away.
+	 *
+	 * Deliberately not a toast. A toast is small, cornered and easy to miss over the scanner's
+	 * own beep, which is the precise confusion this overlay exists to remove - a rejected scan
+	 * has to be as loud as a successful one, or someone walks away thinking it counted.
+	 */
+	let rejection = $state<ScanRejection | null>(null);
+	let rejectionTimer: ReturnType<typeof setTimeout> | null = null;
+
+	function showRejection(kind: ScanRejection['kind']) {
+		if (rejectionTimer) clearTimeout(rejectionTimer);
+		rejection = { kind };
+		rejectionTimer = setTimeout(() => {
+			rejection = null;
+			rejectionTimer = null;
+		}, REJECTION_NOTICE_MS);
+	}
+
+	function clearRejection() {
+		if (rejectionTimer) clearTimeout(rejectionTimer);
+		rejectionTimer = null;
+		rejection = null;
+	}
+
+	/** Dismissing the overlay clears both the held result and any rejection notice on it. */
+	function dismissOverlay() {
+		clearRejection();
+		scanQueue.dismissResult();
+	}
+
+	// When result detail is switched off the overlay only covers the processing phase, so the
+	// outcome still has to be announced somehow - fall back to the toasts used before.
+	$effect(() => {
+		if ($systemSettings.scanModalEnabled) return;
+		const outcome = scanState.outcome;
+		if (!outcome) return;
+
+		if (outcome.phase === 'success') {
+			toast.success(`Checked in ${outcome.memberName}`, { id: 'scan-result' });
+		} else if (outcome.phase === 'duplicate') {
+			toast.info(`${outcome.memberName || outcome.memberId} is already checked in.`, {
+				id: 'scan-result'
+			});
+		} else {
+			toast.error(outcome.message || 'Check-in failed', { id: 'scan-result' });
+		}
+	});
+
+	/**
+	 * Single entry point for every scan source, which is what keeps USB, camera and manual
+	 * behaving identically. Returns nothing - feedback is immediate and audible.
+	 */
+	function handleScan(id: string, source: ScanSource = 'camera') {
+		if (!id) return;
+
+		if (!activeEvent) {
+			playError();
+			toast.error('No active event found to scan into.');
+			return;
+		}
+
+		const result = scanQueue.submit(id, source);
+
+		if (result === 'queued') {
+			// Fires before any network work: the app's own "I have you", distinct from the
+			// scanner's hardware beep, which only ever meant "I read the barcode".
+			playAccepted();
+			return;
+		}
+
+		// A camera sees the same QR ~10x a second, so every frame after a scan comes back as a
+		// duplicate. Those are not deliberate actions - buzzing and flashing a notice at each one
+		// would be a continuous alarm. Queue-full is different even from a camera: a real scan
+		// was dropped, so that one still gets announced.
+		if (source === 'camera' && result === 'duplicate-ignored') return;
+
+		playRejected();
+		showRejection(result === 'rejected-full' ? 'full' : 'duplicate');
 	}
 
 	async function handleSearch(e: Event) {
@@ -959,32 +1024,38 @@
 
 	// Camera Idle Detection Effect
 	$effect(() => {
-		if (isScanning && cameraGuidePosition !== 'off' && typeof window !== 'undefined' && window.innerWidth >= 768) {
+		if (
+			isScanning &&
+			cameraGuidePosition !== 'off' &&
+			typeof window !== 'undefined' &&
+			window.innerWidth >= 768
+		) {
 			if (!motionCanvas) {
 				motionCanvas = document.createElement('canvas');
 				motionCanvas.width = 32;
 				motionCanvas.height = 32;
 				motionCtx = motionCanvas.getContext('2d', { willReadFrequently: true });
 			}
-			
+
 			movementCheckInterval = setInterval(() => {
 				const video = document.querySelector('#reader-desktop video') as HTMLVideoElement;
 				if (!video || !motionCtx || video.readyState < 2) return;
-				
+
 				try {
 					motionCtx.drawImage(video, 0, 0, 32, 32);
 					const currentFrame = motionCtx.getImageData(0, 0, 32, 32).data;
-					
+
 					if (lastFrameData) {
 						let diffCount = 0;
 						for (let i = 0; i < currentFrame.length; i += 4) {
-							const diff = Math.abs(currentFrame[i] - lastFrameData[i]) +
-										 Math.abs(currentFrame[i+1] - lastFrameData[i+1]) +
-										 Math.abs(currentFrame[i+2] - lastFrameData[i+2]);
+							const diff =
+								Math.abs(currentFrame[i] - lastFrameData[i]) +
+								Math.abs(currentFrame[i + 1] - lastFrameData[i + 1]) +
+								Math.abs(currentFrame[i + 2] - lastFrameData[i + 2]);
 							// Threshold for visual change (reduces noise)
 							if (diff > 60) diffCount++;
 						}
-						
+
 						// If less than 50 pixels changed significantly, consider it idle
 						if (diffCount < 50) {
 							idleSeconds += 0.5;
@@ -997,12 +1068,12 @@
 								isCameraIdle = false;
 							}
 						}
-						
+
 						if (idleSeconds >= cameraGuideIdleTime) {
 							isCameraIdle = true;
 						}
 					}
-					
+
 					lastFrameData = new Uint8ClampedArray(currentFrame);
 				} catch (e) {
 					// Ignore cross-origin canvas errors or video ready errors
@@ -1013,7 +1084,7 @@
 			isCameraIdle = false;
 			idleSeconds = 0;
 		}
-		
+
 		return () => {
 			if (movementCheckInterval) clearInterval(movementCheckInterval);
 		};
@@ -1050,7 +1121,7 @@
 		bind:this={scannerContainer}
 		class={isFullscreen
 			? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
-			: 'relative flex flex-1 min-h-0 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
+			: 'relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
 	>
 		{#if usbMode && !isScanning}
 			<UsbScannerGuide
@@ -1078,14 +1149,21 @@
 					<QrCode class="mr-2 h-4 w-4" /> Start Camera
 				</Button>
 				{#if usbScannerEnabled}
-					<Button variant="outline" class="-mt-3 h-12 w-56 rounded-2xl font-bold" onclick={useUsbScanner}>
+					<Button
+						variant="outline"
+						class="-mt-3 h-12 w-56 rounded-2xl font-bold"
+						onclick={useUsbScanner}
+					>
 						<Usb class="mr-2 h-4 w-4" /> Use USB Scanner
 					</Button>
 				{/if}
 			</div>
 		{:else}
 			<!-- Scanner UI -->
-			<div id="reader-mobile" class="h-full w-full bg-black {isMirrored ? 'mirror-camera' : ''}"></div>
+			<div
+				id="reader-mobile"
+				class="h-full w-full bg-black {isMirrored ? 'mirror-camera' : ''}"
+			></div>
 
 			<!-- Controls Overlay -->
 			<div class="scan-controls absolute right-0 bottom-8 left-0 z-10 flex justify-center gap-4">
@@ -1093,7 +1171,7 @@
 					variant="outline"
 					size="icon"
 					class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
-					onclick={() => isMirrored = !isMirrored}
+					onclick={() => (isMirrored = !isMirrored)}
 					title="Mirror Camera"
 				>
 					<FlipHorizontal class="h-5 w-5" />
@@ -1159,35 +1237,21 @@
 				</div>
 			</div>
 
-			<!-- Modals rendered inside fullscreen container to ensure visibility -->
-			{#if isFullscreen && (showSuccessModal || showAlreadyCheckedInModal)}
-				<!-- Check-in Success Modal -->
-				<CheckInSuccessModal
-					bind:isOpen={showSuccessModal}
-					memberName={successModalData.memberName}
-					memberId={successModalData.memberId}
-					careGroup={successModalData.careGroup}
-					time={successModalData.time}
-					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-					onClose={() => {
-						showSuccessModal = false;
-					}}
-				/>
-
-				<!-- Already Checked In Error Modal -->
-				<AlreadyCheckedInModal
-					bind:isOpen={showAlreadyCheckedInModal}
-					memberName={errorModalData.memberName}
-					memberId={errorModalData.memberId}
-					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-					onClose={() => {
-						showAlreadyCheckedInModal = false;
-					}}
+			<!-- Rendered inside the fullscreen container: a fullscreen element covers everything
+			     else on the page, so a modal outside it would be invisible. -->
+			{#if isFullscreen}
+				<ScanStatusModal
+					state={scanState}
+					showResultDetail={$systemSettings.scanModalEnabled}
+					resultDuration={scanState.queueDepth > 0
+						? BUSY_RESULT_MS
+						: ($systemSettings.scanModalDuration ?? 5) * 1000}
+					{rejection}
+					onDismiss={dismissOverlay}
 				/>
 			{/if}
 		{/if}
 	</div>
-
 
 	<!-- OR divider -->
 	<div class="flex items-center gap-3">
@@ -1418,10 +1482,13 @@
 			bind:this={scannerContainerDesktop}
 			class={isFullscreen
 				? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
-				: `relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 ${isScanning ? 'p-0 border-0' : 'p-16'}`}
+				: `relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 ${isScanning ? 'border-0 p-0' : 'p-16'}`}
 		>
 			{#if isScanning}
-				<div id="reader-desktop" class="h-full w-full bg-black {isMirrored ? 'mirror-camera' : ''}"></div>
+				<div
+					id="reader-desktop"
+					class="h-full w-full bg-black {isMirrored ? 'mirror-camera' : ''}"
+				></div>
 				<div class="absolute right-0 bottom-6 left-0 z-10 flex justify-center gap-4">
 					<Button
 						variant="destructive"
@@ -1435,7 +1502,7 @@
 						variant="outline"
 						size="icon"
 						class="h-10 w-10 rounded-xl border-white/20 bg-black/40 text-white backdrop-blur-md hover:bg-white/20"
-						onclick={() => isMirrored = !isMirrored}
+						onclick={() => (isMirrored = !isMirrored)}
 						title="Mirror Camera"
 					>
 						<FlipHorizontal class="h-5 w-5" />
@@ -1477,18 +1544,23 @@
 
 				<!-- Desktop Camera Guide Tooltip -->
 				{#if (isCameraIdle || cameraGuideIdleTime === 0) && cameraGuidePosition !== 'off'}
-					<div 
+					<div
 						transition:fly={{ y: cameraGuidePosition === 'top' ? -20 : 20, duration: 300 }}
-						class="fixed left-1/2 -translate-x-1/2 z-[100] flex flex-col items-center gap-2 pointer-events-none {cameraGuidePosition === 'top' ? 'top-4' : 'bottom-8'}"
+						class="pointer-events-none fixed left-1/2 z-[100] flex -translate-x-1/2 flex-col items-center gap-2 {cameraGuidePosition ===
+						'top'
+							? 'top-4'
+							: 'bottom-8'}"
 					>
 						{#if cameraGuidePosition === 'top'}
-							<ArrowUp class="h-8 w-8 text-primary animate-bounce drop-shadow-md" />
+							<ArrowUp class="h-8 w-8 animate-bounce text-primary drop-shadow-md" />
 						{/if}
-						<div class="rounded-full bg-primary/90 backdrop-blur px-6 py-3 text-sm font-bold text-white shadow-xl ring-2 ring-white/20">
+						<div
+							class="rounded-full bg-primary/90 px-6 py-3 text-sm font-bold text-white shadow-xl ring-2 ring-white/20 backdrop-blur"
+						>
 							Show your QR code here
 						</div>
 						{#if cameraGuidePosition === 'bottom'}
-							<ArrowDown class="h-8 w-8 text-primary animate-bounce drop-shadow-md" />
+							<ArrowDown class="h-8 w-8 animate-bounce text-primary drop-shadow-md" />
 						{/if}
 					</div>
 				{/if}
@@ -1542,30 +1614,6 @@
 					<span class="font-semibold text-primary">{session.title}</span>
 					<span class="text-muted-foreground"> · {session.timeStart} - {session.timeEnd}</span>
 				</div>
-			{/if}
-
-			<!-- Result modals over the scan area while the right panel is hidden or this area is fullscreen -->
-			{#if isPanelCollapsed || isFullscreen}
-				<CheckInSuccessModal
-					bind:isOpen={showSuccessModal}
-					memberName={successModalData.memberName}
-					memberId={successModalData.memberId}
-					careGroup={successModalData.careGroup}
-					time={successModalData.time}
-					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-					onClose={() => {
-						showSuccessModal = false;
-					}}
-				/>
-				<AlreadyCheckedInModal
-					bind:isOpen={showAlreadyCheckedInModal}
-					memberName={errorModalData.memberName}
-					memberId={errorModalData.memberId}
-					autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-					onClose={() => {
-						showAlreadyCheckedInModal = false;
-					}}
-				/>
 			{/if}
 		</div>
 	</div>
@@ -1688,63 +1736,21 @@
 				</div>
 			</ScrollArea>
 		</Card>
-
-		<!-- Desktop Right-Column Modals -->
-		{#if !isFullscreen && !isPanelCollapsed}
-			<!-- Check-in Success Modal -->
-			<CheckInSuccessModal
-				bind:isOpen={showSuccessModal}
-				memberName={successModalData.memberName}
-				memberId={successModalData.memberId}
-				careGroup={successModalData.careGroup}
-				time={successModalData.time}
-				autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-				onClose={() => {
-					showSuccessModal = false;
-				}}
-			/>
-
-			<!-- Already Checked In Error Modal -->
-			<AlreadyCheckedInModal
-				bind:isOpen={showAlreadyCheckedInModal}
-				memberName={errorModalData.memberName}
-				memberId={errorModalData.memberId}
-				autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-				onClose={() => {
-					showAlreadyCheckedInModal = false;
-				}}
-			/>
-		{/if}
 	</aside>
 </div>
 
-<!-- Global Modals for Mobile non-fullscreen mode -->
+<!-- The one overlay for every non-fullscreen layout (mobile and desktop alike). It is
+     position:fixed, so a single instance covers them all. -->
 {#if !isFullscreen}
-<div class="md:hidden">
-	<!-- Check-in Success Modal -->
-	<CheckInSuccessModal
-		bind:isOpen={showSuccessModal}
-		memberName={successModalData.memberName}
-		memberId={successModalData.memberId}
-		careGroup={successModalData.careGroup}
-		time={successModalData.time}
-		autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-		onClose={() => {
-			showSuccessModal = false;
-		}}
+	<ScanStatusModal
+		state={scanState}
+		showResultDetail={$systemSettings.scanModalEnabled}
+		resultDuration={scanState.queueDepth > 0
+			? BUSY_RESULT_MS
+			: ($systemSettings.scanModalDuration ?? 5) * 1000}
+		{rejection}
+		onDismiss={dismissOverlay}
 	/>
-
-	<!-- Already Checked In Error Modal -->
-	<AlreadyCheckedInModal
-		bind:isOpen={showAlreadyCheckedInModal}
-		memberName={errorModalData.memberName}
-		memberId={errorModalData.memberId}
-		autoCloseDuration={($systemSettings.scanModalDuration ?? 5) * 1000}
-		onClose={() => {
-			showAlreadyCheckedInModal = false;
-		}}
-	/>
-</div>
 {/if}
 
 <style>

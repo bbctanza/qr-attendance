@@ -77,4 +77,33 @@ const domainRouting: Handle = async ({ event, resolve }) => {
 	return resolve(event);
 };
 
-export const handle = sequence(domainRouting);
+/**
+ * Security headers.
+ *
+ * The site previously served none at all. Beyond the direct hardening value, their absence is
+ * one of the signals that contributed to Google Safe Browsing classifying this deployment as a
+ * phishing site: a credential form on a free *.vercel.app subdomain with no security posture
+ * looks like a throwaway kit rather than a maintained application.
+ *
+ * The Content-Security-Policy itself is declared in svelte.config.js via `kit.csp`, which can
+ * hash SvelteKit's own inline bootstrap script - something that cannot be done from here
+ * without falling back to 'unsafe-inline' for scripts.
+ */
+const securityHeaders: Handle = async ({ event, resolve }) => {
+	const response = await resolve(event);
+
+	response.headers.set('X-Content-Type-Options', 'nosniff');
+	response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+	response.headers.set('X-Frame-Options', 'DENY');
+
+	// camera=(self) is deliberate: the QR scanner needs it. Blanket-denying would break /scan
+	// and the self check-in kiosk.
+	response.headers.set(
+		'Permissions-Policy',
+		'camera=(self), microphone=(), geolocation=(), payment=(), usb=()'
+	);
+
+	return response;
+};
+
+export const handle = sequence(securityHeaders, domainRouting);

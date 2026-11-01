@@ -59,3 +59,42 @@ export function playBeep(frequency = 800, duration = 200) {
 		console.error('Beep error:', err);
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Scan feedback vocabulary
+// ---------------------------------------------------------------------------
+//
+// A USB scanner beeps on every successful *read* of a barcode, which people hear as "you're
+// checked in" — the single biggest source of confusion at the desk. We can't silence the
+// hardware, so the app speaks in its own distinct voice instead: every scan draws a response,
+// and the responses differ by meaning. Silence now reliably means "not registered".
+
+/**
+ * Fired the instant a scan is accepted into the queue, before any network work.
+ * This is the important one: it is the immediate "I have you" the hardware beep only implies.
+ */
+export function playAccepted() {
+	playBeep(1400, 60);
+}
+
+/** Checked in. Two bright notes - clearly different from the single accept tick. */
+export function playSuccess() {
+	playBeep(1000, 150);
+	setTimeout(() => playBeep(1000, 150), 150);
+}
+
+/** Already checked in. Two flat low notes: not an error, but not a new check-in either. */
+export function playDuplicate() {
+	playBeep(500, 120);
+	setTimeout(() => playBeep(500, 120), 160);
+}
+
+/** Scan turned away (re-scan inside the dedupe window, or the queue is full). */
+export function playRejected() {
+	playBeep(220, 260);
+}
+
+/** Check-in failed. Longer and lower than everything else. */
+export function playError() {
+	playBeep(400, 300);
+}

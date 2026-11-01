@@ -9,12 +9,19 @@ export interface UsbScannerOptions {
 	maxKeyGapMs?: number;
 	/** Minimum characters for a burst to be treated as a scan. */
 	minLength?: number;
+	/**
+	 * Swallow Enter/Tab even when the burst was rejected, e.g. while a result modal is open.
+	 * A scanner always ends with Enter; if that reaches the page it can activate whatever
+	 * button has focus and dismiss someone's confirmation before they have read it.
+	 */
+	suppressStrayEnter?: () => boolean;
 }
 
 export function listenForUsbScanner({
 	onScan,
 	maxKeyGapMs = 50,
-	minLength = 3
+	minLength = 3,
+	suppressStrayEnter
 }: UsbScannerOptions): () => void {
 	if (typeof window === 'undefined') return () => {};
 
@@ -38,7 +45,15 @@ export function listenForUsbScanner({
 		if (e.key === 'Enter' || e.key === 'Tab') {
 			const code = buffer;
 			buffer = '';
-			if (code.length < minLength || gap > maxKeyGapMs) return;
+			if (code.length < minLength || gap > maxKeyGapMs) {
+				// Rejected as a scan, but the keypress is still loose. While a modal is up, stop it
+				// from reaching a focused button.
+				if (suppressStrayEnter?.()) {
+					e.preventDefault();
+					e.stopImmediatePropagation();
+				}
+				return;
+			}
 
 			// It's a scan: keep the Enter/Tab from submitting forms, clicking focused buttons,
 			// or reaching the page's own keydown handlers (e.g. manual check-in input).
