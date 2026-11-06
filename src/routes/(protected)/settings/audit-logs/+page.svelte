@@ -24,12 +24,7 @@
 		TableHeader,
 		TableRow
 	} from '$lib/components/ui/table';
-	import {
-		Card,
-		CardContent,
-		CardHeader,
-		CardTitle
-	} from '$lib/components/ui/card';
+	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
@@ -218,7 +213,8 @@
 		const filtered = auditLogs.filter((log) => {
 			if (filterEntity !== 'all' && log.entity_type !== filterEntity) return false;
 			if (filterAction !== 'all' && log.action !== filterAction) return false;
-			if (filterUser && !log.user_email?.toLowerCase().includes(filterUser.toLowerCase())) return false;
+			if (filterUser && !log.user_email?.toLowerCase().includes(filterUser.toLowerCase()))
+				return false;
 
 			if (searchText) {
 				const searchLower = searchText.toLowerCase();
@@ -561,7 +557,9 @@
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
 		<Card>
 			<CardHeader class="pb-2">
-				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Total Entries</CardTitle>
+				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+					>Total Entries</CardTitle
+				>
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold">{auditLogs.length}</div>
@@ -571,7 +569,9 @@
 
 		<Card>
 			<CardHeader class="pb-2">
-				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Audit Status</CardTitle>
+				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+					>Audit Status</CardTitle
+				>
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold text-green-600 dark:text-green-400">
@@ -585,7 +585,9 @@
 
 		<Card>
 			<CardHeader class="pb-2">
-				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">GDPR Mode</CardTitle>
+				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+					>GDPR Mode</CardTitle
+				>
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold">
@@ -599,7 +601,9 @@
 
 		<Card>
 			<CardHeader class="pb-2">
-				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase">Undo Access</CardTitle>
+				<CardTitle class="text-xs font-semibold tracking-wider text-muted-foreground uppercase"
+					>Undo Access</CardTitle
+				>
 			</CardHeader>
 			<CardContent>
 				<div class="text-2xl font-bold">
@@ -613,20 +617,22 @@
 	</div>
 
 	<!-- Controls Toolbar (Search & Filters) -->
-	<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between flex-wrap">
+	<div class="flex flex-col flex-wrap gap-3 sm:flex-row sm:items-center sm:justify-between">
 		<div class="flex flex-1 flex-wrap items-center gap-2.5">
 			<div class="relative w-full sm:w-64">
-				<Search class="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+				<Search class="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
 				<Input
 					placeholder="Search logs..."
 					bind:value={searchText}
-					class="h-9 pl-9 text-xs rounded-lg border-input"
+					class="h-9 rounded-lg border-input pl-9 text-xs"
 				/>
 			</div>
 
 			<Select.Root type="single" bind:value={filterEntity}>
-				<Select.Trigger class="h-9 w-full sm:w-40 text-xs">
-					<span>{filterEntityOptions.find((o) => o.value === filterEntity)?.label || 'All Types'}</span>
+				<Select.Trigger class="h-9 w-full text-xs sm:w-40">
+					<span
+						>{filterEntityOptions.find((o) => o.value === filterEntity)?.label || 'All Types'}</span
+					>
 				</Select.Trigger>
 				<Select.Content>
 					{#each filterEntityOptions as opt}
@@ -636,8 +642,11 @@
 			</Select.Root>
 
 			<Select.Root type="single" bind:value={filterAction}>
-				<Select.Trigger class="h-9 w-full sm:w-36 text-xs">
-					<span>{filterActionOptions.find((o) => o.value === filterAction)?.label || 'All Actions'}</span>
+				<Select.Trigger class="h-9 w-full text-xs sm:w-36">
+					<span
+						>{filterActionOptions.find((o) => o.value === filterAction)?.label ||
+							'All Actions'}</span
+					>
 				</Select.Trigger>
 				<Select.Content>
 					{#each filterActionOptions as opt}
@@ -646,8 +655,12 @@
 				</Select.Content>
 			</Select.Root>
 
-			<Select.Root type="single" value={datePreset} onValueChange={(val) => handleDatePresetChange(val)}>
-				<Select.Trigger class="h-9 w-full sm:w-40 text-xs">
+			<Select.Root
+				type="single"
+				value={datePreset}
+				onValueChange={(val) => handleDatePresetChange(val)}
+			>
+				<Select.Trigger class="h-9 w-full text-xs sm:w-40">
 					<span>{datePresetOptions.find((o) => o.value === datePreset)?.label || 'All Time'}</span>
 				</Select.Trigger>
 				<Select.Content>
@@ -683,7 +696,7 @@
 				variant="outline"
 				size="sm"
 				onclick={resetFilters}
-				class="h-9 text-xs gap-1.5 self-start sm:self-auto"
+				class="h-9 gap-1.5 self-start text-xs sm:self-auto"
 			>
 				<FilterX class="h-3.5 w-3.5" />
 				Reset Filters
@@ -704,7 +717,9 @@
 			<div class="py-16 text-center">
 				<AlertCircle class="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
 				<p class="text-sm font-medium text-foreground">No audit logs found</p>
-				<p class="mt-1 text-xs text-muted-foreground">Try clearing or adjusting your search filters</p>
+				<p class="mt-1 text-xs text-muted-foreground">
+					Try clearing or adjusting your search filters
+				</p>
 			</div>
 		{:else}
 			<div class="overflow-x-auto">
@@ -787,30 +802,34 @@
 									{/if}
 								</Button>
 							</TableHead>
-							<TableHead class="px-4 py-3.5 sm:px-6 text-xs font-semibold">Details</TableHead>
-							<TableHead class="px-4 py-3.5 sm:px-6 text-right text-xs font-semibold">Actions</TableHead>
+							<TableHead class="px-4 py-3.5 text-xs font-semibold sm:px-6">Details</TableHead>
+							<TableHead class="px-4 py-3.5 text-right text-xs font-semibold sm:px-6"
+								>Actions</TableHead
+							>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
 						{#each paginatedLogs as log (log.id)}
 							<TableRow class="transition-colors hover:bg-muted/50">
-								<TableCell class="px-4 py-3.5 sm:px-6 font-mono text-xs">
+								<TableCell class="px-4 py-3.5 font-mono text-xs sm:px-6">
 									{formatDate(log.created_at)}
 								</TableCell>
 								<TableCell class="px-4 py-3.5 sm:px-6">
-									<Badge variant="outline" class="font-medium text-xs">{log.entity_type}</Badge>
-									<div class="mt-1 font-mono text-[11px] text-muted-foreground">{log.entity_id}</div>
+									<Badge variant="outline" class="text-xs font-medium">{log.entity_type}</Badge>
+									<div class="mt-1 font-mono text-[11px] text-muted-foreground">
+										{log.entity_id}
+									</div>
 								</TableCell>
 								<TableCell class="px-4 py-3.5 sm:px-6">
 									<Badge class={getActionColor(log.action)}>
 										{log.action}
 									</Badge>
 								</TableCell>
-								<TableCell class="px-4 py-3.5 sm:px-6 text-xs">
+								<TableCell class="px-4 py-3.5 text-xs sm:px-6">
 									<div class="font-medium">{log.user_email}</div>
 									<div class="text-[11px] text-muted-foreground">{log.user_role}</div>
 								</TableCell>
-								<TableCell class="px-4 py-3.5 sm:px-6 max-w-xs truncate text-xs">
+								<TableCell class="max-w-xs truncate px-4 py-3.5 text-xs sm:px-6">
 									{#if log.reason}
 										{log.reason}
 									{:else if log.tags?.length}
@@ -819,9 +838,15 @@
 										—
 									{/if}
 								</TableCell>
-								<TableCell class="px-4 py-3.5 sm:px-6 text-right">
+								<TableCell class="px-4 py-3.5 text-right sm:px-6">
 									<div class="flex items-center justify-end gap-1">
-										<Button variant="ghost" size="sm" class="h-8 w-8 p-0" onclick={() => toggleDetailView(log)} title="View log details">
+										<Button
+											variant="ghost"
+											size="sm"
+											class="h-8 w-8 p-0"
+											onclick={() => toggleDetailView(log)}
+											title="View log details"
+										>
 											<Eye class="h-4 w-4 text-muted-foreground hover:text-foreground" />
 										</Button>
 										{#if log.action !== 'restore'}
@@ -838,7 +863,9 @@
 															? 'Undo approval required'
 															: 'Cannot undo'}
 											>
-												<Undo2 class={`h-4 w-4 ${!canUndo ? 'opacity-50' : 'text-muted-foreground hover:text-foreground'}`} />
+												<Undo2
+													class={`h-4 w-4 ${!canUndo ? 'opacity-50' : 'text-muted-foreground hover:text-foreground'}`}
+												/>
 											</Button>
 										{/if}
 									</div>
@@ -853,26 +880,40 @@
 		<!-- Desktop & Mobile Pagination Controls -->
 		{#if filteredLogs.length > 0}
 			<div
-				class="flex flex-col items-center justify-between gap-4 border-t bg-card p-4 sm:px-6 sm:py-4 shadow-xs sm:flex-row"
+				class="flex flex-col items-center justify-between gap-4 border-t bg-card p-4 shadow-xs sm:flex-row sm:px-6 sm:py-4"
 			>
 				<div class="flex items-center gap-4 text-xs text-muted-foreground">
 					<span>
-						Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredLogs.length)}</strong> to{' '}
+						Showing <strong
+							>{Math.min((currentPage - 1) * pageSize + 1, filteredLogs.length)}</strong
+						>
+						to{' '}
 						<strong>{Math.min(currentPage * pageSize, filteredLogs.length)}</strong> of{' '}
 						<strong>{filteredLogs.length}</strong> entries
 					</span>
 					<div class="flex items-center gap-1.5">
 						<span>Per page:</span>
-						<select
-							bind:value={pageSize}
-							onchange={() => (currentPage = 1)}
-							class="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+						<Select.Root
+							type="single"
+							value={String(pageSize)}
+							onValueChange={(value) => {
+								pageSize = Number(value);
+								currentPage = 1;
+							}}
 						>
-							<option value={10}>10</option>
-							<option value={25}>25</option>
-							<option value={50}>50</option>
-							<option value={100}>100</option>
-						</select>
+							<Select.Trigger
+								size="sm"
+								class="h-8 w-[4.5rem] px-2.5 text-xs"
+								aria-label="Rows per page"
+							>
+								{pageSize}
+							</Select.Trigger>
+							<Select.Content>
+								{#each [10, 25, 50, 100] as size (size)}
+									<Select.Item value={String(size)} label={String(size)}>{size}</Select.Item>
+								{/each}
+							</Select.Content>
+						</Select.Root>
 					</div>
 				</div>
 
@@ -937,8 +978,12 @@
 								{#each Object.entries(selectedLog.change_diff) as [field, change]}
 									<div class="border-l-2 border-blue-500/50 pl-3">
 										<div class="font-semibold text-blue-900 dark:text-blue-300">{field}</div>
-										<div class="text-red-700 dark:text-red-400">Before: {JSON.stringify(change.before)}</div>
-										<div class="text-green-700 dark:text-green-400">After: {JSON.stringify(change.after)}</div>
+										<div class="text-red-700 dark:text-red-400">
+											Before: {JSON.stringify(change.before)}
+										</div>
+										<div class="text-green-700 dark:text-green-400">
+											After: {JSON.stringify(change.after)}
+										</div>
 									</div>
 								{/each}
 							</div>
@@ -955,9 +1000,7 @@
 
 						<div>
 							<div class="border-t pt-4 text-sm font-semibold">Details</div>
-							<div
-								class="mt-2 grid grid-cols-2 gap-4 text-[10px] text-muted-foreground sm:text-xs"
-							>
+							<div class="mt-2 grid grid-cols-2 gap-4 text-[10px] text-muted-foreground sm:text-xs">
 								<div>
 									<span class="font-medium">By:</span>
 									{selectedLog.user_email || 'System'}

@@ -273,14 +273,16 @@
 					{#if user.role === 'Admin' || user.role === 'Developer'}
 						<button
 							class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-							onclick={() => open('/settings/invite')}
+							onclick={() => open('/settings/access')}
 						>
 							<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
 								<UserPlus class="h-5 w-5" />
 							</div>
 							<div class="min-w-0 flex-1 text-left">
-								<div class="text-sm font-bold sm:text-base">Manage Staff</div>
-								<div class="truncate text-xs text-muted-foreground">Invite & manage user roles</div>
+								<div class="text-sm font-bold sm:text-base">Access Directory</div>
+								<div class="truncate text-xs text-muted-foreground">
+									Invites, roles & account access
+								</div>
 							</div>
 							<ChevronRight class="shrink-0 text-muted-foreground" />
 						</button>

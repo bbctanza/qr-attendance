@@ -44,6 +44,14 @@
 	// Check if user is a guest
 	const isGuest = $derived(userRole === 'guest');
 
+	const LANGUAGE_LABELS: Record<string, string> = {
+		en: 'English',
+		es: 'Español',
+		fr: 'Français',
+		de: 'Deutsch',
+		zh: '中文'
+	};
+
 	// Settings state
 	let settings = $state({
 		notifications: true,
@@ -673,17 +681,16 @@
 				</div>
 				<div class="mt-4">
 					<Label for="language" class="text-xs font-medium sm:text-sm">Language</Label>
-					<select
-						id="language"
-						bind:value={settings.language}
-						class="mt-2 w-full rounded-lg border border-input bg-background px-3 py-2 text-xs sm:text-sm"
-					>
-						<option value="en">English</option>
-						<option value="es">Español</option>
-						<option value="fr">Français</option>
-						<option value="de">Deutsch</option>
-						<option value="zh">中文</option>
-					</select>
+					<Select.Root type="single" bind:value={settings.language}>
+						<Select.Trigger id="language" class="mt-2 w-full text-xs sm:text-sm">
+							{LANGUAGE_LABELS[settings.language] ?? 'English'}
+						</Select.Trigger>
+						<Select.Content>
+							{#each Object.entries(LANGUAGE_LABELS) as [value, label] (value)}
+								<Select.Item {value} {label}>{label}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
 				</div>
 			</CardContent>
 		</Card>
@@ -696,7 +703,10 @@
 						<ScanLine class="h-5 w-5 shrink-0 text-primary" />
 						<CardTitle class="text-base sm:text-lg">Scan Settings</CardTitle>
 						{#if isGuest}
-							<span class="ml-auto rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400">Restricted</span>
+							<span
+								class="ml-auto rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400"
+								>Restricted</span
+							>
 						{/if}
 					</div>
 				</CardHeader>
@@ -704,13 +714,17 @@
 					<div class="flex items-start justify-between gap-3 sm:items-center">
 						<div class="min-w-0 flex-1">
 							<Label class="text-sm font-medium sm:text-base">Show Scan Modal</Label>
-							<p class="mt-1 text-xs text-muted-foreground sm:text-sm">Display full-screen popup on scan</p>
+							<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+								Display full-screen popup on scan
+							</p>
 						</div>
 						<Switch bind:checked={settings.scanModalEnabled} class="shrink-0" />
 					</div>
 					{#if settings.scanModalEnabled}
 						<div>
-							<Label for="scanModalDuration" class="text-xs font-medium sm:text-sm">Modal Duration (seconds)</Label>
+							<Label for="scanModalDuration" class="text-xs font-medium sm:text-sm"
+								>Modal Duration (seconds)</Label
+							>
 							<Input
 								id="scanModalDuration"
 								type="number"
@@ -721,8 +735,8 @@
 							/>
 						</div>
 					{/if}
-					
-					<div class="mt-4 pt-4 border-t border-border/10 space-y-4">
+
+					<div class="mt-4 space-y-4 border-t border-border/10 pt-4">
 						<div class="flex items-start justify-between gap-3 sm:items-center">
 							<div class="min-w-0 flex-1">
 								<Label class="text-sm font-medium sm:text-base">USB QR Scanner</Label>
@@ -730,14 +744,28 @@
 									Accept scans from plug-and-play USB scanners on the Scan page
 								</p>
 							</div>
-							<Switch bind:checked={settings.usbScannerEnabled} class="shrink-0" disabled={isGuest} />
+							<Switch
+								bind:checked={settings.usbScannerEnabled}
+								class="shrink-0"
+								disabled={isGuest}
+							/>
 						</div>
 
 						<div>
-							<Label for="cameraGuidePosition" class="text-xs font-medium sm:text-sm">Camera Guide Position</Label>
-							<Select.Root type="single" bind:value={settings.cameraGuidePosition} disabled={isGuest}>
-								<Select.Trigger class="w-full mt-2" disabled={isGuest}>
-									{settings.cameraGuidePosition === 'top' ? 'Top' : settings.cameraGuidePosition === 'bottom' ? 'Bottom' : 'Off'}
+							<Label for="cameraGuidePosition" class="text-xs font-medium sm:text-sm"
+								>Camera Guide Position</Label
+							>
+							<Select.Root
+								type="single"
+								bind:value={settings.cameraGuidePosition}
+								disabled={isGuest}
+							>
+								<Select.Trigger class="mt-2 w-full" disabled={isGuest}>
+									{settings.cameraGuidePosition === 'top'
+										? 'Top'
+										: settings.cameraGuidePosition === 'bottom'
+											? 'Bottom'
+											: 'Off'}
 								</Select.Trigger>
 								<Select.Content>
 									<Select.Item value="top">Top</Select.Item>
@@ -745,15 +773,25 @@
 									<Select.Item value="off">Off</Select.Item>
 								</Select.Content>
 							</Select.Root>
-							<p class="mt-1 text-xs text-muted-foreground">Shows a tooltip pointing to your physical camera on desktop.</p>
+							<p class="mt-1 text-xs text-muted-foreground">
+								Shows a tooltip pointing to your physical camera on desktop.
+							</p>
 						</div>
 
 						{#if settings.cameraGuidePosition !== 'off'}
 							<div>
-								<Label for="cameraGuideIdleTime" class="text-xs font-medium sm:text-sm">Idle Time Before Showing (seconds)</Label>
-								<Select.Root type="single" bind:value={settings.cameraGuideIdleTime} disabled={isGuest}>
-									<Select.Trigger class="w-full mt-2" disabled={isGuest}>
-										{settings.cameraGuideIdleTime === '0' ? 'Always Show (Indefinite)' : `${settings.cameraGuideIdleTime} seconds`}
+								<Label for="cameraGuideIdleTime" class="text-xs font-medium sm:text-sm"
+									>Idle Time Before Showing (seconds)</Label
+								>
+								<Select.Root
+									type="single"
+									bind:value={settings.cameraGuideIdleTime}
+									disabled={isGuest}
+								>
+									<Select.Trigger class="mt-2 w-full" disabled={isGuest}>
+										{settings.cameraGuideIdleTime === '0'
+											? 'Always Show (Indefinite)'
+											: `${settings.cameraGuideIdleTime} seconds`}
 									</Select.Trigger>
 									<Select.Content>
 										<Select.Item value="0">Always Show (Indefinite)</Select.Item>
@@ -862,144 +900,220 @@
 	<!-- QR Code Details Section -->
 	<div class:opacity-50={isGuest} class:pointer-events-none={isGuest} class="w-full">
 		<Card class="w-full">
-				<CardHeader class="mb-6 border-b border-border/10 pb-3">
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<QrCode class="h-5 w-5 shrink-0 text-primary" />
-							<CardTitle class="text-base sm:text-lg">QR Card Generation</CardTitle>
-							{#if isGuest}
-								<span
-									class="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400"
-									>Restricted</span
-								>
-							{/if}
-						</div>
+			<CardHeader class="mb-6 border-b border-border/10 pb-3">
+				<div class="flex items-center justify-between">
+					<div class="flex items-center gap-2">
+						<QrCode class="h-5 w-5 shrink-0 text-primary" />
+						<CardTitle class="text-base sm:text-lg">QR Card Generation</CardTitle>
+						{#if isGuest}
+							<span
+								class="rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400"
+								>Restricted</span
+							>
+						{/if}
 					</div>
-				</CardHeader>
-				<CardContent>
-					<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
-						<!-- Config Side -->
-						<div class="space-y-6">
-							<div class="space-y-2">
-								<div class="flex items-center gap-2">
-									<Label for="qrHeader" class="text-sm font-medium sm:text-base">Header Title</Label
+				</div>
+			</CardHeader>
+			<CardContent>
+				<div class="grid grid-cols-1 gap-8 lg:grid-cols-2">
+					<!-- Config Side -->
+					<div class="space-y-6">
+						<div class="space-y-2">
+							<div class="flex items-center gap-2">
+								<Label for="qrHeader" class="text-sm font-medium sm:text-base">Header Title</Label>
+								{#if settings.qrHeaderTitle !== originalSettings.qrHeaderTitle}
+									<span
+										class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
+										>Unsaved</span
 									>
-									{#if settings.qrHeaderTitle !== originalSettings.qrHeaderTitle}
-										<span
-											class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
-											>Unsaved</span
-										>
-									{/if}
-								</div>
-								<Input
-									id="qrHeader"
-									bind:value={settings.qrHeaderTitle}
-									placeholder="e.g., Your Organization Name"
-									disabled={isGuest}
-								/>
-								<p class="text-xs text-muted-foreground">
-									Main title displayed at the top of the QR card.
-								</p>
+								{/if}
 							</div>
+							<Input
+								id="qrHeader"
+								bind:value={settings.qrHeaderTitle}
+								placeholder="e.g., Your Organization Name"
+								disabled={isGuest}
+							/>
+							<p class="text-xs text-muted-foreground">
+								Main title displayed at the top of the QR card.
+							</p>
+						</div>
 
-							<div class="space-y-2">
-								<div class="flex items-center gap-2">
-									<Label for="qrSubheader" class="text-sm font-medium sm:text-base"
-										>Subheader Text</Label
-									>
-									{#if settings.qrSubheaderTitle !== originalSettings.qrSubheaderTitle}
-										<span
-											class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
-											>Unsaved</span
-										>
-									{/if}
-								</div>
-								<Input
-									id="qrSubheader"
-									bind:value={settings.qrSubheaderTitle}
-									placeholder="e.g., Your tagline or mission"
-									disabled={isGuest}
-								/>
-								<p class="text-xs text-muted-foreground">
-									Subtitle or tagline displayed below the main header.
-								</p>
-							</div>
-
-							<div class="space-y-2">
-								<div class="flex items-center gap-2">
-									<Label for="qrCardColor" class="text-sm font-medium sm:text-base"
-										>Branding Color</Label
-									>
-									{#if settings.qrCardColor !== originalSettings.qrCardColor}
-										<span
-											class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
-											>Unsaved</span
-										>
-									{/if}
-								</div>
-								<div
-									class="flex items-center gap-3"
-									class:opacity-50={isGuest}
-									class:pointer-events-none={isGuest}
+						<div class="space-y-2">
+							<div class="flex items-center gap-2">
+								<Label for="qrSubheader" class="text-sm font-medium sm:text-base"
+									>Subheader Text</Label
 								>
-									<ColorPicker bind:hex={settings.qrCardColor} label="Pick a color" />
-								</div>
-								<p class="text-xs text-muted-foreground">
-									The color used for text and branding on the generated QR cards.
-								</p>
+								{#if settings.qrSubheaderTitle !== originalSettings.qrSubheaderTitle}
+									<span
+										class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
+										>Unsaved</span
+									>
+								{/if}
 							</div>
+							<Input
+								id="qrSubheader"
+								bind:value={settings.qrSubheaderTitle}
+								placeholder="e.g., Your tagline or mission"
+								disabled={isGuest}
+							/>
+							<p class="text-xs text-muted-foreground">
+								Subtitle or tagline displayed below the main header.
+							</p>
+						</div>
 
-							<div class="space-y-2">
-								<div class="flex items-center gap-2">
-									<Label for="qrBackground" class="text-sm font-medium sm:text-base"
-										>Background Image</Label
+						<div class="space-y-2">
+							<div class="flex items-center gap-2">
+								<Label for="qrCardColor" class="text-sm font-medium sm:text-base"
+									>Branding Color</Label
+								>
+								{#if settings.qrCardColor !== originalSettings.qrCardColor}
+									<span
+										class="rounded bg-amber-50 px-2 py-1 text-xs font-medium text-amber-600 dark:bg-amber-950/50 dark:text-amber-400"
+										>Unsaved</span
 									>
-									<span class="rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
-										>Optional</span
+								{/if}
+							</div>
+							<div
+								class="flex items-center gap-3"
+								class:opacity-50={isGuest}
+								class:pointer-events-none={isGuest}
+							>
+								<ColorPicker bind:hex={settings.qrCardColor} label="Pick a color" />
+							</div>
+							<p class="text-xs text-muted-foreground">
+								The color used for text and branding on the generated QR cards.
+							</p>
+						</div>
+
+						<div class="space-y-2">
+							<div class="flex items-center gap-2">
+								<Label for="qrBackground" class="text-sm font-medium sm:text-base"
+									>Background Image</Label
+								>
+								<span class="rounded bg-muted px-2 py-1 text-xs font-medium text-muted-foreground"
+									>Optional</span
+								>
+							</div>
+							<div class="space-y-3">
+								{#if settings.qrBackgroundImage}
+									<div
+										class="group relative w-full overflow-hidden rounded-xl border-2 border-border/30 bg-linear-to-br from-muted to-muted/50 shadow-md transition-all duration-300 hover:shadow-lg"
 									>
-								</div>
-								<div class="space-y-3">
-									{#if settings.qrBackgroundImage}
-										<div
-											class="group relative w-full overflow-hidden rounded-xl border-2 border-border/30 bg-linear-to-br from-muted to-muted/50 shadow-md transition-all duration-300 hover:shadow-lg"
+										<!-- Image Container -->
+										<div class="relative h-48 w-full overflow-hidden bg-muted">
+											<img
+												src={settings.qrBackgroundImage}
+												alt="Background preview"
+												class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+											/>
+											<!-- Overlay Gradient -->
+											<div
+												class="pointer-events-none absolute inset-0 bg-linear-to-t from-black/20 to-transparent"
+											></div>
+										</div>
+
+										<!-- Remove Button -->
+										<button
+											onclick={handleRemoveImage}
+											class="absolute top-3 right-3 z-10 transform rounded-lg bg-red-500/90 p-2 text-white shadow-md transition-all duration-200 hover:scale-110 hover:bg-red-600"
+											aria-label="Remove background image"
 										>
-											<!-- Image Container -->
-											<div class="relative h-48 w-full overflow-hidden bg-muted">
-												<img
-													src={settings.qrBackgroundImage}
-													alt="Background preview"
-													class="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-												/>
-												<!-- Overlay Gradient -->
-												<div
-													class="pointer-events-none absolute inset-0 bg-linear-to-t from-black/20 to-transparent"
-												></div>
-											</div>
-
-											<!-- Remove Button -->
-											<button
-												onclick={handleRemoveImage}
-												class="absolute top-3 right-3 z-10 transform rounded-lg bg-red-500/90 p-2 text-white shadow-md transition-all duration-200 hover:scale-110 hover:bg-red-600"
-												aria-label="Remove background image"
+											<svg
+												xmlns="http://www.w3.org/2000/svg"
+												width="18"
+												height="18"
+												viewBox="0 0 24 24"
+												fill="none"
+												stroke="currentColor"
+												stroke-width="2.5"
+												stroke-linecap="round"
+												stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg
 											>
-												<svg
-													xmlns="http://www.w3.org/2000/svg"
-													width="18"
-													height="18"
-													viewBox="0 0 24 24"
-													fill="none"
-													stroke="currentColor"
-													stroke-width="2.5"
-													stroke-linecap="round"
-													stroke-linejoin="round"
-													><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg
-												>
-											</button>
+										</button>
 
-											<!-- Info Footer -->
-											<div class="border-t border-border/20 bg-muted/50 px-4 py-3">
-												<div class="flex items-center justify-between">
-													<div class="flex items-center gap-2 text-sm">
+										<!-- Info Footer -->
+										<div class="border-t border-border/20 bg-muted/50 px-4 py-3">
+											<div class="flex items-center justify-between">
+												<div class="flex items-center gap-2 text-sm">
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														width="16"
+														height="16"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="2"
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														class="text-primary"
+														><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle
+															cx="9"
+															cy="9"
+															r="2"
+														/><path d="m21 15-5-5L7 21" /></svg
+													>
+													<span class="font-medium text-foreground">Image uploaded</span>
+												</div>
+												<button
+													onclick={() =>
+														(document.getElementById('qrBackground') as HTMLInputElement)?.click()}
+													class="text-xs font-medium text-primary transition-colors hover:text-primary/80"
+												>
+													Change
+												</button>
+											</div>
+										</div>
+									</div>
+								{:else}
+									<label
+										for="qrBackground"
+										class="group block cursor-pointer"
+										ondragover={handleDragOver}
+										ondragleave={handleDragLeave}
+										ondrop={handleDrop}
+									>
+										<div
+											class={cn(
+												'flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/20 px-6 py-8 transition-all duration-300',
+												(isDragging ?? false)
+													? 'scale-105 border-primary bg-primary/10'
+													: 'border-border/40 group-hover:border-primary/50 group-hover:bg-primary/5'
+											)}
+										>
+											<div class="flex flex-col items-center justify-center gap-2">
+												<div
+													class={cn(
+														'rounded-lg p-3 transition-all',
+														(isDragging ?? false)
+															? 'scale-110 bg-primary/30'
+															: 'bg-primary/10 group-hover:bg-primary/20'
+													)}
+												>
+													<svg
+														xmlns="http://www.w3.org/2000/svg"
+														width="32"
+														height="32"
+														viewBox="0 0 24 24"
+														fill="none"
+														stroke="currentColor"
+														stroke-width="2"
+														stroke-linecap="round"
+														stroke-linejoin="round"
+														class={cn(
+															'transition-colors',
+															isDragging ? 'text-primary' : 'text-primary'
+														)}
+														><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle
+															cx="9"
+															cy="9"
+															r="2"
+														/><path d="m21 15-5-5L7 21" /></svg
+													>
+												</div>
+												{#if draggedFileName}
+													<div class="flex items-center gap-2">
+														<p class="text-sm font-semibold text-primary">{draggedFileName}</p>
 														<svg
 															xmlns="http://www.w3.org/2000/svg"
 															width="16"
@@ -1010,219 +1124,136 @@
 															stroke-width="2"
 															stroke-linecap="round"
 															stroke-linejoin="round"
-															class="text-primary"
-															><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle
-																cx="9"
-																cy="9"
-																r="2"
-															/><path d="m21 15-5-5L7 21" /></svg
+															class="animate-pulse text-primary"
+															><polyline points="20 6 9 17 4 12" /></svg
 														>
-														<span class="font-medium text-foreground">Image uploaded</span>
 													</div>
-													<button
-														onclick={() =>
-															(
-																document.getElementById('qrBackground') as HTMLInputElement
-															)?.click()}
-														class="text-xs font-medium text-primary transition-colors hover:text-primary/80"
-													>
-														Change
-													</button>
-												</div>
+													<p class="text-xs text-muted-foreground">Ready to upload</p>
+												{:else}
+													<p class="text-sm font-semibold text-foreground">
+														Upload Background Image
+													</p>
+													<p class="text-xs text-muted-foreground">or drag and drop</p>
+												{/if}
+											</div>
+											<div class="mt-4 flex gap-2 text-xs text-muted-foreground">
+												<span class="rounded-md bg-muted px-2 py-1 font-medium">PNG</span>
+												<span class="rounded-md bg-muted px-2 py-1 font-medium">JPG</span>
+												<span class="rounded-md bg-muted px-2 py-1 font-medium">Max 5MB</span>
 											</div>
 										</div>
-									{:else}
-										<label
-											for="qrBackground"
-											class="group block cursor-pointer"
-											ondragover={handleDragOver}
-											ondragleave={handleDragLeave}
-											ondrop={handleDrop}
-										>
-											<div
-												class={cn(
-													'flex w-full flex-col items-center justify-center rounded-xl border-2 border-dashed bg-muted/20 px-6 py-8 transition-all duration-300',
-													(isDragging ?? false)
-														? 'scale-105 border-primary bg-primary/10'
-														: 'border-border/40 group-hover:border-primary/50 group-hover:bg-primary/5'
-												)}
-											>
-												<div class="flex flex-col items-center justify-center gap-2">
-													<div
-														class={cn(
-															'rounded-lg p-3 transition-all',
-															(isDragging ?? false)
-																? 'scale-110 bg-primary/30'
-																: 'bg-primary/10 group-hover:bg-primary/20'
-														)}
-													>
-														<svg
-															xmlns="http://www.w3.org/2000/svg"
-															width="32"
-															height="32"
-															viewBox="0 0 24 24"
-															fill="none"
-															stroke="currentColor"
-															stroke-width="2"
-															stroke-linecap="round"
-															stroke-linejoin="round"
-															class={cn(
-																'transition-colors',
-																isDragging ? 'text-primary' : 'text-primary'
-															)}
-															><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle
-																cx="9"
-																cy="9"
-																r="2"
-															/><path d="m21 15-5-5L7 21" /></svg
-														>
-													</div>
-													{#if draggedFileName}
-														<div class="flex items-center gap-2">
-															<p class="text-sm font-semibold text-primary">{draggedFileName}</p>
-															<svg
-																xmlns="http://www.w3.org/2000/svg"
-																width="16"
-																height="16"
-																viewBox="0 0 24 24"
-																fill="none"
-																stroke="currentColor"
-																stroke-width="2"
-																stroke-linecap="round"
-																stroke-linejoin="round"
-																class="animate-pulse text-primary"
-																><polyline points="20 6 9 17 4 12" /></svg
-															>
-														</div>
-														<p class="text-xs text-muted-foreground">Ready to upload</p>
-													{:else}
-														<p class="text-sm font-semibold text-foreground">
-															Upload Background Image
-														</p>
-														<p class="text-xs text-muted-foreground">or drag and drop</p>
-													{/if}
-												</div>
-												<div class="mt-4 flex gap-2 text-xs text-muted-foreground">
-													<span class="rounded-md bg-muted px-2 py-1 font-medium">PNG</span>
-													<span class="rounded-md bg-muted px-2 py-1 font-medium">JPG</span>
-													<span class="rounded-md bg-muted px-2 py-1 font-medium">Max 5MB</span>
-												</div>
-											</div>
-										</label>
-									{/if}
-									<input
-										id="qrBackground"
-										type="file"
-										accept="image/*"
-										class="hidden"
-										onchange={handleImageUpload}
-									/>
-								</div>
-								<p class="flex items-center gap-2 text-xs text-muted-foreground">
-									<svg
-										xmlns="http://www.w3.org/2000/svg"
-										width="14"
-										height="14"
-										viewBox="0 0 24 24"
-										fill="none"
-										stroke="currentColor"
-										stroke-width="2"
-										stroke-linecap="round"
-										stroke-linejoin="round"
-										class="opacity-60"
-										><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg
-									>
-									Used as background on generated QR cards. Visible in all exports.
-								</p>
-							</div>
-						</div>
-
-						<!-- Preview Side -->
-						<div
-							class="flex min-h-100 flex-col items-center justify-center rounded-2xl border border-dashed border-border/50 bg-muted/40 p-6"
-						>
-							<div class="mb-6 text-xs font-bold tracking-wider text-muted-foreground uppercase">
-								Live Preview
-							</div>
-
-							<!-- Mini QR Card Mock -->
-							<div
-								class="relative flex h-75 w-75 flex-col items-center overflow-hidden rounded-xl border border-border/20 bg-white p-4 shadow-xl"
-							>
-								<!-- Background Image Overlay -->
-								{#if previewBackgroundDataUrl}
-									<div class="absolute inset-0 z-0">
-										<img
-											src={previewBackgroundDataUrl}
-											alt="Background"
-											class="h-full w-full object-cover"
-										/>
-									</div>
+									</label>
 								{/if}
-								<!-- Header Text -->
-								<div class="relative z-10 mt-2 px-2 text-center">
-									<h4
-										class="text-[14px] leading-tight font-bold"
-										style="color: {settings.qrCardColor}"
-									>
-										{settings.qrHeaderTitle || 'HEADER TITLE'}
-									</h4>
-									<p
-										class="mt-1 text-[10px] font-medium italic opacity-100"
-										style="color: {settings.qrCardColor}"
-									>
-										{settings.qrSubheaderTitle || 'Subheader goes here'}
-									</p>
-								</div>
-
-								<!-- Mock QR Code Box -->
-								<div
-									class="relative z-10 mt-4 flex h-36 w-36 items-center justify-center rounded-lg border-4 bg-white"
-									style="border-color: {settings.qrCardColor}20"
-								>
-									<QrCode class="h-24 w-24 opacity-100" style="color: {settings.qrCardColor}" />
-								</div>
-
-								<!-- Member Name (Below QR) -->
-								<div class="relative z-10 mt-4 text-center">
-									<div
-										class="text-[12px] font-bold uppercase"
-										style="color: {settings.qrCardColor}"
-									>
-										Sample Member
-									</div>
-								</div>
-
-								<!-- Member ID (Bottom) -->
-								<div class="relative z-10 mt-2 mb-4 text-center">
-									<div
-										class="text-[12px] font-black tracking-widest"
-										style="color: {settings.qrCardColor}"
-									>
-										ENG-1234
-									</div>
-								</div>
-
-								<!-- BG Pattern Mock (Subtle) -->
-								<div class="pointer-events-none absolute inset-0 -z-10 overflow-hidden opacity-100">
-									<div
-										class="absolute top-0 right-0 h-32 w-32 rounded-full blur-3xl"
-										style="background-color: {settings.qrCardColor}"
-									></div>
-									<div
-										class="absolute bottom-0 left-0 h-32 w-32 rounded-full blur-3xl"
-										style="background-color: {settings.qrCardColor}"
-									></div>
-								</div>
+								<input
+									id="qrBackground"
+									type="file"
+									accept="image/*"
+									class="hidden"
+									onchange={handleImageUpload}
+								/>
 							</div>
-							<p class="mt-4 text-center text-[11px] text-muted-foreground">
-								Generating a real image uses 1080x1080 resolution.
+							<p class="flex items-center gap-2 text-xs text-muted-foreground">
+								<svg
+									xmlns="http://www.w3.org/2000/svg"
+									width="14"
+									height="14"
+									viewBox="0 0 24 24"
+									fill="none"
+									stroke="currentColor"
+									stroke-width="2"
+									stroke-linecap="round"
+									stroke-linejoin="round"
+									class="opacity-60"
+									><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg
+								>
+								Used as background on generated QR cards. Visible in all exports.
 							</p>
 						</div>
 					</div>
-				</CardContent>
-			</Card>
-		</div>
+
+					<!-- Preview Side -->
+					<div
+						class="flex min-h-100 flex-col items-center justify-center rounded-2xl border border-dashed border-border/50 bg-muted/40 p-6"
+					>
+						<div class="mb-6 text-xs font-bold tracking-wider text-muted-foreground uppercase">
+							Live Preview
+						</div>
+
+						<!-- Mini QR Card Mock -->
+						<div
+							class="relative flex h-75 w-75 flex-col items-center overflow-hidden rounded-xl border border-border/20 bg-white p-4 shadow-xl"
+						>
+							<!-- Background Image Overlay -->
+							{#if previewBackgroundDataUrl}
+								<div class="absolute inset-0 z-0">
+									<img
+										src={previewBackgroundDataUrl}
+										alt="Background"
+										class="h-full w-full object-cover"
+									/>
+								</div>
+							{/if}
+							<!-- Header Text -->
+							<div class="relative z-10 mt-2 px-2 text-center">
+								<h4
+									class="text-[14px] leading-tight font-bold"
+									style="color: {settings.qrCardColor}"
+								>
+									{settings.qrHeaderTitle || 'HEADER TITLE'}
+								</h4>
+								<p
+									class="mt-1 text-[10px] font-medium italic opacity-100"
+									style="color: {settings.qrCardColor}"
+								>
+									{settings.qrSubheaderTitle || 'Subheader goes here'}
+								</p>
+							</div>
+
+							<!-- Mock QR Code Box -->
+							<div
+								class="relative z-10 mt-4 flex h-36 w-36 items-center justify-center rounded-lg border-4 bg-white"
+								style="border-color: {settings.qrCardColor}20"
+							>
+								<QrCode class="h-24 w-24 opacity-100" style="color: {settings.qrCardColor}" />
+							</div>
+
+							<!-- Member Name (Below QR) -->
+							<div class="relative z-10 mt-4 text-center">
+								<div class="text-[12px] font-bold uppercase" style="color: {settings.qrCardColor}">
+									Sample Member
+								</div>
+							</div>
+
+							<!-- Member ID (Bottom) -->
+							<div class="relative z-10 mt-2 mb-4 text-center">
+								<div
+									class="text-[12px] font-black tracking-widest"
+									style="color: {settings.qrCardColor}"
+								>
+									ENG-1234
+								</div>
+							</div>
+
+							<!-- BG Pattern Mock (Subtle) -->
+							<div class="pointer-events-none absolute inset-0 -z-10 overflow-hidden opacity-100">
+								<div
+									class="absolute top-0 right-0 h-32 w-32 rounded-full blur-3xl"
+									style="background-color: {settings.qrCardColor}"
+								></div>
+								<div
+									class="absolute bottom-0 left-0 h-32 w-32 rounded-full blur-3xl"
+									style="background-color: {settings.qrCardColor}"
+								></div>
+							</div>
+						</div>
+						<p class="mt-4 text-center text-[11px] text-muted-foreground">
+							Generating a real image uses 1080x1080 resolution.
+						</p>
+					</div>
+				</div>
+			</CardContent>
+		</Card>
+	</div>
 
 	<!-- Action Buttons -->
 	<div class="flex flex-col gap-3 sm:flex-row">

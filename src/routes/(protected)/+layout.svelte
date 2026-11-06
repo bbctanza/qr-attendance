@@ -3,14 +3,13 @@
 	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import { devTools } from '$lib/stores/dev';
-	import { onboardingState } from '$lib/stores/onboarding';
-	import OnboardingModal from '$lib/components/onboarding-modal.svelte';
 	import ChangelogModal from '$lib/components/changelog-modal.svelte';
 	import { automation } from '$lib/logic/automation';
 	import { changelogStore } from '$lib/stores/changelog';
 	import { CURRENT_VERSION, changelog } from '$lib/config/changelog';
 	import { registerSession } from '$lib/utils/sessions';
 	import { startSessionWatchdog } from '$lib/utils/session-watchdog';
+	import { toast } from 'svelte-sonner';
 
 	let { children } = $props();
 	let isLoading = $state(true);
@@ -35,7 +34,6 @@
 		} = supabase.auth.onAuthStateChange((event) => {
 			if (event === 'SIGNED_OUT') {
 				devTools.setBypassEventTimeValidation(false);
-				onboardingState.set({ isOpen: false, userEmail: '', userId: '' });
 				// Don't stop the automation engine - it's shared across sessions
 				goto('/');
 			}
@@ -66,21 +64,29 @@
 						})
 						.catch((e) => console.error('Session registration failed:', e));
 
-					// Check if user needs onboarding
 					const { data: profile, error } = await supabase
 						.from('profiles')
-						.select('onboarding_completed, email, id')
+						.select('onboarding_completed, status, email, id')
 						.eq('id', session.user.id)
 						.single();
 
 					if (!error && profile) {
-						// If onboarding_completed is null or false, show onboarding
+						// A suspended account can still be holding a valid access token when
+						// it is suspended, or sign in again before the token is rejected.
+						// Checking here means suspension takes effect on the next navigation
+						// rather than whenever the token happens to expire.
+						if (profile.status === 'suspended') {
+							await supabase.auth.signOut();
+							toast.error('Your access has been suspended. Contact an administrator.');
+							goto('/login');
+							return;
+						}
+
+						// Account setup is a route of its own now, not a modal over a dashboard
+						// the user can see but not use.
 						if (!profile.onboarding_completed) {
-							onboardingState.set({
-								isOpen: true,
-								userEmail: profile.email || session.user.email || '',
-								userId: profile.id
-							});
+							goto('/welcome');
+							return;
 						}
 					}
 
@@ -106,11 +112,6 @@
 		<div class="h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
 	</div>
 {:else}
-	<OnboardingModal
-		bind:isOpen={$onboardingState.isOpen}
-		userEmail={$onboardingState.userEmail}
-		userId={$onboardingState.userId}
-	/>
 	<ChangelogModal bind:open={isChangelogOpen} />
 	{@render children()}
 {/if}

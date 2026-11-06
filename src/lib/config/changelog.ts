@@ -9,9 +9,37 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.5.0';
+export const CURRENT_VERSION = '2.6.0';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.6.0',
+		date: 'November 6, 2026',
+		title: 'Access Directory & Account Setup Rework',
+		items: [
+			// Access Directory
+			'Manage Staff is now the Access Directory - It always covered administrators, guests and pending invitations, not just staff, and "Staff" is also the name of one of the roles it assigns. Lives at Options > Access Directory; old links still work.',
+			'Pending Invitations Are Visible - Invited people now show as Invited, with who invited them, when the link expires and how many times it has been sent, instead of appearing identical to someone who had already signed in.',
+			'Resend & Revoke - Invitations can be resent (which restarts the 7-day clock) or revoked, which makes the emailed link stop working.',
+			'Suspend Instead of Delete - Suspending signs someone out everywhere and blocks sign-in while keeping their account and history. Removal is still available, and now asks you to type the email address first.',
+			'Role Descriptions Where You Choose - The invite form and the role menu say what each role can actually do, so you are not picking a label blind.',
+			'Filters & Summary - Counts for pending, administrators, staff and suspended double as filters, alongside search and role/status filters.',
+			'Last Active - The directory shows when each person last used the system.',
+
+			// Security
+			'Fixed: Privilege Escalation - Role changes and account deletion checked the password of whoever asked but never whether they were an administrator. Any signed-in user could promote themselves to admin. Authorization is now checked on every privileged action.',
+			'Fixed: Self-Promotion via Database - Anyone could change their own role with a direct database call. Role and account status can no longer be written from the browser at all.',
+			'Fixed: Role from Signup Metadata - New accounts took their role from user-supplied signup data. The role now comes only from the server-side invitation record, and anything uninvited lands as Guest.',
+			'Fixed: Staff Emails Were Public - Every staff email address was readable without signing in.',
+			'Confirm Once, Not Every Time - Managing access asks for your password once and stays confirmed for 10 minutes, instead of a password prompt on every single action. Repeated wrong attempts are now throttled.',
+			'Last Administrator Protected - You can no longer demote, suspend or remove the only remaining administrator and lock everyone out.',
+
+			// Account setup
+			'New Setup Experience - Invited people get a proper welcome page instead of a modal over a dashboard they cannot use: who invited them, what their role can do, then password and profile.',
+			'Stronger Passwords - Setup now requires at least 10 characters and rejects common passwords and your own email address.',
+			'Fixed: Disappearing Profile Pictures - Pictures uploaded during setup stopped loading after an hour and fell back to initials. They now persist.'
+		]
+	},
 	{
 		version: '2.5.0',
 		date: 'October 4, 2026',
@@ -94,11 +122,11 @@ export const changelog: ChangelogEntry[] = [
 			'Revamped Group Performance Metric - Switched from group attendance rate to "Share of total attendance" to provide better insights.',
 			'Auto-Scaling Radar Chart - The Group Performance chart now automatically scales to fill the screen, ensuring the data is always clearly readable.',
 			'Analytics Dropdown Filter - The event selector in Analytics now strictly filters out scheduled or cancelled events, only showing completed events.',
-			
+
 			// Mobile & UI
 			'Mobile Radar Chart Layout - Fixed an issue where the radar chart and legend were squished side-by-side on mobile devices. They now properly stack vertically.',
 			'Optimized Mobile Legends - Reformatted the group performance legend into a compact 2-column grid to save vertical space on mobile screens.',
-			
+
 			// Bug Fixes
 			'Fixed 8-Hour Time Offset - Resolved a critical timezone bug where check-in times were displayed exactly 8 hours behind local time (GMT+8).',
 			'Dashboard Stability - Resolved underlying reactivity warnings and loop-key issues in the Analytics dashboard.',
@@ -114,7 +142,7 @@ export const changelog: ChangelogEntry[] = [
 			'Customizable Scan Experience - New "Scan Settings" section in App Settings allows toggling the full-screen check-in modal.',
 			'Variable Modal Duration - Fine-tune how long scan results stay on screen (1-15 seconds) with a real-time countdown.',
 			'Fallback Toast Notifications - When the full-screen modal is disabled, scan results are elegantly shown as toast alerts.',
-			'Settings Persistence - Scan preferences are saved to the cloud and synced across all your organization\'s devices.',
+			"Settings Persistence - Scan preferences are saved to the cloud and synced across all your organization's devices.",
 
 			// UI/UX Improvements
 			'Universal Skeleton Screens - Replaced all full-page loading spinners with bespoke skeleton layouts for a smoother, premium feel.',

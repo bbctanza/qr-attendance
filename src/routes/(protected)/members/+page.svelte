@@ -206,11 +206,7 @@
 		handleResize();
 
 		isLoading = true;
-		Promise.all([
-			fetchGroups(),
-			fetchMembers(),
-			fetchStats()
-		]).finally(() => {
+		Promise.all([fetchGroups(), fetchMembers(), fetchStats()]).finally(() => {
 			isLoading = false;
 		});
 
@@ -965,620 +961,694 @@
 {#if isLoading}
 	<!-- Mobile View Skeleton -->
 	{#if isMobileView}
-	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20">
-		<!-- Search & Add -->
-		<div class="flex items-center gap-3 px-4 py-2">
-			<Skeleton class="h-14 flex-1 rounded-2xl" />
-			<Skeleton class="h-14 w-14 rounded-[22px]" />
-		</div>
+		<div class="mt-2 flex min-h-screen flex-col bg-background pb-20">
+			<!-- Search & Add -->
+			<div class="flex items-center gap-3 px-4 py-2">
+				<Skeleton class="h-14 flex-1 rounded-2xl" />
+				<Skeleton class="h-14 w-14 rounded-[22px]" />
+			</div>
 
-		<!-- Stats & Filter -->
-		<div class="flex items-end justify-between px-4 py-6">
-			<div>
-				<Skeleton class="mb-1 h-3 w-24" />
-				<div class="flex items-baseline gap-2">
-					<Skeleton class="h-10 w-16" />
-					<Skeleton class="h-4 w-10" />
+			<!-- Stats & Filter -->
+			<div class="flex items-end justify-between px-4 py-6">
+				<div>
+					<Skeleton class="mb-1 h-3 w-24" />
+					<div class="flex items-baseline gap-2">
+						<Skeleton class="h-10 w-16" />
+						<Skeleton class="h-4 w-10" />
+					</div>
+				</div>
+				<div class="flex items-center gap-2">
+					<Skeleton class="h-12 w-12 rounded-2xl" />
+					<Skeleton class="h-12 w-12 rounded-2xl" />
 				</div>
 			</div>
-			<div class="flex items-center gap-2">
-				<Skeleton class="h-12 w-12 rounded-2xl" />
-				<Skeleton class="h-12 w-12 rounded-2xl" />
-			</div>
-		</div>
 
-		<!-- Grouped List -->
-		<div class="flex-1 space-y-8 px-4 py-4">
-			{#each Array(3) as _}
-				<div class="space-y-4">
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-2">
-							<Skeleton class="h-4 w-1" />
-							<Skeleton class="h-4 w-24" />
-							<Skeleton class="h-4 w-6 rounded" />
+			<!-- Grouped List -->
+			<div class="flex-1 space-y-8 px-4 py-4">
+				{#each Array(3) as _}
+					<div class="space-y-4">
+						<div class="flex items-center justify-between">
+							<div class="flex items-center gap-2">
+								<Skeleton class="h-4 w-1" />
+								<Skeleton class="h-4 w-24" />
+								<Skeleton class="h-4 w-6 rounded" />
+							</div>
+							<Skeleton class="h-4 w-4" />
 						</div>
-						<Skeleton class="h-4 w-4" />
+						<div class="space-y-3">
+							{#each Array(3) as _}
+								<Skeleton class="h-24 w-full rounded-2xl" />
+							{/each}
+						</div>
 					</div>
-					<div class="space-y-3">
-						{#each Array(3) as _}
-							<Skeleton class="h-24 w-full rounded-2xl" />
-						{/each}
-					</div>
-				</div>
-			{/each}
+				{/each}
+			</div>
 		</div>
-	</div>
 	{/if}
 
 	<!-- Desktop View Skeleton -->
 	{#if !isMobileView}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Page Header -->
-		<div class="flex items-center justify-between">
-			<div>
-				<Skeleton class="mb-2 h-9 w-40" />
-				<Skeleton class="h-5 w-64" />
-			</div>
-			<div class="flex gap-2">
-				<Skeleton class="h-9 w-24" />
-				<Skeleton class="h-9 w-32" />
-			</div>
-		</div>
-
-		<!-- Statistics Cards -->
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-			{#each Array(3) as _}
-				<Skeleton class="h-[120px] rounded-xl" />
-			{/each}
-		</div>
-
-		<!-- Search, Filters & View Toggle -->
-		<div class="flex items-center gap-4">
-			<Skeleton class="h-10 w-full max-w-sm rounded-lg" />
-			<div class="flex items-center gap-2">
-				{#each Array(4) as _}
-					<Skeleton class="h-8 w-20 rounded-full" />
-				{/each}
-			</div>
-			<Skeleton class="ml-auto h-10 w-20 rounded-lg" />
-		</div>
-
-		<!-- Table View -->
-		<div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-			<div class="border-b px-4 py-3">
-				<div class="flex items-center gap-4">
-					<Skeleton class="h-4 w-4" />
-					<Skeleton class="h-4 w-8" />
-					<Skeleton class="h-4 w-40" />
-					<Skeleton class="h-4 w-32" />
-					<Skeleton class="h-4 w-24" />
-					<Skeleton class="h-4 w-20" />
-					<Skeleton class="ml-auto h-4 w-16" />
+		<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+			<!-- Page Header -->
+			<div class="flex items-center justify-between">
+				<div>
+					<Skeleton class="mb-2 h-9 w-40" />
+					<Skeleton class="h-5 w-64" />
+				</div>
+				<div class="flex gap-2">
+					<Skeleton class="h-9 w-24" />
+					<Skeleton class="h-9 w-32" />
 				</div>
 			</div>
-			<div class="px-4 py-2">
-				{#each Array(5) as _}
-					<div class="flex items-center gap-4 py-3">
+
+			<!-- Statistics Cards -->
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+				{#each Array(3) as _}
+					<Skeleton class="h-[120px] rounded-xl" />
+				{/each}
+			</div>
+
+			<!-- Search, Filters & View Toggle -->
+			<div class="flex items-center gap-4">
+				<Skeleton class="h-10 w-full max-w-sm rounded-lg" />
+				<div class="flex items-center gap-2">
+					{#each Array(4) as _}
+						<Skeleton class="h-8 w-20 rounded-full" />
+					{/each}
+				</div>
+				<Skeleton class="ml-auto h-10 w-20 rounded-lg" />
+			</div>
+
+			<!-- Table View -->
+			<div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+				<div class="border-b px-4 py-3">
+					<div class="flex items-center gap-4">
 						<Skeleton class="h-4 w-4" />
-						<Skeleton class="h-8 w-8 rounded-full" />
+						<Skeleton class="h-4 w-8" />
 						<Skeleton class="h-4 w-40" />
 						<Skeleton class="h-4 w-32" />
 						<Skeleton class="h-4 w-24" />
 						<Skeleton class="h-4 w-20" />
-						<div class="ml-auto flex gap-2">
-							<Skeleton class="h-8 w-8 rounded-md" />
-							<Skeleton class="h-8 w-8 rounded-md" />
-						</div>
+						<Skeleton class="ml-auto h-4 w-16" />
 					</div>
-				{/each}
+				</div>
+				<div class="px-4 py-2">
+					{#each Array(5) as _}
+						<div class="flex items-center gap-4 py-3">
+							<Skeleton class="h-4 w-4" />
+							<Skeleton class="h-8 w-8 rounded-full" />
+							<Skeleton class="h-4 w-40" />
+							<Skeleton class="h-4 w-32" />
+							<Skeleton class="h-4 w-24" />
+							<Skeleton class="h-4 w-20" />
+							<div class="ml-auto flex gap-2">
+								<Skeleton class="h-8 w-8 rounded-md" />
+								<Skeleton class="h-8 w-8 rounded-md" />
+							</div>
+						</div>
+					{/each}
+				</div>
 			</div>
 		</div>
-	</div>
 	{/if}
 {:else}
 	<!-- Mobile View -->
 	{#if isMobileView}
-	<div class="mt-2 flex min-h-screen flex-col bg-background pb-20">
-		<!-- Search & Add -->
-		<div class="flex items-center gap-3 px-4 py-2">
-			<div class="relative flex-1">
-				<Search
-					class="absolute top-1/2 left-4 -translate-y-1/2 text-muted-foreground-mobile"
-					size={20}
-				/>
-				<input
-					type="text"
-					placeholder="Search members..."
-					bind:value={searchQuery}
-					class="w-full rounded-2xl border-2 border-border/20 bg-card/20 py-4 pr-4 pl-12 text-sm placeholder-muted-foreground-mobile ring-primary/20 outline-none focus:border-primary focus:ring-2"
-				/>
-			</div>
-			<button
-				aria-label="Add member"
-				onclick={() => (showAddMemberDrawer = true)}
-				class="flex aspect-square h-14 items-center justify-center rounded-[22px] bg-primary shadow-lg shadow-primary/10 transition-all active:scale-95"
-			>
-				<UserPlus size={26} class="text-primary-foreground" />
-			</button>
-		</div>
-
-		<!-- Stats & Filter -->
-		<div class="flex items-end justify-between px-4 py-6">
-			<div>
-				<span class="text-[10px] font-black tracking-[0.15em] text-muted-foreground/60 uppercase"
-					>Total Members</span
-				>
-				<div class="mt-1 flex items-baseline gap-2">
-					<span class="text-4xl font-black tracking-tight">{statistics.total}</span>
-					<span
-						class="text-[13px] font-bold {statistics.growth >= 0
-							? 'text-primary'
-							: 'text-destructive'}"
-					>
-						{statistics.growth >= 0 ? '+' : ''}{statistics.growth}%
-					</span>
+		<div class="mt-2 flex min-h-screen flex-col bg-background pb-20">
+			<!-- Search & Add -->
+			<div class="flex items-center gap-3 px-4 py-2">
+				<div class="relative flex-1">
+					<Search
+						class="absolute top-1/2 left-4 -translate-y-1/2 text-muted-foreground-mobile"
+						size={20}
+					/>
+					<input
+						type="text"
+						placeholder="Search members..."
+						bind:value={searchQuery}
+						class="w-full rounded-2xl border-2 border-border/20 bg-card/20 py-4 pr-4 pl-12 text-sm placeholder-muted-foreground-mobile ring-primary/20 outline-none focus:border-primary focus:ring-2"
+					/>
 				</div>
+				<button
+					aria-label="Add member"
+					onclick={() => (showAddMemberDrawer = true)}
+					class="flex aspect-square h-14 items-center justify-center rounded-[22px] bg-primary shadow-lg shadow-primary/10 transition-all active:scale-95"
+				>
+					<UserPlus size={26} class="text-primary-foreground" />
+				</button>
 			</div>
-			<div class="flex items-center gap-2">
-				<DropdownMenu>
-					<DropdownMenuTrigger>
-						{#snippet child({ props })}
-							<button
-								{...props}
-								class="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/10 bg-card/40 text-muted-foreground/80 transition-all active:scale-95"
-								aria-label="Export options"
-							>
-								<FileDown size={20} />
-							</button>
-						{/snippet}
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" class="w-48 rounded-2xl border-border/40 p-2 shadow-xl">
-						<DropdownMenuLabel
-							class="px-2 py-1.5 text-[10px] font-black tracking-widest text-muted-foreground/60 uppercase"
-							>Export Members</DropdownMenuLabel
-						>
-						<DropdownMenuItem
-							onclick={() => exportMembersCSVHandler()}
-							class="rounded-xl px-2 py-2.5 text-sm font-bold"
-						>
-							<FileDown class="mr-2 h-4 w-4 opacity-60" />
-							CSV Spreadsheets
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onclick={() => exportMembersPDFHandler()}
-							class="rounded-xl px-2 py-2.5 text-sm font-bold"
-						>
-							<FileDown class="mr-2 h-4 w-4 opacity-60" />
-							PDF Document
-						</DropdownMenuItem>
-						<DropdownMenuItem
-							onclick={() => exportMembersQRZipHandler()}
-							class="rounded-xl px-2 py-2.5 text-sm font-bold"
-						>
-							<QrCode class="mr-2 h-4 w-4 opacity-60" />
-							QR Tags (ZIP)
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
 
-				<DropdownMenu>
-					<DropdownMenuTrigger>
-						{#snippet child({ props })}
-							<button
-								{...props}
-								class="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/10 bg-card/40 text-muted-foreground/80 transition-all active:scale-95"
-								aria-label="Filter"
-							>
-								<Filter size={18} />
-							</button>
-						{/snippet}
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end" class="w-56 rounded-2xl border-border/40 p-2 shadow-xl">
-						<DropdownMenuLabel
-							class="px-2 py-1.5 text-[10px] font-black tracking-widest text-muted-foreground/60 uppercase"
-							>Filter Groups</DropdownMenuLabel
+			<!-- Stats & Filter -->
+			<div class="flex items-end justify-between px-4 py-6">
+				<div>
+					<span class="text-[10px] font-black tracking-[0.15em] text-muted-foreground/60 uppercase"
+						>Total Members</span
+					>
+					<div class="mt-1 flex items-baseline gap-2">
+						<span class="text-4xl font-black tracking-tight">{statistics.total}</span>
+						<span
+							class="text-[13px] font-bold {statistics.growth >= 0
+								? 'text-primary'
+								: 'text-destructive'}"
 						>
-						<DropdownMenuSeparator class="bg-border/50" />
-						{#each groupOptions as group}
-							<DropdownMenuCheckboxItem
-								checked={selectedGroups.has(group)}
-								onCheckedChange={(checked) => {
-									if (checked) selectedGroups.add(group);
-									else selectedGroups.delete(group);
-									selectedGroups = new Set(selectedGroups);
-								}}
+							{statistics.growth >= 0 ? '+' : ''}{statistics.growth}%
+						</span>
+					</div>
+				</div>
+				<div class="flex items-center gap-2">
+					<DropdownMenu>
+						<DropdownMenuTrigger>
+							{#snippet child({ props })}
+								<button
+									{...props}
+									class="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/10 bg-card/40 text-muted-foreground/80 transition-all active:scale-95"
+									aria-label="Export options"
+								>
+									<FileDown size={20} />
+								</button>
+							{/snippet}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="end"
+							class="w-48 rounded-2xl border-border/40 p-2 shadow-xl"
+						>
+							<DropdownMenuLabel
+								class="px-2 py-1.5 text-[10px] font-black tracking-widest text-muted-foreground/60 uppercase"
+								>Export Members</DropdownMenuLabel
+							>
+							<DropdownMenuItem
+								onclick={() => exportMembersCSVHandler()}
 								class="rounded-xl px-2 py-2.5 text-sm font-bold"
 							>
-								{group}
-							</DropdownMenuCheckboxItem>
-						{/each}
-						<DropdownMenuSeparator class="bg-border/50" />
-						<DropdownMenuItem
-							onclick={() => (selectedGroups = new Set(groupOptions))}
-							class="rounded-xl px-2 py-2.5 text-sm font-bold text-primary"
+								<FileDown class="mr-2 h-4 w-4 opacity-60" />
+								CSV Spreadsheets
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onclick={() => exportMembersPDFHandler()}
+								class="rounded-xl px-2 py-2.5 text-sm font-bold"
+							>
+								<FileDown class="mr-2 h-4 w-4 opacity-60" />
+								PDF Document
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onclick={() => exportMembersQRZipHandler()}
+								class="rounded-xl px-2 py-2.5 text-sm font-bold"
+							>
+								<QrCode class="mr-2 h-4 w-4 opacity-60" />
+								QR Tags (ZIP)
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+
+					<DropdownMenu>
+						<DropdownMenuTrigger>
+							{#snippet child({ props })}
+								<button
+									{...props}
+									class="flex h-12 w-12 items-center justify-center rounded-2xl border border-border/10 bg-card/40 text-muted-foreground/80 transition-all active:scale-95"
+									aria-label="Filter"
+								>
+									<Filter size={18} />
+								</button>
+							{/snippet}
+						</DropdownMenuTrigger>
+						<DropdownMenuContent
+							align="end"
+							class="w-56 rounded-2xl border-border/40 p-2 shadow-xl"
 						>
-							Show All
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+							<DropdownMenuLabel
+								class="px-2 py-1.5 text-[10px] font-black tracking-widest text-muted-foreground/60 uppercase"
+								>Filter Groups</DropdownMenuLabel
+							>
+							<DropdownMenuSeparator class="bg-border/50" />
+							{#each groupOptions as group}
+								<DropdownMenuCheckboxItem
+									checked={selectedGroups.has(group)}
+									onCheckedChange={(checked) => {
+										if (checked) selectedGroups.add(group);
+										else selectedGroups.delete(group);
+										selectedGroups = new Set(selectedGroups);
+									}}
+									class="rounded-xl px-2 py-2.5 text-sm font-bold"
+								>
+									{group}
+								</DropdownMenuCheckboxItem>
+							{/each}
+							<DropdownMenuSeparator class="bg-border/50" />
+							<DropdownMenuItem
+								onclick={() => (selectedGroups = new Set(groupOptions))}
+								class="rounded-xl px-2 py-2.5 text-sm font-bold text-primary"
+							>
+								Show All
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
+			</div>
+
+			<!-- Grouped List -->
+			<div class="flex-1 space-y-8 px-4 py-4">
+				{#each Object.entries(groupedMembers) as [groupName, groupMembers]}
+					<Collapsible.Root
+						open={!collapsedGroups.has(groupName)}
+						onOpenChange={(open) => {
+							if (open) {
+								collapsedGroups.delete(groupName);
+							} else {
+								collapsedGroups.add(groupName);
+							}
+							collapsedGroups = new Set(collapsedGroups);
+						}}
+					>
+						<div class="flex items-center justify-between">
+							<div class="mb-4 flex items-center gap-2">
+								<div
+									class="h-4 w-1 rounded-full {groupColors[groupName] || 'bg-muted'} border-l-4"
+								></div>
+								<h2 class="text-xs font-bold tracking-wider text-muted-foreground uppercase">
+									{groupName}
+								</h2>
+								<span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground/70"
+									>{groupMembers.length}</span
+								>
+							</div>
+							<Collapsible.Trigger
+								class="p-1 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-75"
+							>
+								<ChevronRight
+									class="h-4 w-4 transform transition-transform {!collapsedGroups.has(groupName)
+										? 'rotate-90'
+										: ''}"
+								/>
+							</Collapsible.Trigger>
+						</div>
+
+						<Collapsible.Content class="space-y-3">
+							{#each groupMembers as member}
+								<button
+									onclick={() => openEditDrawer(member)}
+									class="group flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 text-left transition-all hover:border-border/60 hover:bg-card/60 active:scale-[0.98]"
+								>
+									<div class="flex flex-1 items-center gap-4">
+										<div class="relative">
+											{#if member.avatar}
+												<img
+													src={ensureAvatarDownloadParam(member.avatar)}
+													alt={member.name}
+													class="h-12 w-12 rounded-2xl object-cover"
+													loading="lazy"
+												/>
+											{:else}
+												<div
+													class="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 to-primary/30 text-lg font-bold text-primary"
+												>
+													{getInitials(member.name)}
+												</div>
+											{/if}
+											<div
+												class="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full bg-background"
+											>
+												<div
+													class="h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500"
+												></div>
+											</div>
+										</div>
+
+										<div class="min-w-0">
+											<h3 class="truncate leading-tight font-bold text-foreground">
+												{member.name}
+											</h3>
+											<div class="mt-0.5 flex items-center gap-2">
+												<span
+													class="shrink-0 rounded bg-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-primary"
+													>{member.qrId}</span
+												>
+											</div>
+										</div>
+									</div>
+
+									<div
+										role="button"
+										tabindex="0"
+										onclick={(e) => {
+											e.stopPropagation();
+											openQrModal(member);
+										}}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												openQrModal(member);
+											}
+										}}
+										class="shrink-0 cursor-pointer p-2 text-muted-foreground transition-transform hover:text-foreground active:scale-90"
+									>
+										<QrCode size={18} />
+									</div>
+								</button>
+							{/each}
+						</Collapsible.Content>
+					</Collapsible.Root>
+				{:else}
+					<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
+						<div
+							class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 opacity-20"
+						>
+							<Search size={32} />
+						</div>
+						<p>No members found matching "{searchQuery}"</p>
+					</div>
+				{/each}
 			</div>
 		</div>
-
-		<!-- Grouped List -->
-		<div class="flex-1 space-y-8 px-4 py-4">
-			{#each Object.entries(groupedMembers) as [groupName, groupMembers]}
-				<Collapsible.Root
-					open={!collapsedGroups.has(groupName)}
-					onOpenChange={(open) => {
-						if (open) {
-							collapsedGroups.delete(groupName);
-						} else {
-							collapsedGroups.add(groupName);
-						}
-						collapsedGroups = new Set(collapsedGroups);
-					}}
-				>
-					<div class="flex items-center justify-between">
-						<div class="mb-4 flex items-center gap-2">
-							<div
-								class="h-4 w-1 rounded-full {groupColors[groupName] || 'bg-muted'} border-l-4"
-							></div>
-							<h2 class="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-								{groupName}
-							</h2>
-							<span class="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground/70"
-								>{groupMembers.length}</span
-							>
-						</div>
-						<Collapsible.Trigger
-							class="p-1 text-muted-foreground transition-all duration-150 hover:text-foreground active:scale-75"
-						>
-							<ChevronRight
-								class="h-4 w-4 transform transition-transform {!collapsedGroups.has(groupName)
-									? 'rotate-90'
-									: ''}"
-							/>
-						</Collapsible.Trigger>
-					</div>
-
-					<Collapsible.Content class="space-y-3">
-						{#each groupMembers as member}
-							<button
-								onclick={() => openEditDrawer(member)}
-								class="group flex w-full items-center justify-between rounded-2xl border border-border/40 bg-card/40 p-4 text-left transition-all hover:border-border/60 hover:bg-card/60 active:scale-[0.98]"
-							>
-								<div class="flex flex-1 items-center gap-4">
-									<div class="relative">
-										{#if member.avatar}
-											<img
-												src={ensureAvatarDownloadParam(member.avatar)}
-												alt={member.name}
-												class="h-12 w-12 rounded-2xl object-cover"
-												loading="lazy"
-											/>
-										{:else}
-											<div
-												class="flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/20 bg-linear-to-br from-primary/10 to-primary/30 text-lg font-bold text-primary"
-											>
-												{getInitials(member.name)}
-											</div>
-										{/if}
-										<div
-											class="absolute -right-1 -bottom-1 flex h-4 w-4 items-center justify-center rounded-full bg-background"
-										>
-											<div
-												class="h-2.5 w-2.5 rounded-full border-2 border-background bg-green-500"
-											></div>
-										</div>
-									</div>
-
-									<div class="min-w-0">
-										<h3 class="truncate leading-tight font-bold text-foreground">{member.name}</h3>
-										<div class="mt-0.5 flex items-center gap-2">
-											<span
-												class="shrink-0 rounded bg-primary/5 px-1.5 py-0.5 font-mono text-[10px] text-primary"
-												>{member.qrId}</span
-											>
-										</div>
-									</div>
-								</div>
-
-								<div
-									role="button"
-									tabindex="0"
-									onclick={(e) => {
-										e.stopPropagation();
-										openQrModal(member);
-									}}
-									onkeydown={(e) => {
-										if (e.key === 'Enter' || e.key === ' ') {
-											e.preventDefault();
-											openQrModal(member);
-										}
-									}}
-									class="shrink-0 cursor-pointer p-2 text-muted-foreground transition-transform hover:text-foreground active:scale-90"
-								>
-									<QrCode size={18} />
-								</div>
-							</button>
-						{/each}
-					</Collapsible.Content>
-				</Collapsible.Root>
-			{:else}
-				<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-					<div
-						class="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4 opacity-20"
-					>
-						<Search size={32} />
-					</div>
-					<p>No members found matching "{searchQuery}"</p>
-				</div>
-			{/each}
-		</div>
-	</div>
 	{/if}
 
 	<!-- Desktop View -->
 	{#if !isMobileView}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Page Header -->
-		<div class="flex items-center justify-between">
-			<div>
-				<h1 class="text-3xl font-bold tracking-tight">Members</h1>
-				<p class="mt-1 text-muted-foreground">Manage your congregation and attendees.</p>
-			</div>
-			<div class="flex gap-2">
-				<DropdownMenu>
-					<DropdownMenuTrigger>
-						<Button variant="outline" size="sm" class="hidden sm:flex">
-							<FileDown class="mr-2 h-4 w-4" /> Export
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuLabel>Export Members</DropdownMenuLabel>
-						<DropdownMenuItem onclick={() => exportMembersCSVHandler()}>CSV</DropdownMenuItem>
-						<DropdownMenuItem onclick={() => exportMembersPDFHandler()}>PDF</DropdownMenuItem>
-						<DropdownMenuItem onclick={() => exportMembersQRZipHandler()}
-							>QR + Details (ZIP)</DropdownMenuItem
-						>
-					</DropdownMenuContent>
-				</DropdownMenu>
-				<Button size="sm" onclick={openAddMemberModal}>
-					<Plus class="mr-2 h-4 w-4" /> Add Member
-				</Button>
-			</div>
-		</div>
-
-		<!-- Statistics Cards -->
-		<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
-			<Card>
-				<CardContent class="p-6">
-					<div class="flex items-start justify-between">
-						<div>
-							<p class="text-sm font-medium text-muted-foreground">Total Members</p>
-							<p class="mt-2 text-3xl font-bold">{statistics.total}</p>
-							<p
-								class="text-xs {statistics.growth >= 0
-									? 'text-green-600'
-									: 'text-destructive'} mt-2"
+		<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+			<!-- Page Header -->
+			<div class="flex items-center justify-between">
+				<div>
+					<h1 class="text-3xl font-bold tracking-tight">Members</h1>
+					<p class="mt-1 text-muted-foreground">Manage your congregation and attendees.</p>
+				</div>
+				<div class="flex gap-2">
+					<DropdownMenu>
+						<DropdownMenuTrigger>
+							<Button variant="outline" size="sm" class="hidden sm:flex">
+								<FileDown class="mr-2 h-4 w-4" /> Export
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							<DropdownMenuLabel>Export Members</DropdownMenuLabel>
+							<DropdownMenuItem onclick={() => exportMembersCSVHandler()}>CSV</DropdownMenuItem>
+							<DropdownMenuItem onclick={() => exportMembersPDFHandler()}>PDF</DropdownMenuItem>
+							<DropdownMenuItem onclick={() => exportMembersQRZipHandler()}
+								>QR + Details (ZIP)</DropdownMenuItem
 							>
-								{statistics.growth >= 0 ? '+' : ''}{statistics.growth}% from last month
-							</p>
-						</div>
-						<div class="rounded-lg bg-primary/10 p-3">
-							<Users class="h-6 w-6 text-primary" />
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardContent class="p-6">
-					<div class="flex items-start justify-between">
-						<div>
-							<p class="text-sm font-medium text-muted-foreground">Active Members</p>
-							<p class="mt-2 text-3xl font-bold">{statistics.active}</p>
-							<p class="mt-2 text-xs text-green-600">
-								{statistics.total > 0
-									? Math.round((statistics.active / statistics.total) * 100)
-									: 0}% active
-							</p>
-						</div>
-						<div class="rounded-lg bg-green-500/10 p-3">
-							<TrendingUp class="h-6 w-6 text-green-600" />
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			<Card>
-				<CardContent class="p-6">
-					<div class="flex items-start justify-between">
-						<div>
-							<p class="text-sm font-medium text-muted-foreground">Groups</p>
-							<p class="mt-2 text-3xl font-bold">{groupOptions.length}</p>
-							<p class="mt-2 text-xs text-muted-foreground">Teams organized</p>
-						</div>
-						<div class="rounded-lg bg-blue-500/10 p-3">
-							<Clock class="h-6 w-6 text-blue-600" />
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-
-		<!-- Search, Filters & View Toggle -->
-		<div class="flex items-center gap-4">
-			<div class="relative max-w-sm flex-1">
-				<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
-				<Input
-					type="search"
-					placeholder="Search members..."
-					class="rounded-lg border-2 border-border/20 pl-8 ring-primary/20 focus:border-primary focus:ring-2"
-					bind:value={searchQuery}
-				/>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<Button size="sm" onclick={openAddMemberModal}>
+						<Plus class="mr-2 h-4 w-4" /> Add Member
+					</Button>
+				</div>
 			</div>
 
-			<!-- Filter Chips -->
-			<div class="flex items-center gap-2">
-				{#each groupOptions as group}
+			<!-- Statistics Cards -->
+			<div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+				<Card>
+					<CardContent class="p-6">
+						<div class="flex items-start justify-between">
+							<div>
+								<p class="text-sm font-medium text-muted-foreground">Total Members</p>
+								<p class="mt-2 text-3xl font-bold">{statistics.total}</p>
+								<p
+									class="text-xs {statistics.growth >= 0
+										? 'text-green-600'
+										: 'text-destructive'} mt-2"
+								>
+									{statistics.growth >= 0 ? '+' : ''}{statistics.growth}% from last month
+								</p>
+							</div>
+							<div class="rounded-lg bg-primary/10 p-3">
+								<Users class="h-6 w-6 text-primary" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardContent class="p-6">
+						<div class="flex items-start justify-between">
+							<div>
+								<p class="text-sm font-medium text-muted-foreground">Active Members</p>
+								<p class="mt-2 text-3xl font-bold">{statistics.active}</p>
+								<p class="mt-2 text-xs text-green-600">
+									{statistics.total > 0
+										? Math.round((statistics.active / statistics.total) * 100)
+										: 0}% active
+								</p>
+							</div>
+							<div class="rounded-lg bg-green-500/10 p-3">
+								<TrendingUp class="h-6 w-6 text-green-600" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card>
+					<CardContent class="p-6">
+						<div class="flex items-start justify-between">
+							<div>
+								<p class="text-sm font-medium text-muted-foreground">Groups</p>
+								<p class="mt-2 text-3xl font-bold">{groupOptions.length}</p>
+								<p class="mt-2 text-xs text-muted-foreground">Teams organized</p>
+							</div>
+							<div class="rounded-lg bg-blue-500/10 p-3">
+								<Clock class="h-6 w-6 text-blue-600" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+
+			<!-- Search, Filters & View Toggle -->
+			<div class="flex items-center gap-4">
+				<div class="relative max-w-sm flex-1">
+					<Search class="absolute top-2.5 left-2.5 h-4 w-4 text-muted-foreground" />
+					<Input
+						type="search"
+						placeholder="Search members..."
+						class="rounded-lg border-2 border-border/20 pl-8 ring-primary/20 focus:border-primary focus:ring-2"
+						bind:value={searchQuery}
+					/>
+				</div>
+
+				<!-- Filter Chips -->
+				<div class="flex items-center gap-2">
+					{#each groupOptions as group}
+						<button
+							onclick={() => {
+								if (selectedGroups.has(group)) {
+									selectedGroups.delete(group);
+								} else {
+									selectedGroups.add(group);
+								}
+								selectedGroups = new Set(selectedGroups);
+							}}
+							class="rounded-full px-3 py-1.5 text-sm font-medium transition-all {selectedGroups.has(
+								group
+							)
+								? 'bg-primary text-primary-foreground'
+								: 'bg-muted text-muted-foreground hover:bg-muted/80'}"
+						>
+							{group}
+						</button>
+					{/each}
+				</div>
+
+				<!-- View Toggle -->
+				<div class="ml-auto flex items-center gap-2 rounded-lg border border-border/20 p-1">
 					<button
-						onclick={() => {
-							if (selectedGroups.has(group)) {
-								selectedGroups.delete(group);
-							} else {
-								selectedGroups.add(group);
-							}
-							selectedGroups = new Set(selectedGroups);
-						}}
-						class="rounded-full px-3 py-1.5 text-sm font-medium transition-all {selectedGroups.has(
-							group
-						)
-							? 'bg-primary text-primary-foreground'
-							: 'bg-muted text-muted-foreground hover:bg-muted/80'}"
+						onclick={() => (webViewMode = 'table')}
+						class="rounded p-2 transition-all {webViewMode === 'table'
+							? 'bg-primary/10 text-primary'
+							: 'text-muted-foreground hover:text-foreground'}"
+						title="Table view"
 					>
-						{group}
+						<Rows class="h-4 w-4" />
 					</button>
-				{/each}
+					<button
+						onclick={() => (webViewMode = 'card')}
+						class="rounded p-2 transition-all {webViewMode === 'card'
+							? 'bg-primary/10 text-primary'
+							: 'text-muted-foreground hover:text-foreground'}"
+						title="Card view"
+					>
+						<Grid3x3 class="h-4 w-4" />
+					</button>
+				</div>
 			</div>
 
-			<!-- View Toggle -->
-			<div class="ml-auto flex items-center gap-2 rounded-lg border border-border/20 p-1">
-				<button
-					onclick={() => (webViewMode = 'table')}
-					class="rounded p-2 transition-all {webViewMode === 'table'
-						? 'bg-primary/10 text-primary'
-						: 'text-muted-foreground hover:text-foreground'}"
-					title="Table view"
-				>
-					<Rows class="h-4 w-4" />
-				</button>
-				<button
-					onclick={() => (webViewMode = 'card')}
-					class="rounded p-2 transition-all {webViewMode === 'card'
-						? 'bg-primary/10 text-primary'
-						: 'text-muted-foreground hover:text-foreground'}"
-					title="Card view"
-				>
-					<Grid3x3 class="h-4 w-4" />
-				</button>
-			</div>
-		</div>
-
-		<!-- Table View -->
-		{#if webViewMode === 'table'}
-			<div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-				<Table.Root class="w-full table-fixed">
-					<Table.Header>
-						<Table.Row class="border-b">
-							<Table.Head class="w-12">
-								<input
-									type="checkbox"
-									checked={selectAllFiltered}
-									onchange={toggleSelectAllFiltered}
-									aria-label="Select all filtered"
-								/>
-							</Table.Head>
-							<Table.Head class="w-12"></Table.Head>
-							<Table.Head class="w-40">
-								<Button
-									variant="ghost"
-									class="h-auto p-0 font-semibold hover:bg-transparent"
-									onclick={() => handleSort('name')}
-								>
-									Name
-									{#if sortColumn === 'name'}
-										{#if sortDirection === 'asc'}
-											<ArrowUp class="ml-2 h-4 w-4" />
+			<!-- Table View -->
+			{#if webViewMode === 'table'}
+				<div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
+					<Table.Root class="w-full table-fixed">
+						<Table.Header>
+							<Table.Row class="border-b">
+								<Table.Head class="w-12">
+									<input
+										type="checkbox"
+										checked={selectAllFiltered}
+										onchange={toggleSelectAllFiltered}
+										aria-label="Select all filtered"
+									/>
+								</Table.Head>
+								<Table.Head class="w-12"></Table.Head>
+								<Table.Head class="w-40">
+									<Button
+										variant="ghost"
+										class="h-auto p-0 font-semibold hover:bg-transparent"
+										onclick={() => handleSort('name')}
+									>
+										Name
+										{#if sortColumn === 'name'}
+											{#if sortDirection === 'asc'}
+												<ArrowUp class="ml-2 h-4 w-4" />
+											{:else}
+												<ArrowDown class="ml-2 h-4 w-4" />
+											{/if}
 										{:else}
-											<ArrowDown class="ml-2 h-4 w-4" />
+											<ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
 										{/if}
-									{:else}
-										<ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
-									{/if}
-								</Button>
-							</Table.Head>
-							<Table.Head class="w-32">
-								<Button
-									variant="ghost"
-									class="h-auto p-0 font-semibold hover:bg-transparent"
-									onclick={() => handleSort('group')}
-								>
-									Group
-									{#if sortColumn === 'group'}
-										{#if sortDirection === 'asc'}
-											<ArrowUp class="ml-2 h-4 w-4" />
+									</Button>
+								</Table.Head>
+								<Table.Head class="w-32">
+									<Button
+										variant="ghost"
+										class="h-auto p-0 font-semibold hover:bg-transparent"
+										onclick={() => handleSort('group')}
+									>
+										Group
+										{#if sortColumn === 'group'}
+											{#if sortDirection === 'asc'}
+												<ArrowUp class="ml-2 h-4 w-4" />
+											{:else}
+												<ArrowDown class="ml-2 h-4 w-4" />
+											{/if}
 										{:else}
-											<ArrowDown class="ml-2 h-4 w-4" />
+											<ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
 										{/if}
-									{:else}
-										<ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
-									{/if}
-								</Button>
-							</Table.Head>
-							<Table.Head class="w-24">ID</Table.Head>
-							<Table.Head class="w-20">Status</Table.Head>
-							<Table.Head class="w-16 text-right">Actions</Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#if filteredMembers.length === 0}
-							<Table.Row>
-								<Table.Cell colspan={6} class="h-24 text-center text-muted-foreground">
-									<div class="flex flex-col items-center justify-center">
-										<Search class="mb-2 h-8 w-8 opacity-20" />
-										No members found. Try adjusting your filters.
-									</div>
-								</Table.Cell>
+									</Button>
+								</Table.Head>
+								<Table.Head class="w-24">ID</Table.Head>
+								<Table.Head class="w-20">Status</Table.Head>
+								<Table.Head class="w-16 text-right">Actions</Table.Head>
 							</Table.Row>
-						{:else}
-							{#each paginatedMembers as member (member.id)}
-								<Table.Row class="transition-colors hover:bg-muted/50">
-									<Table.Cell>
-										<input
-											type="checkbox"
-											checked={selectedMemberIds.has(member.id)}
-											onchange={() => toggleSelectMember(member.id)}
-											aria-label={`Select ${member.name}`}
-										/>
-									</Table.Cell>
-									<Table.Cell>
-										<Avatar class="h-8 w-8">
-										{#if member.avatar}
-											<img
-												src={ensureAvatarDownloadParam(member.avatar)}
-												alt={member.name}
-												class="aspect-square h-full w-full object-cover"
-												loading="lazy"
-											/>
-										{:else}
-											<AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback>
-										{/if}
-									</Avatar>
-									</Table.Cell>
-									<Table.Cell class="font-medium">{member.name}</Table.Cell>
-									<Table.Cell>
-										<div class="flex items-center gap-2">
-											<div
-												class="h-2 w-2 rounded-full {groupColors[member.group] || 'bg-muted'}"
-											></div>
-											<span class="text-sm font-medium">{member.group}</span>
+						</Table.Header>
+						<Table.Body>
+							{#if filteredMembers.length === 0}
+								<Table.Row>
+									<Table.Cell colspan={6} class="h-24 text-center text-muted-foreground">
+										<div class="flex flex-col items-center justify-center">
+											<Search class="mb-2 h-8 w-8 opacity-20" />
+											No members found. Try adjusting your filters.
 										</div>
 									</Table.Cell>
-									<Table.Cell>
-										<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
-									</Table.Cell>
-									<Table.Cell>
-										<Badge
-											class={member.status === 'Active'
-												? 'border-green-200 bg-green-500/10 text-green-700'
-												: 'bg-muted'}
-										>
-											{member.status}
-										</Badge>
-									</Table.Cell>
-									<Table.Cell class="text-right">
-										<div class="flex items-center justify-end gap-2">
+								</Table.Row>
+							{:else}
+								{#each paginatedMembers as member (member.id)}
+									<Table.Row class="transition-colors hover:bg-muted/50">
+										<Table.Cell>
+											<input
+												type="checkbox"
+												checked={selectedMemberIds.has(member.id)}
+												onchange={() => toggleSelectMember(member.id)}
+												aria-label={`Select ${member.name}`}
+											/>
+										</Table.Cell>
+										<Table.Cell>
+											<Avatar class="h-8 w-8">
+												{#if member.avatar}
+													<img
+														src={ensureAvatarDownloadParam(member.avatar)}
+														alt={member.name}
+														class="aspect-square h-full w-full object-cover"
+														loading="lazy"
+													/>
+												{:else}
+													<AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback
+													>
+												{/if}
+											</Avatar>
+										</Table.Cell>
+										<Table.Cell class="font-medium">{member.name}</Table.Cell>
+										<Table.Cell>
+											<div class="flex items-center gap-2">
+												<div
+													class="h-2 w-2 rounded-full {groupColors[member.group] || 'bg-muted'}"
+												></div>
+												<span class="text-sm font-medium">{member.group}</span>
+											</div>
+										</Table.Cell>
+										<Table.Cell>
+											<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
+										</Table.Cell>
+										<Table.Cell>
+											<Badge
+												class={member.status === 'Active'
+													? 'border-green-200 bg-green-500/10 text-green-700'
+													: 'bg-muted'}
+											>
+												{member.status}
+											</Badge>
+										</Table.Cell>
+										<Table.Cell class="text-right">
+											<div class="flex items-center justify-end gap-2">
+												<Button
+													variant="ghost"
+													size="sm"
+													class="h-8 w-8 p-0"
+													onclick={() => openQrModal(member)}
+												>
+													<QrCode class="h-4 w-4" />
+												</Button>
+												<DropdownMenu>
+													<DropdownMenuTrigger>
+														{#snippet child({ props })}
+															<Button {...props} variant="ghost" size="sm" class="h-8 w-8 p-0">
+																<MoreHorizontal class="h-4 w-4" />
+															</Button>
+														{/snippet}
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="end">
+														<DropdownMenuLabel>Actions</DropdownMenuLabel>
+														<DropdownMenuItem onclick={() => openEditModal(member)}
+															>Edit</DropdownMenuItem
+														>
+														<DropdownMenuSeparator />
+														<DropdownMenuItem
+															class="text-red-500"
+															onclick={() => openDeleteDialog(member)}>Delete</DropdownMenuItem
+														>
+													</DropdownMenuContent>
+												</DropdownMenu>
+											</div>
+										</Table.Cell>
+									</Table.Row>
+								{/each}
+							{/if}
+						</Table.Body>
+					</Table.Root>
+				</div>
+			{/if}
+
+			<!-- Card View -->
+			{#if webViewMode === 'card'}
+				{#if filteredMembers.length === 0}
+					<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
+						<Search class="mb-4 h-12 w-12 opacity-20" />
+						<p class="font-medium">No members found</p>
+						<p class="text-sm">Try adjusting your search or filters</p>
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+						{#each paginatedMembers as member (member.id)}
+							<Card class="transition-all hover:border-primary/50 hover:shadow-md">
+								<CardContent class="p-6">
+									<div class="mb-4 flex items-start justify-between">
+										<Avatar class="h-12 w-12">
+											{#if member.avatar}
+												<img
+													src={ensureAvatarDownloadParam(member.avatar)}
+													alt={member.name}
+													class="aspect-square h-full w-full object-cover"
+													loading="lazy"
+												/>
+											{:else}
+												<AvatarFallback>{getInitials(member.name)}</AvatarFallback>
+											{/if}
+										</Avatar>
+										<div class="flex gap-1">
 											<Button
 												variant="ghost"
 												size="sm"
@@ -1608,150 +1678,101 @@
 												</DropdownMenuContent>
 											</DropdownMenu>
 										</div>
-									</Table.Cell>
-								</Table.Row>
-							{/each}
-						{/if}
-					</Table.Body>
-				</Table.Root>
-			</div>
-		{/if}
-
-		<!-- Card View -->
-		{#if webViewMode === 'card'}
-			{#if filteredMembers.length === 0}
-				<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-					<Search class="mb-4 h-12 w-12 opacity-20" />
-					<p class="font-medium">No members found</p>
-					<p class="text-sm">Try adjusting your search or filters</p>
-				</div>
-			{:else}
-				<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-					{#each paginatedMembers as member (member.id)}
-						<Card class="transition-all hover:border-primary/50 hover:shadow-md">
-							<CardContent class="p-6">
-								<div class="mb-4 flex items-start justify-between">
-									<Avatar class="h-12 w-12">
-										{#if member.avatar}
-											<img
-												src={ensureAvatarDownloadParam(member.avatar)}
-												alt={member.name}
-												class="aspect-square h-full w-full object-cover"
-												loading="lazy"
-											/>
-										{:else}
-											<AvatarFallback>{getInitials(member.name)}</AvatarFallback>
-										{/if}
-									</Avatar>
-									<div class="flex gap-1">
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-8 w-8 p-0"
-											onclick={() => openQrModal(member)}
-										>
-											<QrCode class="h-4 w-4" />
-										</Button>
-										<DropdownMenu>
-											<DropdownMenuTrigger>
-												{#snippet child({ props })}
-													<Button {...props} variant="ghost" size="sm" class="h-8 w-8 p-0">
-														<MoreHorizontal class="h-4 w-4" />
-													</Button>
-												{/snippet}
-											</DropdownMenuTrigger>
-											<DropdownMenuContent align="end">
-												<DropdownMenuLabel>Actions</DropdownMenuLabel>
-												<DropdownMenuItem onclick={() => openEditModal(member)}
-													>Edit</DropdownMenuItem
-												>
-												<DropdownMenuSeparator />
-												<DropdownMenuItem
-													class="text-red-500"
-													onclick={() => openDeleteDialog(member)}>Delete</DropdownMenuItem
-												>
-											</DropdownMenuContent>
-										</DropdownMenu>
 									</div>
-								</div>
-								<h3 class="text-lg font-semibold">{member.name}</h3>
-								<p class="text-sm text-muted-foreground">{member.role}</p>
-								<div class="mt-3 flex items-center gap-2">
-									<div class="h-2 w-2 rounded-full {groupColors[member.group] || 'bg-muted'}"></div>
-									<span class="text-xs font-medium">{member.group}</span>
-								</div>
-								<p class="mt-2 text-xs text-muted-foreground">{member.email}</p>
-								<div class="mt-4 flex items-center justify-between border-t pt-4">
-									<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
-									<Badge
-										class={member.status === 'Active'
-											? 'border-green-200 bg-green-500/10 text-green-700'
-											: 'bg-muted'}
-									>
-										{member.status}
-									</Badge>
-								</div>
-							</CardContent>
-						</Card>
-					{/each}
-				</div>
+									<h3 class="text-lg font-semibold">{member.name}</h3>
+									<p class="text-sm text-muted-foreground">{member.role}</p>
+									<div class="mt-3 flex items-center gap-2">
+										<div
+											class="h-2 w-2 rounded-full {groupColors[member.group] || 'bg-muted'}"
+										></div>
+										<span class="text-xs font-medium">{member.group}</span>
+									</div>
+									<p class="mt-2 text-xs text-muted-foreground">{member.email}</p>
+									<div class="mt-4 flex items-center justify-between border-t pt-4">
+										<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
+										<Badge
+											class={member.status === 'Active'
+												? 'border-green-200 bg-green-500/10 text-green-700'
+												: 'bg-muted'}
+										>
+											{member.status}
+										</Badge>
+									</div>
+								</CardContent>
+							</Card>
+						{/each}
+					</div>
+				{/if}
 			{/if}
-		{/if}
 
-		<!-- Desktop Pagination Controls -->
-		{#if filteredMembers.length > 0}
-			<div
-				class="mt-4 flex flex-col items-center justify-between gap-4 rounded-lg border bg-card p-4 shadow-sm sm:flex-row"
-			>
-				<div class="flex items-center gap-4 text-xs text-muted-foreground">
-					<span>
-						Showing <strong>{Math.min((currentPage - 1) * pageSize + 1, filteredMembers.length)}</strong> to{' '}
-						<strong>{Math.min(currentPage * pageSize, filteredMembers.length)}</strong> of{' '}
-						<strong>{filteredMembers.length}</strong> members
-					</span>
-					<div class="flex items-center gap-1.5">
-						<span>Per page:</span>
-						<select
-							bind:value={pageSize}
-							onchange={() => (currentPage = 1)}
-							class="h-8 rounded-md border border-input bg-background px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+			<!-- Desktop Pagination Controls -->
+			{#if filteredMembers.length > 0}
+				<div
+					class="mt-4 flex flex-col items-center justify-between gap-4 rounded-lg border bg-card p-4 shadow-sm sm:flex-row"
+				>
+					<div class="flex items-center gap-4 text-xs text-muted-foreground">
+						<span>
+							Showing <strong
+								>{Math.min((currentPage - 1) * pageSize + 1, filteredMembers.length)}</strong
+							>
+							to{' '}
+							<strong>{Math.min(currentPage * pageSize, filteredMembers.length)}</strong> of{' '}
+							<strong>{filteredMembers.length}</strong> members
+						</span>
+						<div class="flex items-center gap-1.5">
+							<span>Per page:</span>
+							<Select.Root
+								type="single"
+								value={String(pageSize)}
+								onValueChange={(value) => {
+									pageSize = Number(value);
+									currentPage = 1;
+								}}
+							>
+								<Select.Trigger
+									size="sm"
+									class="h-8 w-[4.5rem] px-2.5 text-xs"
+									aria-label="Rows per page"
+								>
+									{pageSize}
+								</Select.Trigger>
+								<Select.Content>
+									{#each [10, 25, 50, 100] as size (size)}
+										<Select.Item value={String(size)} label={String(size)}>{size}</Select.Item>
+									{/each}
+								</Select.Content>
+							</Select.Root>
+						</div>
+					</div>
+
+					<div class="flex items-center gap-2">
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={currentPage === 1}
+							onclick={() => (currentPage = Math.max(1, currentPage - 1))}
+							class="h-8 gap-1 px-3 text-xs"
 						>
-							<option value={10}>10</option>
-							<option value={25}>25</option>
-							<option value={50}>50</option>
-							<option value={100}>100</option>
-						</select>
+							<ChevronLeft class="h-3.5 w-3.5" />
+							Previous
+						</Button>
+						<span class="px-2 text-xs font-medium text-muted-foreground">
+							Page {currentPage} of {totalPages}
+						</span>
+						<Button
+							variant="outline"
+							size="sm"
+							disabled={currentPage >= totalPages}
+							onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
+							class="h-8 gap-1 px-3 text-xs"
+						>
+							Next
+							<ChevronRight class="h-3.5 w-3.5" />
+						</Button>
 					</div>
 				</div>
-
-				<div class="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={currentPage === 1}
-						onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-						class="h-8 gap-1 px-3 text-xs"
-					>
-						<ChevronLeft class="h-3.5 w-3.5" />
-						Previous
-					</Button>
-					<span class="px-2 text-xs font-medium text-muted-foreground">
-						Page {currentPage} of {totalPages}
-					</span>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={currentPage >= totalPages}
-						onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
-						class="h-8 gap-1 px-3 text-xs"
-					>
-						Next
-						<ChevronRight class="h-3.5 w-3.5" />
-					</Button>
-				</div>
-			</div>
-		{/if}
-	</div>
+			{/if}
+		</div>
 	{/if}
 
 	<!-- Add Member Modal - Desktop -->

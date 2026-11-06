@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS events CASCADE;
 DROP TABLE IF EXISTS event_types CASCADE;
 DROP TABLE IF EXISTS members CASCADE;
 DROP TABLE IF EXISTS groups CASCADE;
+DROP TABLE IF EXISTS invitations CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
 DROP TABLE IF EXISTS system_settings CASCADE;
 
@@ -41,37 +42,167 @@ DROP FUNCTION IF EXISTS force_process_all_events();
 DROP TYPE IF EXISTS user_role;
 CREATE TYPE user_role AS ENUM ('developer', 'admin', 'staff', 'guest');
 
+DROP TYPE IF EXISTS invitation_status;
+CREATE TYPE invitation_status AS ENUM ('pending', 'accepted', 'revoked', 'expired');
+
+DROP TYPE IF EXISTS account_status;
+CREATE TYPE account_status AS ENUM ('active', 'suspended');
+
 CREATE TABLE profiles (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     email TEXT UNIQUE NOT NULL,
     full_name TEXT,
     avatar_url TEXT,
     role user_role DEFAULT 'staff' NOT NULL,
+    -- Suspension: the reversible alternative to deleting an account outright.
+    status account_status NOT NULL DEFAULT 'active',
+    suspended_at TIMESTAMPTZ,
+    suspended_reason TEXT,
+    invited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
     onboarding_completed BOOLEAN DEFAULT FALSE,
     updated_at TIMESTAMP DEFAULT NOW(),
     created_at TIMESTAMP DEFAULT NOW()
 );
 
--- Trigger to create profile on signup
+CREATE INDEX idx_profiles_role_status ON profiles (role, status);
+
+-- Table: invitations (server-owned record of who was invited, as what, by whom)
+--
+-- This table is what makes a new account's role trustworthy. The role used to be read out
+-- of raw_user_meta_data, which the user it belongs to can write - so anything reaching
+-- auth.users with chosen metadata could mint an administrator.
+CREATE TABLE invitations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    email TEXT NOT NULL,
+    role user_role NOT NULL DEFAULT 'staff',
+    status invitation_status NOT NULL DEFAULT 'pending',
+    invited_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    -- Denormalised so deleting the inviter does not erase who sent the invitation.
+    invited_by_email TEXT,
+    expires_at TIMESTAMPTZ NOT NULL DEFAULT (NOW() + INTERVAL '7 days'),
+    accepted_at TIMESTAMPTZ,
+    accepted_user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    revoked_at TIMESTAMPTZ,
+    revoked_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+    resend_count INTEGER NOT NULL DEFAULT 0,
+    last_sent_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- One live invitation per address; accepted and revoked history is kept.
+CREATE UNIQUE INDEX idx_invitations_one_pending_per_email
+    ON invitations (lower(email)) WHERE status = 'pending';
+CREATE INDEX idx_invitations_email_lower ON invitations (lower(email));
+CREATE INDEX idx_invitations_status ON invitations (status, created_at DESC);
+
+-- Trigger to create profile on signup. The role is resolved from the invitations table,
+-- never from user-supplied metadata; anything uninvited lands as 'guest'.
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS TRIGGER AS $$
+DECLARE
+    invitation   public.invitations%ROWTYPE;
+    granted_role user_role;
 BEGIN
-    INSERT INTO public.profiles (id, email, full_name, role)
+    SELECT * INTO invitation
+    FROM public.invitations
+    WHERE lower(email) = lower(new.email)
+      AND status = 'pending'
+      AND expires_at > NOW()
+    ORDER BY created_at DESC
+    LIMIT 1;
+
+    granted_role := COALESCE(invitation.role, 'guest'::user_role);
+
+    INSERT INTO public.profiles (id, email, full_name, role, invited_by)
     VALUES (
-        new.id, 
-        new.email, 
-        new.raw_user_meta_data->>'full_name', 
-        COALESCE((new.raw_user_meta_data->>'role')::user_role, 'staff')
+        new.id,
+        new.email,
+        new.raw_user_meta_data->>'full_name',
+        granted_role,
+        invitation.invited_by
     );
+
+    -- Not marked accepted here: inviteUserByEmail() creates the auth row when the mail is
+    -- *sent*, so this fires long before anyone clicks the link. Acceptance is recorded by
+    -- mark_invitation_accepted() when setup completes, which is what keeps an invitation
+    -- observably pending so it can be resent or revoked.
     RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Check if trigger exists before creating to avoid errors in some restoration scenarios (though DROP above handles cascade)
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION handle_new_user();
+
+CREATE OR REPLACE FUNCTION mark_invitation_accepted()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.onboarding_completed IS TRUE AND OLD.onboarding_completed IS DISTINCT FROM TRUE THEN
+        UPDATE public.invitations
+        SET status = 'accepted',
+            accepted_at = NOW(),
+            accepted_user_id = NEW.id
+        WHERE lower(email) = lower(NEW.email)
+          AND status = 'pending';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_profile_onboarding_completed ON profiles;
+CREATE TRIGGER on_profile_onboarding_completed
+    AFTER UPDATE OF onboarding_completed ON profiles
+    FOR EACH ROW EXECUTE FUNCTION mark_invitation_accepted();
+
+-- RLS WITH CHECK cannot compare against OLD, so column-level immutability needs a trigger.
+-- Without this, "Users can update their own profile" lets any user set their own role.
+CREATE OR REPLACE FUNCTION guard_profile_privileged_columns()
+RETURNS TRIGGER AS $$
+DECLARE
+    jwt_role TEXT;
+BEGIN
+    jwt_role := COALESCE(
+        current_setting('request.jwt.claims', true)::json->>'role',
+        current_user
+    );
+
+    IF jwt_role IN ('service_role', 'postgres', 'supabase_admin') THEN
+        RETURN NEW;
+    END IF;
+
+    IF NEW.role IS DISTINCT FROM OLD.role THEN
+        RAISE EXCEPTION 'profiles.role cannot be changed directly. Use the access service.'
+            USING ERRCODE = 'insufficient_privilege';
+    END IF;
+
+    IF NEW.status IS DISTINCT FROM OLD.status THEN
+        RAISE EXCEPTION 'profiles.status cannot be changed directly. Use the access service.'
+            USING ERRCODE = 'insufficient_privilege';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+
+DROP TRIGGER IF EXISTS on_profile_privileged_update ON profiles;
+CREATE TRIGGER on_profile_privileged_update
+    BEFORE UPDATE ON profiles
+    FOR EACH ROW EXECUTE FUNCTION guard_profile_privileged_columns();
+
+CREATE OR REPLACE FUNCTION expire_stale_invitations()
+RETURNS INTEGER AS $$
+DECLARE
+    affected INTEGER;
+BEGIN
+    UPDATE public.invitations
+    SET status = 'expired'
+    WHERE status = 'pending' AND expires_at <= NOW();
+    GET DIAGNOSTICS affected = ROW_COUNT;
+    RETURN affected;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Table: user_sessions (Track active user sessions)
 DROP TABLE IF EXISTS user_sessions CASCADE;
@@ -482,6 +613,7 @@ EXECUTE FUNCTION check_simultaneous_events();
 
 -- Enable RLS
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invitations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE groups ENABLE ROW LEVEL SECURITY;
 ALTER TABLE members ENABLE ROW LEVEL SECURITY;
 ALTER TABLE event_types ENABLE ROW LEVEL SECURITY;
@@ -498,11 +630,31 @@ RETURNS user_role AS $$
     SELECT role FROM profiles WHERE id = auth.uid();
 $$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
 
+-- is_admin(): the authorization predicate, in one place. SECURITY DEFINER so policies on
+-- profiles can call it without recursing through profiles' own RLS.
+CREATE OR REPLACE FUNCTION public.is_admin(uid UUID DEFAULT auth.uid())
+RETURNS BOOLEAN AS $$
+    SELECT EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = uid AND role IN ('admin', 'developer') AND status = 'active'
+    );
+$$ LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public;
+
+REVOKE ALL ON FUNCTION public.is_admin(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.is_admin(UUID) TO authenticated;
+
 -- Profiles Policies
-CREATE POLICY "Everyone can view profiles" ON profiles FOR SELECT TO authenticated, anon USING (true);
+-- Authenticated only: `anon` used to be able to read every staff email address, and no
+-- public route reads profiles.
+CREATE POLICY "Authenticated users can view profiles" ON profiles FOR SELECT TO authenticated USING (true);
 CREATE POLICY "Users can update their own profile" ON profiles FOR UPDATE TO authenticated USING (auth.uid() = id) WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can insert their own profile" ON profiles FOR INSERT TO authenticated WITH CHECK (auth.uid() = id);
 CREATE POLICY "Developers have full access to profiles" ON profiles FOR DELETE TO authenticated USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'developer'));
+
+-- Invitations Policies
+-- Read-only, for admins. Writes have no policy on purpose: they all go through the access
+-- edge function on the service role, which is where authorization and step-up live.
+CREATE POLICY "Admins can view invitations" ON invitations FOR SELECT TO authenticated USING (public.is_admin());
 
 -- Groups Policies
 CREATE POLICY "Developer/Admin full access to groups" ON groups FOR ALL TO authenticated USING (get_user_role() IN ('developer', 'admin'));

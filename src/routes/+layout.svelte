@@ -20,7 +20,6 @@
 	import { onMount } from 'svelte';
 	import { loadSettings, systemSettings } from '$lib/stores/settings';
 	import { devTools } from '$lib/stores/dev';
-	import { onboardingState } from '$lib/stores/onboarding';
 	import { supabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
 	import { touchSession } from '$lib/utils/sessions';
@@ -102,11 +101,12 @@
 	});
 
 	// Determine if we should show the sidebar
-	// Hide on login (root), forgot-password, display pages, and self check-in pages
+	// Hide on login (root), forgot-password, account setup, display pages, and self check-in
 	let showSidebar = $derived(
 		!['/'].includes($page.url.pathname) &&
 			!$page.url.pathname.startsWith('/login') &&
 			!$page.url.pathname.startsWith('/forgot-password') &&
+			!$page.url.pathname.startsWith('/welcome') &&
 			!$page.url.pathname.startsWith('/check-in/') &&
 			!$page.url.pathname.startsWith('/display/') &&
 			browser
@@ -139,8 +139,8 @@
 			return [{ name: 'Options', href: '/settings' }, { name: 'Profile' }];
 		if (path === '/settings/app')
 			return [{ name: 'Options', href: '/settings' }, { name: 'App Settings' }];
-		if (path === '/settings/invite')
-			return [{ name: 'Options', href: '/settings' }, { name: 'Manage Staff' }];
+		if (path === '/settings/access')
+			return [{ name: 'Options', href: '/settings' }, { name: 'Access Directory' }];
 		if (path === '/settings/dev')
 			return [{ name: 'Options', href: '/settings' }, { name: 'Developer Tools' }];
 		if (path === '/settings/audit-logs')
@@ -238,10 +238,7 @@
 			<main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
 				{@render children()}
 			</main>
-			<!-- Mobile bottom navigation - Hidden when onboarding is active -->
-			{#if !$onboardingState.isOpen}
-				<MobileNav class="md:hidden" />
-			{/if}
+			<MobileNav class="md:hidden" />
 		</SidebarInset>
 	</SidebarProvider>
 {:else}
