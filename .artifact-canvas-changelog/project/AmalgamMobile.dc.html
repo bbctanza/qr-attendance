@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>1 + 4 - mobile</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); --accent: oklch(0.65 0.18 110);
+						--bad: oklch(0.577 0.245 27.325); --sky: oklch(0.6 0.13 240); }
+					.sec-head { display: flex; align-items: center; gap: 7px; margin: 0 0 9px; }
+					.sec-ic { width: 19px; height: 19px; border-radius: 6px; display: flex; align-items: center; justify-content: center; flex: none; }
+					.sec-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+					.sec-count { font-size: 10px; font-weight: 600; color: var(--muted); background: var(--wash); border-radius: 999px; padding: 1px 6px; margin-left: 2px; }
+					.item { display: flex; gap: 9px; padding: 9px 0; }
+					.item + .item { border-top: 1px solid oklch(84.651% 0.01125 256.831 / 0.5); }
+				</style>
+			</helmet>
+
+			<!-- The two boards side by side: the real mobile sheet on the left, the version
+			     picker it opens to shown separately on the right so both states are visible
+			     without hiding one behind the other. -->
+			<div style="display: flex; gap: 28px; align-items: flex-start">
+				<div style="width: 390px; box-sizing: border-box; background: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.22); overflow: hidden; display: flex; flex-direction: column; height: 760px">
+					<div style="flex: none; display: flex; justify-content: center; padding-top: 8px">
+						<div style="width: 36px; height: 4px; border-radius: 999px; background: var(--line)"></div>
+					</div>
+
+					<div style="padding: 10px 20px 14px; border-bottom: 1px solid var(--line)">
+						<div style="font-size: 18px; font-weight: 800; color: var(--ink); line-height: 1.3">A Kiosk, and a Quieter Password Prompt</div>
+						<!-- Option 4's piece, collapsed for a phone - second attempt. The first two
+						     passes both tried to make this a better-crafted BUTTON (a bordered
+						     bar, then a shadowed chip with a colored badge), and both looked
+						     bolted on for the same reason: nothing else in this header is a
+						     button. The title is plain text; the metadata under it has always
+						     been plain muted text too. A chip with a shadow and a tinted badge
+						     is dressed for a toolbar, not for sitting directly under a headline
+						     next to nothing but prose.
+
+						     So: no card, no border, no shadow, no background. It's the exact
+						     same muted metadata line this spot has always held - "Version X ·
+						     date" - just with the version number given a touch of brand color
+						     and a small chevron after it. It reads as what it is: the same
+						     quiet line as before, which happens to be tappable, not a new
+						     element that appeared next to it. -->
+						<button
+							type="button"
+							style="margin-top: 5px; display: inline-flex; align-items: center; gap: 5px; background: none; border: none; padding: 0"
+						>
+							<span style="font-size: 13px; color: var(--muted)">
+								Version 2.8.0 · November 8, 2026
+							</span>
+							<!-- Brand-tinted, matching the version number, not muted like the rest of
+							     the line - two small colored signals instead of one easy-to-miss
+							     gray icon, without reintroducing a box around either. -->
+							<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.3" style="margin-top: 1px"><path d="M6 9l6 6 6-6"/></svg>
+						</button>
+					</div>
+
+					<!-- Option 1's piece, unchanged from desktop. -->
+					<div style="padding: 16px 20px 18px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px; flex: 1">
+						<div>
+							<div class="sec-head">
+								<div class="sec-ic" style="background: oklch(51.096% 0.17385 142.511 / 0.12)">
+									<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.3"><path d="M12 3v18M3 12h18"/></svg>
+								</div>
+								<span class="sec-label" style="color: var(--brand)">New Features</span>
+								<span class="sec-count">1</span>
+							</div>
+							<div class="item">
+								<div style="flex: 1; min-width: 0">
+									<div style="font-size: 13px; font-weight: 700; color: var(--ink)">Kiosk Mode</div>
+									<p style="margin: 3px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted)">Boots a device straight into the scanner and counts down to the next event.</p>
+								</div>
+							</div>
+						</div>
+						<div>
+							<div class="sec-head">
+								<div class="sec-ic" style="background: oklch(0.65 0.18 110 / 0.15)">
+									<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.3"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+								</div>
+								<span class="sec-label" style="color: oklch(0.5 0.14 110)">Improvements</span>
+								<span class="sec-count">2</span>
+							</div>
+							<div class="item">
+								<div style="flex: 1; min-width: 0">
+									<div style="font-size: 13px; font-weight: 700; color: var(--ink)">A Calmer Access Directory</div>
+									<p style="margin: 3px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted)">Filter chips replace the summary tiles; cards replace the table on phones.</p>
+								</div>
+							</div>
+							<div class="item">
+								<div style="flex: 1; min-width: 0">
+									<div style="font-size: 13px; font-weight: 700; color: var(--ink)">One Password Prompt, Not a Maze</div>
+									<p style="margin: 3px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted)">Says what it's actually confirming, every time.</p>
+								</div>
+							</div>
+						</div>
+						<div>
+							<div class="sec-head">
+								<div class="sec-ic" style="background: oklch(0.6 0.13 240 / 0.14)">
+									<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+								</div>
+								<span class="sec-label" style="color: var(--sky)">Fixes</span>
+								<span class="sec-count">2</span>
+							</div>
+							<div class="item">
+								<div style="flex: 1; min-width: 0">
+									<div style="font-size: 13px; font-weight: 700; color: var(--ink)">Event Times Shown 8 Hours Off</div>
+									<p style="margin: 3px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted)">A 7:30 AM event could read as the night before.</p>
+								</div>
+							</div>
+							<div class="item">
+								<div style="flex: 1; min-width: 0">
+									<div style="font-size: 13px; font-weight: 700; color: var(--ink)">"Exit Kiosk" Did Nothing</div>
+									<p style="margin: 3px 0 0; font-size: 11.5px; line-height: 1.5; color: var(--muted)">Was rendering behind the kiosk screen, unreachable.</p>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<div style="flex: none; padding: 12px 20px 18px; border-top: 1px solid var(--line); display: flex; gap: 10px">
+						<div style="flex: 1; height: 42px; border: 1px solid var(--line); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 600; color: var(--muted)">Don't Show Again</div>
+						<div style="flex: 1; height: 42px; border-radius: 10px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12.5px; font-weight: 700">Continue</div>
+					</div>
+				</div>
+
+				<!-- What tapping the version pill opens - a bottom sheet, same mobile pattern
+				     already used elsewhere in the app for pickers. -->
+				<div style="width: 390px; box-sizing: border-box; background: #fff; border-radius: 18px 18px 0 0; box-shadow: 0 -10px 40px rgba(0,0,0,0.22); overflow: hidden; display: flex; flex-direction: column; height: 420px; align-self: flex-end">
+					<div style="flex: none; display: flex; justify-content: center; padding-top: 8px">
+						<div style="width: 36px; height: 4px; border-radius: 999px; background: var(--line)"></div>
+					</div>
+					<div style="padding: 12px 20px 8px; font-size: 13px; font-weight: 700; color: var(--ink)">Jump to a release</div>
+					<div style="overflow-y: auto; padding: 4px 8px 16px">
+						<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px; border-radius: 10px; background: var(--wash)">
+							<div><div style="font-size: 13px; font-weight: 700; color: var(--ink)">v2.8.0</div><div style="font-size: 11px; color: var(--muted)">Nov 8, 2026</div></div>
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.5"><path d="M5 12l5 5 9-9"/></svg>
+						</div>
+						<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px">
+							<div><div style="font-size: 13px; font-weight: 600; color: var(--ink)">v2.7.0</div><div style="font-size: 11px; color: var(--muted)">Nov 6, 2026</div></div>
+						</div>
+						<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px">
+							<div><div style="font-size: 13px; font-weight: 600; color: var(--ink)">v2.6.0</div><div style="font-size: 11px; color: var(--muted)">Nov 6, 2026</div></div>
+						</div>
+						<div style="display: flex; align-items: center; justify-content: space-between; padding: 12px 12px">
+							<div><div style="font-size: 13px; font-weight: 600; color: var(--ink)">v2.5.0</div><div style="font-size: 11px; color: var(--muted)">Nov 3, 2026</div></div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 20px; max-width: 808px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				<strong style="color: var(--ink)">Mobile, trigger rethought, not just re-decorated.</strong> Two
+				passes tried to make this a better-looking button - a bordered bar, then a shadowed chip with
+				a colored badge - and both looked out of place for the same reason: nothing else in the header
+				is a button. The fix wasn't more polish, it was less: this is now the same plain muted
+				metadata text the spot has always held, with the version number in brand color and a small
+				chevron after it. It reads as the quiet line it's always been, not a new element glued on
+				below the title. Tapping it still opens the same bottom sheet, right board.
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":820,"height":840}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

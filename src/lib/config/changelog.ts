@@ -1,39 +1,211 @@
 /**
- * Changelog entries - newest first
- * Update this whenever you make significant changes/bugfixes
+ * Changelog entries - newest first.
+ * Update this whenever you make significant changes/bugfixes.
  */
+export type ChangelogCategory = 'feature' | 'improvement' | 'fix' | 'removed' | 'other';
+
+export interface ChangelogItem {
+	category: ChangelogCategory;
+	/** One line - what changed. */
+	title: string;
+	/** One short line - why it matters. Not a mechanism-level explanation of how it broke;
+	 *  that detail doesn't change what someone should do differently, so it's cut rather
+	 *  than relocated. */
+	description: string;
+}
+
+export const CATEGORY_LABELS: Record<ChangelogCategory, string> = {
+	feature: 'New Features',
+	improvement: 'Improvements',
+	fix: 'Fixes',
+	removed: 'Removed',
+	other: 'Other'
+};
+
+/** The order categories render in, when an entry has more than one. */
+export const CATEGORY_ORDER: ChangelogCategory[] = [
+	'feature',
+	'improvement',
+	'fix',
+	'removed',
+	'other'
+];
+
 export interface ChangelogEntry {
 	version: string;
 	date: string;
 	title: string;
-	items: string[];
+	/**
+	 * New entries use categorized items - every section optional, so a release with only
+	 * fixes shows only a Fixes heading, not five headings where four say nothing.
+	 *
+	 * Entries from before this format (2.6.0 and earlier) keep their original flat list of
+	 * "Headline - description" strings. They render ungrouped rather than being retroactively
+	 * sorted into categories that did not exist when they were written - a judgment call made
+	 * after the fact for old entries is a worse record than leaving them as they were.
+	 */
+	items: ChangelogItem[] | string[];
 }
 
-export const CURRENT_VERSION = '2.7.0';
+export const CURRENT_VERSION = '2.8.0';
 
 export const changelog: ChangelogEntry[] = [
 	{
-		version: '2.7.0',
-		date: 'November 6, 2026',
-		title: 'Attendance & History Rework',
+		version: '2.8.0',
+		date: 'November 8, 2026',
+		title: 'Live Attendance, Kiosk Mode, and a Calmer Access Directory',
 		items: [
-			// Live attendance
-			'Attendance Is Actually Live - The live session said "Live Updates" behind a pulsing dot but only ever loaded its numbers once, so the checked-in count stayed frozen at whatever it was when you opened the page. It now updates as people are scanned, and refreshes itself when you come back to the tab.',
-			'Fixed: Recent Scans Showed Other Events - The live scan list showed the newest scans from every event, so a session could list check-ins that belonged to a different one. It is now limited to the session you are looking at.',
-			'More Than One Live Event - If two events overlap, both now appear and you can switch between them. Previously only one was shown and the rest were silently hidden.',
-			'Errors Say So - A failed load used to look exactly like a quiet Sunday: the page showed "No Live Session" whether nothing was on or the connection had dropped. Failures are now reported, with a retry.',
+			// New Features
+			{
+				category: 'feature',
+				title: 'Kiosk Mode',
+				description:
+					'Turn a laptop into a dedicated check-in station. It boots straight into the scanner, counts down to the next scheduled event, and keeps watching even when nothing is live - leaving kiosk mode needs the account password, so it is not something a visitor at the table can do by accident.'
+			},
 
-			// History
-			'Fixed: Attendance Rate Could Exceed 100% - The percentage counted everyone who attended, but compared them only against events that recorded absences. Events set to headcount-only are now kept out of the rate entirely and reported separately.',
-			'History Opens Quickly - It used to load every event ever recorded, with two lookups each, and then throw away everything outside the month you were viewing. It now loads one month at a time and fetches an attendance list only when you open that event.',
-			'Fixed: Recent Session Links Did Nothing - Clicking a session on the Attendance page sent you to History but did not open it. It now jumps to the right month and expands that event.',
-			'Long Rosters Are Paged - Events with hundreds of members no longer render every row at once.',
-			'Fixed: Export Error Told You to Install Software - A failed PDF export asked you to run a developer command for a component that was already installed. Exports now report what actually went wrong.',
-			'Export and Empty-List Messages Use Notifications - These were browser alert boxes that blocked the page until dismissed.',
+			// Improvements - live attendance & history (absorbs 2.7.0, which this release replaces)
+			{
+				category: 'improvement',
+				title: 'Attendance Is Actually Live',
+				description:
+					'The live session said "Live Updates" behind a pulsing dot but only ever loaded its numbers once, so the checked-in count stayed frozen at whatever it was when you opened the page. It now updates as people are scanned.'
+			},
+			{
+				category: 'improvement',
+				title: 'More Than One Live Event',
+				description:
+					'If two events overlap, both now appear and you can switch between them. Previously only one was shown and the rest were silently hidden.'
+			},
+			{
+				category: 'improvement',
+				title: 'History Opens Quickly',
+				description:
+					'It used to load every event ever recorded and throw away everything outside the month you were viewing. It now loads one month at a time.'
+			},
+			{
+				category: 'improvement',
+				title: 'Long Rosters Are Paged',
+				description: 'Events with hundreds of members no longer render every row at once.'
+			},
+			{
+				category: 'improvement',
+				title: 'Export and Empty-List Messages Use Notifications',
+				description: 'These were browser alert boxes that blocked the page until dismissed.'
+			},
+			{
+				category: 'improvement',
+				title: 'One Layout Instead of Two',
+				description:
+					'The phone and desktop versions of the Attendance page were written separately, so the same card existed twice and the copies had already drifted apart.'
+			},
 
-			// Throughout
-			'Member Names No Longer Sent to an Outside Service - Attendance lists built profile pictures by sending the first and last name of each member to a third-party image site. They now show initials generated on your own device.',
-			'One Layout Instead of Two - The phone and desktop versions of the Attendance page were written separately, so the same card existed twice and the copies had already drifted apart.'
+			// Improvements - this release's own work
+			{
+				category: 'improvement',
+				title: 'Attendance Redesigned for the Common Case',
+				description:
+					'When nothing is live, the page used to show two panels both saying "nothing is happening." Now it is one honest line, Open Scanner is always reachable from the title bar, and Recent Sessions reads as a real list instead of a card grid.'
+			},
+			{
+				category: 'improvement',
+				title: "Attendance History's Summary Cards Match the Rest of the App",
+				description:
+					'Attendance Rate, Events and Average were one-off boxes that matched nothing else. They are the same card every other summary number in the app uses, and sit in one row on desktop instead of stacking under the rate.'
+			},
+			{
+				category: 'improvement',
+				title: 'One Table Look, and Real Cards on Mobile',
+				description:
+					'Members, Audit Logs, Access Directory and Overview each built their own table, and two of them scrolled sideways on a phone. They share one table now, and a phone gets an actual card per row instead of a table shrunk until it no longer fits.'
+			},
+			{
+				category: 'improvement',
+				title: 'A Calmer Access Directory',
+				description:
+					'The mobile list is now individual cards with a status-coloured edge and a photo or initials, grouped so pending invitations and suspended accounts float to the top instead of being buried among everyone else.'
+			},
+			{
+				category: 'improvement',
+				title: 'A Much Shorter Access Directory Header',
+				description:
+					'A description, a lone button, four summary tiles and a card of filters took over half the screen on a phone before showing a single person. Filter chips now do the tiles\' and dropdowns\' job in a third of the space.'
+			},
+			{
+				category: 'improvement',
+				title: "The Bottom Nav Doesn't Look Painted On",
+				description:
+					"It had no shadow, so it read as a flat strip rather than a bar sitting above the page. It casts one now, the same elevation language the scan button already had."
+			},
+			{
+				category: 'improvement',
+				title: "The Password Dialog Says What It's Actually Confirming",
+				description:
+					'One shared confirmation dialog is now used for leaving kiosk mode as well as access changes, and each caller supplies its own wording instead of always showing text about "who has access."'
+			},
+
+			// Fixes
+			{
+				category: 'fix',
+				title: 'Attendance Rate Could Exceed 100%',
+				description:
+					'The percentage counted everyone who attended, but compared them only against events that recorded absences. Headcount-only events are now kept out of the rate entirely.'
+			},
+			{
+				category: 'fix',
+				title: 'Recent Scans Showed Other Events',
+				description:
+					'The live scan list showed the newest scans from every event, so a session could list check-ins that belonged to a different one.'
+			},
+			{
+				category: 'fix',
+				title: 'Recent Session Links Did Nothing',
+				description:
+					'Clicking a session on the Attendance page sent you to History but did not open it. It now jumps to the right month and expands that event.'
+			},
+			{
+				category: 'fix',
+				title: 'A Failed Export Told You to Install Software',
+				description:
+					'A failed PDF export asked you to run a developer command for a component that was already installed. Exports now report what actually went wrong.'
+			},
+			{
+				category: 'fix',
+				title: 'A Failed Load Looked Like a Quiet Sunday',
+				description:
+					'The Attendance page showed "No Live Session" whether nothing was on or the connection had dropped. Failures are now reported, with a retry.'
+			},
+			{
+				category: 'fix',
+				title: 'Browser Tabs Could Get Stuck on an Old Page Name',
+				description:
+					'Several pages never set their own tab title, so navigating to them kept whatever title the last page had set. Every page now names itself.'
+			},
+			{
+				category: 'fix',
+				title: 'Content Could Hide Behind the Scan Button',
+				description:
+					"The bottom nav's clearance was measured against the bar, not the scan button that rises above it, so the last 12px of some pages sat behind it."
+			},
+			{
+				category: 'fix',
+				title: 'Member Names No Longer Sent to an Outside Service',
+				description:
+					'Attendance lists built profile pictures by sending the first and last name of each member to a third-party image site. They now show initials generated on your own device.'
+			},
+
+			// Removed
+			{
+				category: 'removed',
+				title: 'Test CAPTCHA on the Password Confirmation Dialog',
+				description:
+					"It was running Cloudflare's published test key, which verifies nothing and showed its own \"for testing only\" banner."
+			},
+			{
+				category: 'removed',
+				title: 'Member Profile Photos',
+				description:
+					'The member list never used real photos, so the blank avatar frame is gone in favour of initials only.'
+			}
 		]
 	},
 	{

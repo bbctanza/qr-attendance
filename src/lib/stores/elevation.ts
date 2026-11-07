@@ -128,19 +128,27 @@ export interface ElevationReason {
 	description: string;
 }
 
-/**
- * What the dialog says, for whichever caller opened it.
- *
- * Defaults to the access-management copy, since that was the only caller for a long time
- * and still is the common one. A caller outside that context - kiosk mode's exit, so far -
- * passes its own `{ title, description }` instead of inheriting wording about "who has
- * access" that has nothing to do with what it is actually confirming.
- */
-export const elevationReason = writable<ElevationReason>({
+/** The access-management copy - the common case, and what a caller gets when it doesn't
+ *  supply its own reason. */
+const DEFAULT_REASON: ElevationReason = {
 	title: "Confirm it's you",
 	description:
 		"Changing who has access needs your password. You'll stay confirmed for 10 minutes, so you can make several changes without re-entering it."
-});
+};
+
+/**
+ * What the dialog says, for whichever caller opened it.
+ *
+ * This is a SHARED, module-level store - one dialog, reused by every caller - so it has to
+ * be set on every fresh prompt, never left at whatever a previous caller last wrote to it.
+ * It briefly wasn't: a caller with no reason of its own fell through to "keep the current
+ * value" instead of "reset to the default", so a password confirmation for an unrelated,
+ * sensitive action could silently inherit another feature's wording from earlier in the
+ * session - kiosk mode's "Exit kiosk mode?" showing up on an Access Directory prompt, in
+ * exactly the case that should have the plainest, least ambiguous copy of all. requestElevation
+ * below now always sets it explicitly, one way or the other, on every new (non-joining) call.
+ */
+export const elevationReason = writable<ElevationReason>(DEFAULT_REASON);
 
 let pending: ((granted: boolean) => void) | null = null;
 
@@ -152,9 +160,11 @@ export function requestElevation(reason?: ElevationReason): Promise<boolean> {
 	// replacing it, so the earlier caller is never left waiting on a promise nobody settles.
 	// Its reason does NOT override the one already on screen - the dialog is already open
 	// with that text in front of the admin, and swapping it mid-read would be its own
-	// small confusion.
+	// small confusion. A request that is NOT joining one, though, always sets the reason -
+	// to its own, or back to the default - so the dialog never shows stale text left over
+	// from whatever was asked before it.
 	const previous = pending;
-	if (!previous && reason) elevationReason.set(reason);
+	if (!previous) elevationReason.set(reason ?? DEFAULT_REASON);
 	return new Promise<boolean>((resolve) => {
 		pending = (granted) => {
 			previous?.(granted);

@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Grouped by category (recommended)</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link
+					href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+					rel="stylesheet"
+				/>
+				<style>
+					body {
+						margin: 0;
+						font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695);
+						--muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831);
+						--brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896);
+						--accent: oklch(0.65 0.18 110);
+						--secondary: oklch(0.65 0.16 300);
+						--bad: oklch(0.577 0.245 27.325);
+						--sky: oklch(0.6 0.13 240);
+					}
+					.sec-head {
+						display: flex;
+						align-items: center;
+						gap: 7px;
+						margin: 0 0 9px;
+					}
+					.sec-ic {
+						width: 20px;
+						height: 20px;
+						border-radius: 6px;
+						display: flex;
+						align-items: center;
+						justify-content: center;
+						flex: none;
+					}
+					.sec-label {
+						font-size: 11px;
+						font-weight: 800;
+						letter-spacing: 0.06em;
+						text-transform: uppercase;
+					}
+					.sec-count {
+						font-size: 10.5px;
+						font-weight: 600;
+						color: var(--muted);
+						background: var(--wash);
+						border-radius: 999px;
+						padding: 1px 7px;
+						margin-left: 2px;
+					}
+					.item {
+						display: flex;
+						gap: 10px;
+						padding: 9px 0;
+					}
+					.item + .item {
+						border-top: 1px solid oklch(84.651% 0.01125 256.831 / 0.5);
+					}
+				</style>
+			</helmet>
+
+			<div
+				style="width: 640px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; max-height: 760px"
+			>
+				<div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line)">
+					<div style="font-size: 22px; font-weight: 800; color: var(--ink)">A Kiosk, and a Quieter Password Prompt</div>
+					<div style="margin-top: 3px; font-size: 13px; color: var(--muted); opacity: 0.8">Version 2.8.0 · November 8, 2026</div>
+				</div>
+
+				<div style="padding: 20px 28px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 22px">
+					<!-- New Features -->
+					<div>
+						<div class="sec-head">
+							<div class="sec-ic" style="background: oklch(51.096% 0.17385 142.511 / 0.12)">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--brand)" stroke-width="2.3"><path d="M12 3v18M3 12h18"/></svg>
+							</div>
+							<span class="sec-label" style="color: var(--brand)">New Features</span>
+							<span class="sec-count">1</span>
+						</div>
+						<div class="item">
+							<div style="flex: 1; min-width: 0">
+								<div style="font-size: 14px; font-weight: 700; color: var(--ink)">Kiosk Mode</div>
+								<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">
+									Turn any laptop into a dedicated check-in station. It boots straight into the
+									scanner, counts down to the next scheduled event, and keeps watching even
+									when nothing is live.
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Improvements -->
+					<div>
+						<div class="sec-head">
+							<div class="sec-ic" style="background: oklch(0.65 0.18 110 / 0.15)">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2.3"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+							</div>
+							<span class="sec-label" style="color: oklch(0.5 0.14 110)">Improvements</span>
+							<span class="sec-count">2</span>
+						</div>
+						<div class="item">
+							<div style="flex: 1; min-width: 0">
+								<div style="font-size: 14px; font-weight: 700; color: var(--ink)">A Calmer Access Directory</div>
+								<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">
+									The summary tiles are now filter chips that show which one is active, and the
+									list reads as individual cards instead of a dense table on phones.
+								</p>
+							</div>
+						</div>
+						<div class="item">
+							<div style="flex: 1; min-width: 0">
+								<div style="font-size: 14px; font-weight: 700; color: var(--ink)">One Password Prompt, Not a Maze</div>
+								<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">
+									The confirmation dialog now says what it's actually confirming - "Exit kiosk
+									mode?" instead of unrelated wording about access changes - and no longer
+									shows a CAPTCHA test banner.
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Fixes -->
+					<div>
+						<div class="sec-head">
+							<div class="sec-ic" style="background: oklch(0.6 0.13 240 / 0.14)">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--sky)" stroke-width="2.3"><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2 4-4"/></svg>
+							</div>
+							<span class="sec-label" style="color: var(--sky)">Fixes</span>
+							<span class="sec-count">2</span>
+						</div>
+						<div class="item">
+							<div style="flex: 1; min-width: 0">
+								<div style="font-size: 14px; font-weight: 700; color: var(--ink)">Event Times Shown 8 Hours Off</div>
+								<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">
+									A 7:30 AM event could read as 11:30 PM the night before. Start times now
+									parse correctly regardless of time zone.
+								</p>
+							</div>
+						</div>
+						<div class="item">
+							<div style="flex: 1; min-width: 0">
+								<div style="font-size: 14px; font-weight: 700; color: var(--ink)">"Exit Kiosk" Did Nothing</div>
+								<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">
+									The password prompt was opening correctly but rendering behind the kiosk
+									screen, invisible and unreachable.
+								</p>
+							</div>
+						</div>
+					</div>
+
+					<!-- Removals -->
+					<div>
+						<div class="sec-head">
+							<div class="sec-ic" style="background: oklch(0.577 0.245 27.325 / 0.12)">
+								<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--bad)" stroke-width="2.3"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0l-1 14a2 2 0 01-2 2H7a2 2 0 01-2-2L4 6"/></svg>
+							</div>
+							<span class="sec-label" style="color: var(--bad)">Removed</span>
+							<span class="sec-count">1</span>
+						</div>
+						<div class="item">
+							<div style="flex: 1; min-width: 0">
+								<div style="font-size: 14px; font-weight: 700; color: var(--ink)">Test CAPTCHA on Password Prompts</div>
+								<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">
+									It was running Cloudflare's published test key, which verified nothing and
+									showed its own "for testing only" banner.
+								</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between">
+					<div style="display: flex; gap: 8px">
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--muted)">Previous</div>
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--ink)">Next</div>
+					</div>
+					<div style="display: flex; gap: 8px">
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--muted)">Don't Show Again</div>
+						<div style="height: 34px; padding: 0 18px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; font-size: 12.5px; font-weight: 700">Continue</div>
+					</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 18px; max-width: 640px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				Five possible sections - New Features, Improvements, Fixes, Removed, Other (Changes folds into
+				Improvements here; see the note on the canvas) - but a release only shows the ones it actually
+				has. Each item is a bold one-line headline plus one short supporting line, not a paragraph -
+				the long "what broke and how it worked internally" explanations move to a changelog this is
+				not the place for.
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":680,"height":860}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

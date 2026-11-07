@@ -1,0 +1,55 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "Current.dc.html": { "h": 820, "title": "Current - one flat list, every item looks the same", "w": 680, "x": 0, "y": 0 },
+    "GitHubStyle.dc.html": { "h": 820, "title": "3 - GitHub-style: plain release notes", "w": 680, "x": 780, "y": 1000 },
+    "LinearStyle.dc.html": { "h": 820, "title": "2 - Linear-style: editorial timeline", "w": 680, "x": 0, "y": 1000 },
+    "PillStyle.dc.html": { "h": 820, "title": "5 - Raycast/Vercel-style: flat list, inline pills", "w": 680, "x": 2460, "y": 1000 },
+    "Sections.dc.html": { "h": 860, "title": "Proposed - grouped by category (recommended)", "w": 680, "x": 780, "y": 0 },
+    "StripeStyle.dc.html": { "h": 820, "title": "4 - Stripe-style: sidebar navigator", "w": 800, "x": 1560, "y": 1000 },
+    "AmalgamDesktop.dc.html": { "h": 840, "title": "1 + 4 amalgamation - desktop", "w": 760, "x": 0, "y": 2750 },
+    "AmalgamMobile.dc.html": { "h": 840, "title": "1 + 4 amalgamation - mobile", "w": 820, "x": 900, "y": 2750 }
+  },
+  "createdOnFiles": { "at": "2026-11-08T01:00:00Z", "v": 1 },
+  "designSystems": [],
+  "launch": { "view": "canvas" },
+  "noteOrder": ["title", "howto", "categories", "format", "empty", "roundup", "amalgamTitle", "amalgamNote"],
+  "notes": {
+    "categories": {
+      "fill": "gray",
+      "text": "THE FIVE SECTIONS, AND WHY \"CHANGES\" ISN'T ONE OF THEM HERE\n\nNew Features - something that did not exist before.\nImprovements - something that existed and now works better, looks better, or is faster.\nFixes - something that was wrong and now behaves correctly.\nRemoved - something that used to be there and now is not.\nOther - the real catch-all, for anything that is none of the above.\n\n\"Changes\" was in your original list but I couldn't find a clean definition that doesn't already overlap Improvements or Other - every 'change' I tried to write either made something better (Improvements) or was neither better nor worse, just different (Other). If you have a concrete example of something that's a Change but not an Improvement, that'll sharpen the line; otherwise I'd drop it to keep the categories non-overlapping, which is what makes picking one for each item fast instead of a judgment call every time.",
+      "w": 680, "x": 1526, "y": 416
+    },
+    "empty": {
+      "fill": "gray",
+      "text": "What's actually wrong here, for the record: a privilege-escalation fix and a cosmetic rename get the exact same bullet, same size, same color. There's no way to tell what matters in a long release without reading every line of it.",
+      "w": 680, "x": 0, "y": 900
+    },
+    "format": {
+      "fill": "blue",
+      "text": "THE OTHER READABILITY CHANGE\n\nToday's entries are one dense sentence each, often with the internal 'how it broke' explanation folded into the same line as the headline. The redesign splits every item into a bold one-line headline (what changed) and one short supporting line (why it matters to you) - the mechanism-level detail that doesn't change what someone should do differently is just cut, not moved anywhere.\n\nAlso proposed: every section is optional. A release with only fixes shows only a Fixes section, not five headings where four say nothing.",
+      "w": 680, "x": 1526, "y": 158
+    },
+    "howto": {
+      "fill": "gray",
+      "text": "Same modal, same version-by-version paging (Previous/Next, Don't Show Again) - only the inside changed. Sample content on the right is invented to prove the shape works across types, not a draft of the real entry; the real one comes after this UI is settled.",
+      "w": 1460, "x": 0, "y": -70
+    },
+    "roundup": {
+      "fill": "purple",
+      "text": "THE FIVE, SIDE BY SIDE\n\n1. Sections (grouped by category, icons + color) - the original proposal, still the recommendation. Best at-a-glance scanning; costs the most vertical space when a release has items in every category.\n\n2. Linear-style (editorial timeline) - no categorization at all, just headline + a few sentences per item, a hairline between entries. Reads least like a system report, most like a note from a person. Loses the 'what type is this' signal entirely.\n\n3. GitHub-style (plain release notes) - bold text headings, tight bullets, a monospace version tag, zero color or icons. The most compact and the least 'designed' - closest to a technical record.\n\n4. Stripe-style (sidebar navigator) - a persistent list of past versions down the left, jump to any release in one click instead of paging through them. Needs ~760px, wider than the others; worth it only if people actually go back through old releases often.\n\n5. Raycast/Vercel-style (flat list, inline pills) - one continuous list in whatever order tells the best story, a small colored pill per row instead of grouped sections. Keeps narrative control Sections gives up; same-type items aren't clustered, so scanning 'just the fixes' is slower.\n\nAll five keep the same real content across boards so they're a fair comparison, and all but Stripe's keep the modal's current width and Previous/Next footer - only the inside changes.",
+      "w": 2000, "x": 0, "y": 1850
+    },
+    "title": { "kind": "title1", "maxW": 3200, "text": "Changelog modal - five real-world-inspired directions", "w": 240, "x": 0, "y": -140 },
+    "amalgamTitle": { "kind": "title1", "maxW": 1720, "text": "The amalgamation: 1's sections + 4's sidebar, desktop and mobile", "w": 1720, "x": 0, "y": 2650 },
+    "amalgamNote": {
+      "fill": "purple",
+      "text": "HOW THE SIDEBAR BECOMES MOBILE-SHAPED\n\nA 176px rail alongside content doesn't fit in 390px, so it collapses to a tappable version pill under the title - 'v2.8.0 - Nov 8, 2026 v'. Tapping it opens a bottom sheet (the right board) listing every release with the current one checked - same 'jump to any release in one click' job the sidebar does, in a pattern already used elsewhere in the app for pickers, not a new one invented for this.\n\nBoth the desktop and mobile footers drop Previous/Next, since the version picker (rail or sheet) already does that job - keeping both would be two ways to do the same thing on screen at once, which is exactly the kind of redundancy this whole changelog redesign is trying to get away from.",
+      "w": 820, "x": 900, "y": 3650
+    }
+  },
+  "order": ["Current.dc.html", "Sections.dc.html", "LinearStyle.dc.html", "GitHubStyle.dc.html", "StripeStyle.dc.html", "PillStyle.dc.html", "AmalgamDesktop.dc.html", "AmalgamMobile.dc.html"],
+  "pages": [],
+  "title": "Changelog UI redesign"
+}

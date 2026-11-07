@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Current</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link
+					href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+					rel="stylesheet"
+				/>
+				<style>
+					body {
+						margin: 0;
+						font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695);
+						--muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831);
+						--brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896);
+					}
+				</style>
+			</helmet>
+
+			<div
+				style="width: 640px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; max-height: 720px"
+			>
+				<div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line)">
+					<div style="font-size: 22px; font-weight: 800; color: var(--ink)">Attendance & History Rework</div>
+					<div style="margin-top: 3px; font-size: 13px; color: var(--muted); opacity: 0.8">Version 2.7.0 · November 6, 2026</div>
+				</div>
+
+				<div style="padding: 18px 28px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px">
+					<div style="display: flex; align-items: flex-start; gap: 14px">
+						<div style="margin-top: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--brand); flex: none"></div>
+						<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink)">
+							<strong>Attendance Is Actually Live</strong> - The live session said "Live Updates" behind a pulsing dot but only ever loaded its numbers once, so the checked-in count stayed frozen at whatever it was when you opened the page. It now updates as people are scanned.
+						</p>
+					</div>
+					<div style="display: flex; align-items: flex-start; gap: 14px">
+						<div style="margin-top: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--brand); flex: none"></div>
+						<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink)">
+							<strong>Fixed: Recent Scans Showed Other Events</strong> - The live scan list showed the newest scans from every event, so a session could list check-ins that belonged to a different one.
+						</p>
+					</div>
+					<div style="display: flex; align-items: flex-start; gap: 14px">
+						<div style="margin-top: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--brand); flex: none"></div>
+						<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink)">
+							<strong>Fixed: Attendance Rate Could Exceed 100%</strong> - The percentage counted everyone who attended, but compared them only against events that recorded absences.
+						</p>
+					</div>
+					<div style="display: flex; align-items: flex-start; gap: 14px">
+						<div style="margin-top: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--brand); flex: none"></div>
+						<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink)">
+							<strong>History Opens Quickly</strong> - It used to load every event ever recorded, with two lookups each, and then throw away everything outside the month you were viewing.
+						</p>
+					</div>
+					<div style="display: flex; align-items: flex-start; gap: 14px">
+						<div style="margin-top: 7px; width: 7px; height: 7px; border-radius: 999px; background: var(--brand); flex: none"></div>
+						<p style="margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--ink)">
+							<strong>Member Names No Longer Sent to an Outside Service</strong> - Attendance lists built profile pictures by sending names to a third-party image site.
+						</p>
+					</div>
+				</div>
+
+				<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between">
+					<div style="display: flex; gap: 8px">
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--muted)">Previous</div>
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--ink)">Next</div>
+					</div>
+					<div style="height: 34px; padding: 0 18px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; font-size: 12.5px; font-weight: 700">Continue</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 18px; max-width: 640px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				Every item - a dead-simple rename, a privilege-escalation fix, a routine performance tweak - gets
+				the same dot, same weight, same size. A security fix and a cosmetic tweak are visually
+				identical, and a long release is a wall of same-looking paragraphs with no way to tell what
+				matters without reading all of it.
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":680,"height":820}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

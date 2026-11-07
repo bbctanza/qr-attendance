@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Raycast/Vercel-style - flat list, inline pills</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); --accent: oklch(0.65 0.18 110);
+						--bad: oklch(0.577 0.245 27.325); --sky: oklch(0.6 0.13 240); }
+					.pill { display: inline-flex; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; border-radius: 999px; padding: 2px 9px; flex: none; }
+					.row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 0; }
+					.row + .row { border-top: 1px solid oklch(84.651% 0.01125 256.831 / 0.5); }
+				</style>
+			</helmet>
+
+			<div style="width: 640px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; max-height: 780px">
+				<div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line)">
+					<div style="font-size: 22px; font-weight: 800; color: var(--ink)">A Kiosk, and a Quieter Password Prompt</div>
+					<div style="margin-top: 3px; font-size: 13px; color: var(--muted); opacity: 0.8">Version 2.8.0 · November 8, 2026</div>
+				</div>
+
+				<!-- One continuous list, in whatever order you choose to tell the story -
+				     not forced into category blocks. Each row gets a small colored pill
+				     before its headline instead of a grouped section. -->
+				<div style="padding: 10px 28px 20px; overflow-y: auto">
+					<div class="row">
+						<span class="pill" style="color: var(--brand); background: oklch(51.096% 0.17385 142.511 / 0.12)">New</span>
+						<div style="flex: 1; min-width: 0">
+							<div style="font-size: 14px; font-weight: 700; color: var(--ink)">Kiosk Mode</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">Boots a device straight into the scanner and counts down to the next event.</p>
+						</div>
+					</div>
+					<div class="row">
+						<span class="pill" style="color: oklch(0.5 0.14 110); background: oklch(0.65 0.18 110 / 0.14)">Improved</span>
+						<div style="flex: 1; min-width: 0">
+							<div style="font-size: 14px; font-weight: 700; color: var(--ink)">A Calmer Access Directory</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">Filter chips replace the summary tiles; cards replace the table on phones.</p>
+						</div>
+					</div>
+					<div class="row">
+						<span class="pill" style="color: var(--sky); background: oklch(0.6 0.13 240 / 0.12)">Fixed</span>
+						<div style="flex: 1; min-width: 0">
+							<div style="font-size: 14px; font-weight: 700; color: var(--ink)">Event Times Shown 8 Hours Off</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">A 7:30 AM event could read as 11:30 PM the night before.</p>
+						</div>
+					</div>
+					<div class="row">
+						<span class="pill" style="color: var(--sky); background: oklch(0.6 0.13 240 / 0.12)">Fixed</span>
+						<div style="flex: 1; min-width: 0">
+							<div style="font-size: 14px; font-weight: 700; color: var(--ink)">"Exit Kiosk" Did Nothing</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">The prompt was opening behind the kiosk screen, invisible and unreachable.</p>
+						</div>
+					</div>
+					<div class="row">
+						<span class="pill" style="color: var(--bad); background: oklch(0.577 0.245 27.325 / 0.12)">Removed</span>
+						<div style="flex: 1; min-width: 0">
+							<div style="font-size: 14px; font-weight: 700; color: var(--ink)">Test CAPTCHA on Password Prompts</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">It ran Cloudflare's published test key, which verified nothing.</p>
+						</div>
+					</div>
+				</div>
+
+				<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between">
+					<div style="display: flex; gap: 8px">
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--muted)">Previous</div>
+						<div style="height: 34px; padding: 0 16px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12.5px; font-weight: 600; color: var(--ink)">Next</div>
+					</div>
+					<div style="height: 34px; padding: 0 18px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; font-size: 12.5px; font-weight: 700">Continue</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 18px; max-width: 640px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				<strong style="color: var(--ink)">Modeled on Raycast / Vercel changelogs.</strong> One continuous
+				list, ordered however tells the best story (the headline feature first, not alphabetical-by-
+				category) - a small colored pill marks type inline instead of a grouped heading. Keeps
+				narrative control the grouped version gives up; costs a little scanability since same-type
+				items aren't visually clustered.
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":680,"height":820}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

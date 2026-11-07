@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>GitHub-style - plain release notes</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+				<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); }
+					.mono { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+				</style>
+			</helmet>
+
+			<div style="width: 640px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; max-height: 780px">
+				<div style="padding: 18px 24px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between">
+					<div style="display: flex; align-items: center; gap: 8px">
+						<span class="mono" style="font-size: 13px; font-weight: 700; color: #fff; background: var(--ink); border-radius: 5px; padding: 2px 8px">v2.8.0</span>
+						<span style="font-size: 12.5px; color: var(--muted)">November 8, 2026</span>
+					</div>
+				</div>
+
+				<div style="padding: 20px 24px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 18px">
+					<!-- Plain headings, no icons, no colored badges - hierarchy comes entirely
+					     from a bold "### heading" line and a tight bullet list, the way a
+					     markdown CHANGELOG.md renders. -->
+					<div>
+						<div class="mono" style="font-size: 13px; font-weight: 700; color: var(--ink); padding-bottom: 6px; border-bottom: 2px solid var(--ink); margin-bottom: 10px; width: fit-content">### Features</div>
+						<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px">
+							<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink)">
+								<strong>Kiosk mode.</strong> Boots a device straight into the scanner, counts
+								down to the next event, keeps watching while idle.
+							</li>
+						</ul>
+					</div>
+					<div>
+						<div class="mono" style="font-size: 13px; font-weight: 700; color: var(--ink); padding-bottom: 6px; border-bottom: 2px solid var(--ink); margin-bottom: 10px; width: fit-content">### Improvements</div>
+						<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px">
+							<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink)">Access Directory: filter chips replace the summary tiles; list rows replace the table on mobile.</li>
+							<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink)">Password-confirmation dialog now shows copy specific to what it's confirming.</li>
+						</ul>
+					</div>
+					<div>
+						<div class="mono" style="font-size: 13px; font-weight: 700; color: var(--ink); padding-bottom: 6px; border-bottom: 2px solid var(--ink); margin-bottom: 10px; width: fit-content">### Fixes</div>
+						<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px">
+							<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink)">Event start times parsed in the wrong time zone, off by up to 8 hours.</li>
+							<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink)">"Exit kiosk" dialog rendered behind the kiosk overlay and could not be reached.</li>
+						</ul>
+					</div>
+					<div>
+						<div class="mono" style="font-size: 13px; font-weight: 700; color: var(--ink); padding-bottom: 6px; border-bottom: 2px solid var(--ink); margin-bottom: 10px; width: fit-content">### Removed</div>
+						<ul style="margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px">
+							<li style="font-size: 13.5px; line-height: 1.6; color: var(--ink)">Turnstile CAPTCHA on password confirmation (was running a test-only key).</li>
+						</ul>
+					</div>
+				</div>
+
+				<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between">
+					<div class="mono" style="font-size: 12px; color: var(--muted)">‹ v2.7.0</div>
+					<div class="mono" style="font-size: 12px; color: var(--ink)">v2.9.0 ›</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 18px; max-width: 640px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				<strong style="color: var(--ink)">Modeled on a GitHub Releases page / CHANGELOG.md.</strong> Plain
+				bold headings, tight bullets, a monospace version tag - zero color, zero icons, hierarchy
+				from typography alone. Reads as a technical record rather than an announcement; the most
+				compact of the five, and the least "designed."
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":680,"height":820}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

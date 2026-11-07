@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Stripe-style - sidebar navigator</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); }
+				</style>
+			</helmet>
+
+			<div style="width: 760px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; display: flex; max-height: 780px">
+				<!-- Persistent version list down the left - every release reachable in one
+				     click, not Previous/Next paging. The whole point of this pattern. -->
+				<div style="width: 190px; flex: none; border-right: 1px solid var(--line); background: var(--wash); padding: 16px 0; overflow-y: auto">
+					<div style="padding: 0 16px 10px; font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase">Releases</div>
+					<div style="padding: 10px 16px; border-left: 2px solid var(--brand); background: #fff">
+						<div style="font-size: 13px; font-weight: 700; color: var(--ink)">v2.8.0</div>
+						<div style="font-size: 11px; color: var(--muted)">Nov 8, 2026</div>
+					</div>
+					<div style="padding: 10px 16px; border-left: 2px solid transparent">
+						<div style="font-size: 13px; font-weight: 600; color: var(--ink)">v2.7.0</div>
+						<div style="font-size: 11px; color: var(--muted)">Nov 6, 2026</div>
+					</div>
+					<div style="padding: 10px 16px; border-left: 2px solid transparent">
+						<div style="font-size: 13px; font-weight: 600; color: var(--ink)">v2.6.0</div>
+						<div style="font-size: 11px; color: var(--muted)">Nov 6, 2026</div>
+					</div>
+					<div style="padding: 10px 16px; border-left: 2px solid transparent">
+						<div style="font-size: 13px; font-weight: 600; color: var(--ink)">v2.5.0</div>
+						<div style="font-size: 11px; color: var(--muted)">Nov 3, 2026</div>
+					</div>
+				</div>
+
+				<div style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+					<div style="padding: 20px 26px 14px; border-bottom: 1px solid var(--line)">
+						<div style="font-size: 19px; font-weight: 800; color: var(--ink)">A Kiosk, and a Quieter Password Prompt</div>
+						<div style="margin-top: 3px; font-size: 12.5px; color: var(--muted)">November 8, 2026</div>
+					</div>
+
+					<div style="padding: 18px 26px 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px">
+						<div>
+							<span style="display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--brand); background: oklch(51.096% 0.17385 142.511 / 0.1); border-radius: 5px; padding: 2px 7px; margin-bottom: 5px">New</span>
+							<div style="font-size: 14.5px; font-weight: 700; color: var(--ink)">Kiosk Mode</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">Boots a device straight into the scanner, counts down to the next event.</p>
+						</div>
+						<div>
+							<span style="display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: oklch(0.5 0.14 110); background: oklch(0.65 0.18 110 / 0.14); border-radius: 5px; padding: 2px 7px; margin-bottom: 5px">Improved</span>
+							<div style="font-size: 14.5px; font-weight: 700; color: var(--ink)">A Calmer Access Directory</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">Filter chips replace the summary tiles; cards replace the table on phones.</p>
+						</div>
+						<div>
+							<span style="display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: oklch(0.6 0.13 240); background: oklch(0.6 0.13 240 / 0.12); border-radius: 5px; padding: 2px 7px; margin-bottom: 5px">Fixed</span>
+							<div style="font-size: 14.5px; font-weight: 700; color: var(--ink)">Event Times Off by Hours</div>
+							<p style="margin: 3px 0 0; font-size: 12.5px; line-height: 1.55; color: var(--muted)">A 7:30 AM event could read as the night before. Now parses correctly.</p>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 18px; max-width: 760px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				<strong style="color: var(--ink)">Modeled on Stripe's API/product changelog.</strong> A persistent
+				version list replaces Previous/Next - jump to any release in one click instead of paging
+				through them in order. Each item keeps a small inline label (not a whole section) so type is
+				still visible without full grouping. Costs width: needs roughly 760px to keep the sidebar
+				from cramping the content, wider than this modal has been so far.
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":800,"height":820}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

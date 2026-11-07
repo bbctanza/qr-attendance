@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Linear-style - editorial timeline</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); }
+				</style>
+			</helmet>
+
+			<div style="width: 640px; box-sizing: border-box; background: #fff; border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; max-height: 780px">
+				<div style="padding: 20px 24px 16px; border-bottom: 1px solid var(--line)">
+					<div style="font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--brand); text-transform: uppercase">What's new</div>
+					<div style="margin-top: 4px; font-size: 13px; color: var(--muted); opacity: 0.8">Version 2.8.0 · November 8, 2026</div>
+				</div>
+
+				<div style="padding: 22px 28px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 30px">
+					<!-- One big editorial entry per item - no category label, no icon. The
+					     headline and the writing itself carry the weight, timeline-style. -->
+					<div>
+						<div style="font-size: 23px; font-weight: 800; color: var(--ink); line-height: 1.25">Kiosk Mode</div>
+						<p style="margin: 8px 0 0; font-size: 14px; line-height: 1.65; color: var(--ink); opacity: 0.85">
+							Turn any laptop into a dedicated check-in station. It boots straight into the
+							scanner, counts down to the next scheduled event, and keeps watching even when
+							nothing is live - no one has to sit there babysitting it.
+						</p>
+					</div>
+					<div style="height: 1px; background: var(--line)"></div>
+					<div>
+						<div style="font-size: 23px; font-weight: 800; color: var(--ink); line-height: 1.25">A Calmer Access Directory</div>
+						<p style="margin: 8px 0 0; font-size: 14px; line-height: 1.65; color: var(--ink); opacity: 0.85">
+							The summary tiles are now filter chips that show which one is active, and the
+							list reads as individual cards instead of a dense table on your phone.
+						</p>
+					</div>
+					<div style="height: 1px; background: var(--line)"></div>
+					<div>
+						<div style="font-size: 23px; font-weight: 800; color: var(--ink); line-height: 1.25">Event Times Were Off by Hours</div>
+						<p style="margin: 8px 0 0; font-size: 14px; line-height: 1.65; color: var(--ink); opacity: 0.85">
+							A 7:30 AM event could read as 11:30 PM the night before. Start times now parse
+							correctly no matter what time zone you're in.
+						</p>
+					</div>
+					<div style="height: 1px; background: var(--line)"></div>
+					<div>
+						<div style="font-size: 23px; font-weight: 800; color: var(--ink); line-height: 1.25">Removed the Test CAPTCHA</div>
+						<p style="margin: 8px 0 0; font-size: 14px; line-height: 1.65; color: var(--ink); opacity: 0.85">
+							Password prompts stopped showing Cloudflare's "for testing only" banner - it
+							was never a real check to begin with.
+						</p>
+					</div>
+				</div>
+
+				<div style="padding: 14px 24px; border-top: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center">
+					<div style="display: flex; gap: 16px">
+						<span style="font-size: 12.5px; font-weight: 600; color: var(--muted)">← Previous</span>
+						<span style="font-size: 12.5px; font-weight: 600; color: var(--ink)">Next →</span>
+					</div>
+					<div style="height: 34px; padding: 0 18px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; font-size: 12.5px; font-weight: 700">Got it</div>
+				</div>
+			</div>
+
+			<p style="margin-top: 18px; max-width: 640px; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+				<strong style="color: var(--ink)">Modeled on Linear's "Now" page.</strong> No category labels, no icons -
+				big headline, a few sentences of plain writing, a hairline between entries. Reads like a short
+				editorial note rather than a structured list. Loses the at-a-glance "what type is this"
+				signal entirely in exchange for feeling the least like a system-generated report.
+			</p>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":680,"height":820}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>
