@@ -1,8 +1,9 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import { DataTable, type Column } from '$lib/components/data-table';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
 	import * as Select from '$lib/components/ui/select';
-	import * as Table from '$lib/components/ui/table';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Card, CardContent } from '$lib/components/ui/card';
@@ -24,11 +25,6 @@
 		Lock,
 		X,
 		Trash2,
-		ArrowUpDown,
-		ArrowUp,
-		ArrowDown,
-		Grid3x3,
-		Rows,
 		Users,
 		TrendingUp,
 		Clock
@@ -109,6 +105,16 @@
 	let webViewMode = $state<'table' | 'card'>('table');
 
 	// Real Data
+	/** The fields the table and its mobile cards read. `members` itself is still untyped. */
+	interface MemberRow {
+		id: string;
+		name: string;
+		group: string;
+		qrId: string;
+		status: string;
+		avatar?: string;
+	}
+
 	let members = $state<any[]>([]);
 	let groupOptions = $state<string[]>([]);
 	let groupsMap = $state<Record<string, any>>({});
@@ -371,12 +377,8 @@
 		currentPage = 1;
 	});
 
+	// Page count and slicing belong to DataTable; the mobile list is grouped, not paged.
 	let totalPages = $derived(Math.max(1, Math.ceil(filteredMembers.length / pageSize)));
-
-	let paginatedMembers = $derived.by(() => {
-		const start = (currentPage - 1) * pageSize;
-		return filteredMembers.slice(start, start + pageSize);
-	});
 
 	// Statistics for web
 	let statistics = $derived({
@@ -389,7 +391,14 @@
 		}))
 	});
 
-	// Group members by their group
+	/**
+	 * Every filtered member, grouped.
+	 *
+	 * Deliberately NOT the paginated slice. Grouping a page of ten meant the mobile list
+	 * showed only the handful of groups those ten happened to fall into - five groups out of
+	 * a 515-member roster - which looks like data loss rather than paging. The list is
+	 * bounded by collapsing groups instead, not by truncating them.
+	 */
 	let groupedMembers = $derived.by(() => {
 		const groups: Record<string, typeof members> = {};
 		filteredMembers.forEach((m: any) => {
@@ -958,6 +967,96 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Members | {siteConfig.name}</title>
+</svelte:head>
+
+{#snippet selectCell(member: MemberRow)}
+	<input
+		type="checkbox"
+		checked={selectedMemberIds.has(member.id)}
+		onchange={() => toggleSelectMember(member.id)}
+		aria-label={`Select ${member.name}`}
+	/>
+{/snippet}
+
+{#snippet avatarCell(member: MemberRow)}
+	<Avatar class="h-8 w-8">
+		{#if member.avatar}
+			<img
+				src={ensureAvatarDownloadParam(member.avatar)}
+				alt={member.name}
+				class="aspect-square h-full w-full object-cover"
+				loading="lazy"
+			/>
+		{:else}
+			<AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback>
+		{/if}
+	</Avatar>
+{/snippet}
+
+{#snippet nameCell(member: MemberRow)}
+	<span class="font-medium">{member.name}</span>
+{/snippet}
+
+{#snippet groupCell(member: MemberRow)}
+	<div class="flex items-center gap-2">
+		<div class="h-2 w-2 shrink-0 rounded-full {groupColors[member.group] || 'bg-muted'}"></div>
+		<span class="text-sm font-medium">{member.group}</span>
+	</div>
+{/snippet}
+
+{#snippet idCell(member: MemberRow)}
+	<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
+{/snippet}
+
+{#snippet statusCell(member: MemberRow)}
+	<Badge
+		class={member.status === 'Active'
+			? 'border-green-200 bg-green-500/10 text-green-700'
+			: 'bg-muted'}
+	>
+		{member.status}
+	</Badge>
+{/snippet}
+
+{#snippet memberActions(member: MemberRow)}
+	<div class="flex items-center justify-end gap-2">
+		<Button
+			variant="ghost"
+			size="sm"
+			class="h-8 w-8 p-0"
+			onclick={() => openQrModal(member)}
+			aria-label="Show QR code for {member.name}"
+		>
+			<QrCode class="h-4 w-4" />
+		</Button>
+		<DropdownMenu>
+			<DropdownMenuTrigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="sm"
+						class="h-8 w-8 p-0"
+						aria-label="Actions for {member.name}"
+					>
+						<MoreHorizontal class="h-4 w-4" />
+					</Button>
+				{/snippet}
+			</DropdownMenuTrigger>
+			<DropdownMenuContent align="end">
+				<DropdownMenuLabel>Actions</DropdownMenuLabel>
+				<DropdownMenuItem onclick={() => openEditModal(member)}>Edit</DropdownMenuItem>
+				<DropdownMenuSeparator />
+				<DropdownMenuItem class="text-red-500" onclick={() => openDeleteDialog(member)}>
+					Delete
+				</DropdownMenuItem>
+			</DropdownMenuContent>
+		</DropdownMenu>
+	</div>
+{/snippet}
+
 {#if isLoading}
 	<!-- Mobile View Skeleton -->
 	{#if isMobileView}
@@ -1445,265 +1544,35 @@
 						</button>
 					{/each}
 				</div>
-
-				<!-- View Toggle -->
-				<div class="ml-auto flex items-center gap-2 rounded-lg border border-border/20 p-1">
-					<button
-						onclick={() => (webViewMode = 'table')}
-						class="rounded p-2 transition-all {webViewMode === 'table'
-							? 'bg-primary/10 text-primary'
-							: 'text-muted-foreground hover:text-foreground'}"
-						title="Table view"
-					>
-						<Rows class="h-4 w-4" />
-					</button>
-					<button
-						onclick={() => (webViewMode = 'card')}
-						class="rounded p-2 transition-all {webViewMode === 'card'
-							? 'bg-primary/10 text-primary'
-							: 'text-muted-foreground hover:text-foreground'}"
-						title="Card view"
-					>
-						<Grid3x3 class="h-4 w-4" />
-					</button>
-				</div>
 			</div>
 
-			<!-- Table View -->
-			{#if webViewMode === 'table'}
-				<div class="overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm">
-					<Table.Root class="w-full table-fixed">
-						<Table.Header>
-							<Table.Row class="border-b">
-								<Table.Head class="w-12">
-									<input
-										type="checkbox"
-										checked={selectAllFiltered}
-										onchange={toggleSelectAllFiltered}
-										aria-label="Select all filtered"
-									/>
-								</Table.Head>
-								<Table.Head class="w-12"></Table.Head>
-								<Table.Head class="w-40">
-									<Button
-										variant="ghost"
-										class="h-auto p-0 font-semibold hover:bg-transparent"
-										onclick={() => handleSort('name')}
-									>
-										Name
-										{#if sortColumn === 'name'}
-											{#if sortDirection === 'asc'}
-												<ArrowUp class="ml-2 h-4 w-4" />
-											{:else}
-												<ArrowDown class="ml-2 h-4 w-4" />
-											{/if}
-										{:else}
-											<ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
-										{/if}
-									</Button>
-								</Table.Head>
-								<Table.Head class="w-32">
-									<Button
-										variant="ghost"
-										class="h-auto p-0 font-semibold hover:bg-transparent"
-										onclick={() => handleSort('group')}
-									>
-										Group
-										{#if sortColumn === 'group'}
-											{#if sortDirection === 'asc'}
-												<ArrowUp class="ml-2 h-4 w-4" />
-											{:else}
-												<ArrowDown class="ml-2 h-4 w-4" />
-											{/if}
-										{:else}
-											<ArrowUpDown class="ml-2 h-4 w-4 opacity-40" />
-										{/if}
-									</Button>
-								</Table.Head>
-								<Table.Head class="w-24">ID</Table.Head>
-								<Table.Head class="w-20">Status</Table.Head>
-								<Table.Head class="w-16 text-right">Actions</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#if filteredMembers.length === 0}
-								<Table.Row>
-									<Table.Cell colspan={6} class="h-24 text-center text-muted-foreground">
-										<div class="flex flex-col items-center justify-center">
-											<Search class="mb-2 h-8 w-8 opacity-20" />
-											No members found. Try adjusting your filters.
-										</div>
-									</Table.Cell>
-								</Table.Row>
-							{:else}
-								{#each paginatedMembers as member (member.id)}
-									<Table.Row class="transition-colors hover:bg-muted/50">
-										<Table.Cell>
-											<input
-												type="checkbox"
-												checked={selectedMemberIds.has(member.id)}
-												onchange={() => toggleSelectMember(member.id)}
-												aria-label={`Select ${member.name}`}
-											/>
-										</Table.Cell>
-										<Table.Cell>
-											<Avatar class="h-8 w-8">
-												{#if member.avatar}
-													<img
-														src={ensureAvatarDownloadParam(member.avatar)}
-														alt={member.name}
-														class="aspect-square h-full w-full object-cover"
-														loading="lazy"
-													/>
-												{:else}
-													<AvatarFallback class="text-xs">{getInitials(member.name)}</AvatarFallback
-													>
-												{/if}
-											</Avatar>
-										</Table.Cell>
-										<Table.Cell class="font-medium">{member.name}</Table.Cell>
-										<Table.Cell>
-											<div class="flex items-center gap-2">
-												<div
-													class="h-2 w-2 rounded-full {groupColors[member.group] || 'bg-muted'}"
-												></div>
-												<span class="text-sm font-medium">{member.group}</span>
-											</div>
-										</Table.Cell>
-										<Table.Cell>
-											<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
-										</Table.Cell>
-										<Table.Cell>
-											<Badge
-												class={member.status === 'Active'
-													? 'border-green-200 bg-green-500/10 text-green-700'
-													: 'bg-muted'}
-											>
-												{member.status}
-											</Badge>
-										</Table.Cell>
-										<Table.Cell class="text-right">
-											<div class="flex items-center justify-end gap-2">
-												<Button
-													variant="ghost"
-													size="sm"
-													class="h-8 w-8 p-0"
-													onclick={() => openQrModal(member)}
-												>
-													<QrCode class="h-4 w-4" />
-												</Button>
-												<DropdownMenu>
-													<DropdownMenuTrigger>
-														{#snippet child({ props })}
-															<Button {...props} variant="ghost" size="sm" class="h-8 w-8 p-0">
-																<MoreHorizontal class="h-4 w-4" />
-															</Button>
-														{/snippet}
-													</DropdownMenuTrigger>
-													<DropdownMenuContent align="end">
-														<DropdownMenuLabel>Actions</DropdownMenuLabel>
-														<DropdownMenuItem onclick={() => openEditModal(member)}
-															>Edit</DropdownMenuItem
-														>
-														<DropdownMenuSeparator />
-														<DropdownMenuItem
-															class="text-red-500"
-															onclick={() => openDeleteDialog(member)}>Delete</DropdownMenuItem
-														>
-													</DropdownMenuContent>
-												</DropdownMenu>
-											</div>
-										</Table.Cell>
-									</Table.Row>
-								{/each}
-							{/if}
-						</Table.Body>
-					</Table.Root>
-				</div>
-			{/if}
-
-			<!-- Card View -->
-			{#if webViewMode === 'card'}
-				{#if filteredMembers.length === 0}
-					<div class="flex flex-col items-center justify-center py-20 text-muted-foreground">
-						<Search class="mb-4 h-12 w-12 opacity-20" />
-						<p class="font-medium">No members found</p>
-						<p class="text-sm">Try adjusting your search or filters</p>
-					</div>
-				{:else}
-					<div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-						{#each paginatedMembers as member (member.id)}
-							<Card class="transition-all hover:border-primary/50 hover:shadow-md">
-								<CardContent class="p-6">
-									<div class="mb-4 flex items-start justify-between">
-										<Avatar class="h-12 w-12">
-											{#if member.avatar}
-												<img
-													src={ensureAvatarDownloadParam(member.avatar)}
-													alt={member.name}
-													class="aspect-square h-full w-full object-cover"
-													loading="lazy"
-												/>
-											{:else}
-												<AvatarFallback>{getInitials(member.name)}</AvatarFallback>
-											{/if}
-										</Avatar>
-										<div class="flex gap-1">
-											<Button
-												variant="ghost"
-												size="sm"
-												class="h-8 w-8 p-0"
-												onclick={() => openQrModal(member)}
-											>
-												<QrCode class="h-4 w-4" />
-											</Button>
-											<DropdownMenu>
-												<DropdownMenuTrigger>
-													{#snippet child({ props })}
-														<Button {...props} variant="ghost" size="sm" class="h-8 w-8 p-0">
-															<MoreHorizontal class="h-4 w-4" />
-														</Button>
-													{/snippet}
-												</DropdownMenuTrigger>
-												<DropdownMenuContent align="end">
-													<DropdownMenuLabel>Actions</DropdownMenuLabel>
-													<DropdownMenuItem onclick={() => openEditModal(member)}
-														>Edit</DropdownMenuItem
-													>
-													<DropdownMenuSeparator />
-													<DropdownMenuItem
-														class="text-red-500"
-														onclick={() => openDeleteDialog(member)}>Delete</DropdownMenuItem
-													>
-												</DropdownMenuContent>
-											</DropdownMenu>
-										</div>
-									</div>
-									<h3 class="text-lg font-semibold">{member.name}</h3>
-									<p class="text-sm text-muted-foreground">{member.role}</p>
-									<div class="mt-3 flex items-center gap-2">
-										<div
-											class="h-2 w-2 rounded-full {groupColors[member.group] || 'bg-muted'}"
-										></div>
-										<span class="text-xs font-medium">{member.group}</span>
-									</div>
-									<p class="mt-2 text-xs text-muted-foreground">{member.email}</p>
-									<div class="mt-4 flex items-center justify-between border-t pt-4">
-										<Badge variant="outline" class="font-mono text-xs">{member.qrId}</Badge>
-										<Badge
-											class={member.status === 'Active'
-												? 'border-green-200 bg-green-500/10 text-green-700'
-												: 'bg-muted'}
-										>
-											{member.status}
-										</Badge>
-									</div>
-								</CardContent>
-							</Card>
-						{/each}
-					</div>
-				{/if}
-			{/if}
+			<!--
+				One DataTable instead of a hand-rolled table plus a second card-grid rendering of
+				the same rows. The card toggle is gone: it was a third copy of this data to keep
+				in step, and below `md` DataTable already renders cards.
+			-->
+			<DataTable
+				columns={[
+					{ key: 'select', header: 'Select', cell: selectCell, width: 'w-12', mobile: false },
+					{ key: 'avatar', header: 'Avatar', cell: avatarCell, width: 'w-12', mobile: false },
+					{ key: 'name', header: 'Name', cell: nameCell, sortable: true, as: 'title' },
+					{ key: 'group', header: 'Group', cell: groupCell, sortable: true, as: 'subtitle' },
+					{ key: 'qrId', header: 'ID', cell: idCell, width: 'w-28', nowrap: true },
+					{ key: 'status', header: 'Status', cell: statusCell, width: 'w-24' },
+					{ key: 'actions', header: 'Actions', cell: memberActions, align: 'right', as: 'actions' }
+				] satisfies Column<MemberRow>[]}
+				rows={filteredMembers}
+				rowKey={(member) => member.id}
+				bind:page={currentPage}
+				bind:pageSize
+				noun="members"
+				caption="Members"
+				emptyTitle="No members found"
+				emptyDescription="Try a different search, or clear the group filter."
+				sortKey={sortColumn}
+				{sortDirection}
+				onSort={(key) => handleSort(key as typeof sortColumn)}
+			/>
 
 			<!-- Desktop Pagination Controls -->
 			{#if filteredMembers.length > 0}

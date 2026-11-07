@@ -1,0 +1,37 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-07T22:00:00Z" },
+  "title": "Attendance history header and KPI cards",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Current.dc.html": { "x": 0, "y": 0, "w": 420, "h": 560, "title": "Current - no desktop header, two mismatched divs" },
+    "OptionA.dc.html": { "x": 520, "y": 0, "w": 760, "h": 420, "title": "A - hero kept, KpiCard for the rest (recommended)" },
+    "OptionB.dc.html": { "x": 520, "y": 480, "w": 760, "h": 360, "title": "B - three equal KpiCard peers" }
+  },
+  "order": ["Current.dc.html", "OptionA.dc.html", "OptionB.dc.html"],
+  "notes": {
+    "title": {
+      "x": 0,
+      "y": -140,
+      "text": "Attendance History - desktop header + the three summary cards",
+      "kind": "title1",
+      "maxW": 1200
+    },
+    "howto": {
+      "x": 0,
+      "y": -60,
+      "text": "Two asks, one board each change touches. Left: what's there now - no page title on desktop like every /settings page has, and Events/Average are one-off divs that match nothing. Right: two ways to fix both at once. A is the smaller change and the recommendation; B is the alternative if you'd rather all three read as equal peers like Analytics does.",
+      "w": 980,
+      "fill": "gray"
+    },
+    "attendanceLive": {
+      "x": 0,
+      "y": 620,
+      "w": 420,
+      "fill": "gray",
+      "text": "/attendance (the live page) gets the same PageShell header treatment, not mocked separately here - it's the established pattern, not a new design decision. Title \"Attendance\", no description needed. The event tabs and Refresh button stay exactly where they are in the page body; PageShell's actions slot is for page-level controls, and those are specific to the live session, not the page."
+    }
+  },
+  "designSystems": []
+}

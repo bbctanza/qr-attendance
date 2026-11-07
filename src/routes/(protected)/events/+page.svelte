@@ -1,9 +1,20 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent } from '$lib/components/ui/card';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Badge } from '$lib/components/ui/badge';
-	import { Calendar, Clock, MapPin, Pencil, Trash2, Plus, Check } from '@lucide/svelte';
+	import {
+		AlertTriangle,
+		Calendar,
+		Check,
+		Clock,
+		MapPin,
+		Pencil,
+		Plus,
+		Trash2
+	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
 	import {
 		Drawer,
@@ -24,6 +35,8 @@
 	import * as Select from '$lib/components/ui/select';
 	import { supabase } from '$lib/supabase';
 	import { auditedEventsApi, auditedEventTypesApi } from '$lib/api/auditedApi';
+	import { eventsApi, isOverlapError } from '$lib/api/events';
+	import { findScheduleConflicts } from '$lib/utils/eventOverlap';
 	import { onMount } from 'svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { showErrorToast, showSuccessToast, showWarningToast } from '$lib/utils/errorHandler';
@@ -37,6 +50,18 @@
 	let pastCustomEvents = $derived(allCustomEvents.filter((e) => e.row_status === 'completed'));
 	let totalEvents = $derived(recurringEventTypes.length + upcomingCustomEvents.length);
 	let activeRecurring = $derived(recurringEventTypes.filter((e) => e.is_active).length);
+
+	/**
+	 * Which active templates collide with which.
+	 *
+	 * Templates that predate the overlap rule are grandfathered by the database trigger,
+	 * which only fires on insert and update. Left unsaid, the consequence is silent and
+	 * bad: generation skips any instance that would collide, so the losing schedule simply
+	 * stops producing events while still looking active here.
+	 */
+	let scheduleConflicts = $derived(
+		findScheduleConflicts(recurringEventTypes, (schedule) => schedule.event_id)
+	);
 	let inactiveRecurring = $derived(recurringEventTypes.filter((e) => !e.is_active).length);
 
 	let isMobile = $state(false);
@@ -526,8 +551,28 @@
 					metadata
 				};
 
-				if (isEditing && editingId?.startsWith('custom-')) {
-					await auditedEventsApi.updateEvent(Number(editingId.split('-')[1]), payload);
+				const editingEventId =
+					isEditing && editingId?.startsWith('custom-')
+						? Number(editingId.split('-')[1])
+						: undefined;
+
+				// Checked here so the clash is named while the times are still on screen. The
+				// database trigger is what actually enforces this; the catch below covers the
+				// race where something else is booked between this check and the write.
+				const clash = await eventsApi.findConflict(
+					payload.start_datetime,
+					payload.end_datetime,
+					editingEventId
+				);
+				if (clash) {
+					toast.error(
+						`"${newEvent.name.trim()}" would overlap "${clash.event_name}". Two events cannot run at the same time.`
+					);
+					return;
+				}
+
+				if (editingEventId !== undefined) {
+					await auditedEventsApi.updateEvent(editingEventId, payload);
 				} else {
 					await auditedEventsApi.createEvent(payload);
 				}
@@ -540,28 +585,49 @@
 			location.reload();
 		} catch (err: any) {
 			console.error('Save Event Error:', err);
-			const msg = err?.message || err?.details || 'Unknown error';
-			toast.error(`Error saving event: ${msg}`);
+			if (isOverlapError(err)) {
+				// The trigger's message already names the conflicting event or schedule.
+				toast.error(err.message ?? 'That time is already taken by another event.');
+			} else {
+				const msg = err?.message || err?.details || 'Unknown error';
+				toast.error(`Error saving event: ${msg}`);
+			}
 		} finally {
 			isAddingEvent = false;
 		}
 	}
 </script>
 
-{#if isLoading}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+<svelte:head>
+	<title>Events | {siteConfig.name}</title>
+</svelte:head>
+
+<PageShell
+	title="Events Management"
+	description="Manage recurring and custom events for your organization"
+	backTo="/settings"
+	{isLoading}
+>
+	{#snippet actions()}
+		<Button onclick={addEvent} class="w-full sm:w-auto">
+			<Plus class="mr-2 h-4 w-4" />
+			Add New Event
+		</Button>
+	{/snippet}
+
+	{#snippet skeleton()}
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div class="hidden sm:block space-y-2">
+			<div class="hidden space-y-2 sm:block">
 				<Skeleton class="h-8 w-64" />
 				<Skeleton class="h-4 w-48" />
 			</div>
-			<Skeleton class="h-10 w-full sm:w-40 rounded-lg" />
+			<Skeleton class="h-10 w-full rounded-lg sm:w-40" />
 		</div>
-		
+
 		<div class="mt-6 space-y-6">
 			<!-- Upcoming Events Header -->
 			<Skeleton class="h-8 w-48" />
-			
+
 			<div class="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
 				{#each Array(6) as _}
 					<div class="rounded-xl border bg-card p-6">
@@ -578,706 +644,702 @@
 				{/each}
 			</div>
 		</div>
-	</div>
-{:else}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Header with Add Button -->
-		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div>
-				<h1 class="hidden text-2xl font-bold sm:block md:text-3xl">Events Management</h1>
-				<p class="mt-1 hidden text-muted-foreground sm:block">
-					Manage recurring and custom events for your organization
-				</p>
-			</div>
-			<div class="flex w-full flex-col items-center gap-2 sm:w-auto sm:flex-row">
-				<Button onclick={addEvent} class="w-full sm:w-auto">
-					<Plus class="mr-2 h-4 w-4" />
-					Add New Event
-				</Button>
-			</div>
-		</div>
+	{/snippet}
 
-		<!-- Add Event Drawer (Mobile) -->
-		{#if isMobile}
-			<Drawer bind:open={showAddEventDialog}>
-				<DrawerContent class="max-h-[90vh]">
-					<DrawerHeader>
-						<DrawerTitle class="text-lg font-semibold"
-							>{isEditing ? 'Edit Event' : 'Add New Event'}</DrawerTitle
-						>
-					</DrawerHeader>
-					<div class="max-h-[calc(90vh-180px)] overflow-y-auto px-4 pb-4">
-						<div class="mb-4 text-sm text-muted-foreground">
-							Create a new recurring or custom event
+	<!-- Add Event Drawer (Mobile) -->
+	{#if isMobile}
+		<Drawer bind:open={showAddEventDialog}>
+			<DrawerContent class="max-h-[90vh]">
+				<DrawerHeader>
+					<DrawerTitle class="text-lg font-semibold"
+						>{isEditing ? 'Edit Event' : 'Add New Event'}</DrawerTitle
+					>
+				</DrawerHeader>
+				<div class="max-h-[calc(90vh-180px)] overflow-y-auto px-4 pb-4">
+					<div class="mb-4 text-sm text-muted-foreground">
+						Create a new recurring or custom event
+					</div>
+					<div class="space-y-4">
+						<!-- Event Name -->
+						<div>
+							<Label for="eventName" class="text-xs font-bold tracking-wider uppercase"
+								>Event Name</Label
+							>
+							<Input
+								id="eventName"
+								type="text"
+								placeholder="e.g. Sunday Service"
+								bind:value={newEvent.name}
+								class="mt-2 w-full rounded-xl border-input py-3 placeholder-muted-foreground-mobile"
+							/>
 						</div>
-						<div class="space-y-4">
-							<!-- Event Name -->
-							<div>
-								<Label for="eventName" class="text-xs font-bold tracking-wider uppercase"
-									>Event Name</Label
-								>
-								<Input
-									id="eventName"
-									type="text"
-									placeholder="e.g. Sunday Service"
-									bind:value={newEvent.name}
-									class="mt-2 w-full rounded-xl border-input py-3 placeholder-muted-foreground-mobile"
-								/>
-							</div>
 
-							<!-- Type & Schedule -->
+						<!-- Type & Schedule -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Type</Label>
+								<Select.Root type="single" bind:value={newEvent.type}>
+									<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
+										{newEvent.type === 'recurring' ? 'Recurring' : 'Custom / One-time'}
+									</Select.Trigger>
+									<Select.Content class="rounded-xl border-border/40 bg-popover">
+										<Select.Item value="recurring">Recurring</Select.Item>
+										<Select.Item value="custom">Custom / One-time</Select.Item>
+									</Select.Content>
+								</Select.Root>
+							</div>
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Schedule</Label>
+								<Select.Root type="single" bind:value={newEvent.schedule}>
+									<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
+										{newEvent.schedule === 'weekly'
+											? 'Weekly'
+											: newEvent.schedule === 'monthly'
+												? 'Monthly'
+												: 'One-time'}
+									</Select.Trigger>
+									<Select.Content class="rounded-xl border-border/40 bg-popover">
+										<Select.Item value="weekly" disabled={newEvent.type === 'custom'}
+											>Weekly</Select.Item
+										>
+										<Select.Item value="monthly" disabled={newEvent.type === 'custom'}
+											>Monthly</Select.Item
+										>
+										<Select.Item value="one-time" disabled={newEvent.type === 'recurring'}
+											>One-time</Select.Item
+										>
+									</Select.Content>
+								</Select.Root>
+							</div>
+						</div>
+
+						<!-- Weekly Days -->
+						{#if newEvent.schedule === 'weekly'}
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Days of Week</Label>
+								<div class="mt-2 grid grid-cols-4 gap-2">
+									{#each weekdays as day}
+										<button
+											type="button"
+											class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/30"
+											aria-pressed={newEvent.days.includes(day)}
+											onclick={() => toggleWeekday(day)}
+											onkeydown={(e) =>
+												(e.key === 'Enter' || e.key === ' ') &&
+												(e.preventDefault(), toggleWeekday(day))}
+										>
+											<div
+												class="flex size-4 items-center justify-center rounded-sm border border-border"
+											>
+												{#if newEvent.days.includes(day)}
+													<Check class="size-3 text-primary" />
+												{/if}
+											</div>
+											<span>{day.slice(0, 3)}</span>
+										</button>
+									{/each}
+								</div>
+							</div>
+						{/if}
+
+						<!-- Monthly Rule -->
+						{#if newEvent.schedule === 'monthly'}
 							<div class="grid grid-cols-2 gap-3">
 								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Type</Label>
-									<Select.Root type="single" bind:value={newEvent.type}>
-										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
-											{newEvent.type === 'recurring' ? 'Recurring' : 'Custom / One-time'}
-										</Select.Trigger>
+									<Label class="text-xs font-bold tracking-wider uppercase">Ordinal</Label>
+									<Select.Root type="single" bind:value={newEvent.monthlyOrdinal}>
+										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
+											>{newEvent.monthlyOrdinal}</Select.Trigger
+										>
 										<Select.Content class="rounded-xl border-border/40 bg-popover">
-											<Select.Item value="recurring">Recurring</Select.Item>
-											<Select.Item value="custom">Custom / One-time</Select.Item>
+											<Select.Item value="First">First</Select.Item>
+											<Select.Item value="Second">Second</Select.Item>
+											<Select.Item value="Third">Third</Select.Item>
+											<Select.Item value="Fourth">Fourth</Select.Item>
+											<Select.Item value="Last">Last</Select.Item>
 										</Select.Content>
 									</Select.Root>
 								</div>
 								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Schedule</Label>
-									<Select.Root type="single" bind:value={newEvent.schedule}>
-										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
-											{newEvent.schedule === 'weekly'
-												? 'Weekly'
-												: newEvent.schedule === 'monthly'
-													? 'Monthly'
-													: 'One-time'}
-										</Select.Trigger>
+									<Label class="text-xs font-bold tracking-wider uppercase">Weekday</Label>
+									<Select.Root type="single" bind:value={newEvent.monthlyWeekday}>
+										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
+											>{newEvent.monthlyWeekday}</Select.Trigger
+										>
 										<Select.Content class="rounded-xl border-border/40 bg-popover">
-											<Select.Item value="weekly" disabled={newEvent.type === 'custom'}
-												>Weekly</Select.Item
-											>
-											<Select.Item value="monthly" disabled={newEvent.type === 'custom'}
-												>Monthly</Select.Item
-											>
-											<Select.Item value="one-time" disabled={newEvent.type === 'recurring'}
-												>One-time</Select.Item
-											>
+											{#each weekdays as day}
+												<Select.Item value={day}>{day}</Select.Item>
+											{/each}
 										</Select.Content>
 									</Select.Root>
 								</div>
 							</div>
+						{/if}
 
-							<!-- Weekly Days -->
-							{#if newEvent.schedule === 'weekly'}
-								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Days of Week</Label>
-									<div class="mt-2 grid grid-cols-4 gap-2">
-										{#each weekdays as day}
-											<button
-												type="button"
-												class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/30"
-												aria-pressed={newEvent.days.includes(day)}
-												onclick={() => toggleWeekday(day)}
-												onkeydown={(e) =>
-													(e.key === 'Enter' || e.key === ' ') &&
-													(e.preventDefault(), toggleWeekday(day))}
-											>
-												<div
-													class="flex size-4 items-center justify-center rounded-sm border border-border"
-												>
-													{#if newEvent.days.includes(day)}
-														<Check class="size-3 text-primary" />
-													{/if}
-												</div>
-												<span>{day.slice(0, 3)}</span>
-											</button>
-										{/each}
-									</div>
-								</div>
-							{/if}
-
-							<!-- Monthly Rule -->
-							{#if newEvent.schedule === 'monthly'}
-								<div class="grid grid-cols-2 gap-3">
-									<div>
-										<Label class="text-xs font-bold tracking-wider uppercase">Ordinal</Label>
-										<Select.Root type="single" bind:value={newEvent.monthlyOrdinal}>
-											<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
-												>{newEvent.monthlyOrdinal}</Select.Trigger
-											>
-											<Select.Content class="rounded-xl border-border/40 bg-popover">
-												<Select.Item value="First">First</Select.Item>
-												<Select.Item value="Second">Second</Select.Item>
-												<Select.Item value="Third">Third</Select.Item>
-												<Select.Item value="Fourth">Fourth</Select.Item>
-												<Select.Item value="Last">Last</Select.Item>
-											</Select.Content>
-										</Select.Root>
-									</div>
-									<div>
-										<Label class="text-xs font-bold tracking-wider uppercase">Weekday</Label>
-										<Select.Root type="single" bind:value={newEvent.monthlyWeekday}>
-											<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
-												>{newEvent.monthlyWeekday}</Select.Trigger
-											>
-											<Select.Content class="rounded-xl border-border/40 bg-popover">
-												{#each weekdays as day}
-													<Select.Item value={day}>{day}</Select.Item>
-												{/each}
-											</Select.Content>
-										</Select.Root>
-									</div>
-								</div>
-							{/if}
-
-							<!-- One-time Date (custom) -->
-							{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
-								<div>
-									<div class="flex items-center justify-between">
-										<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
-										<button
-											type="button"
-											class="cursor-pointer text-xs font-medium text-primary hover:underline"
-											onclick={() => (newEvent.date = new Date().toLocaleDateString('en-CA'))}
-											>Today</button
-										>
-									</div>
-									<Input
-										id="eventDate"
-										type="date"
-										bind:value={newEvent.date}
-										class="mt-2 w-full rounded-xl border-input py-3"
-									/>
-								</div>
-							{/if}
-
-							<!-- Time & Location -->
-							<div class="grid grid-cols-2 gap-3">
-								<div>
-									<div class="flex items-center justify-between">
-										<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
-										<button
-											type="button"
-											class="cursor-pointer text-xs font-medium text-primary hover:underline"
-											onclick={() => {
-												const d = new Date();
-												newEvent.startTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-											}}>Now</button
-										>
-									</div>
-									<Input
-										id="startTime"
-										type="time"
-										bind:value={newEvent.startTime}
-										class="mt-2 w-full rounded-xl border-input py-3"
-									/>
-								</div>
-								<div>
-									<div class="flex items-center justify-between">
-										<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
-										<button
-											type="button"
-											class="cursor-pointer text-xs font-medium text-primary hover:underline"
-											onclick={() => {
-												const d = new Date();
-												d.setHours(d.getHours() + 1);
-												newEvent.endTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-											}}>+1h</button
-										>
-									</div>
-									<Input
-										id="endTime"
-										type="time"
-										bind:value={newEvent.endTime}
-										class="mt-2 w-full rounded-xl border-input py-3"
-									/>
-								</div>
-							</div>
-
+						<!-- One-time Date (custom) -->
+						{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
 							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Location</Label>
+								<div class="flex items-center justify-between">
+									<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+									<button
+										type="button"
+										class="cursor-pointer text-xs font-medium text-primary hover:underline"
+										onclick={() => (newEvent.date = new Date().toLocaleDateString('en-CA'))}
+										>Today</button
+									>
+								</div>
 								<Input
-									id="location"
-									type="text"
-									bind:value={newEvent.location}
-									placeholder="e.g. Main Sanctuary"
+									id="eventDate"
+									type="date"
+									bind:value={newEvent.date}
 									class="mt-2 w-full rounded-xl border-input py-3"
 								/>
 							</div>
+						{/if}
 
-							<!-- Record Absents Toggle -->
-							<div
-								class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
-							>
-								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
-									<p class="mt-1 text-xs text-muted-foreground">
-										When OFF, only present attendees are recorded
-									</p>
-								</div>
-								<Switch bind:checked={newEvent.record_absents} />
-							</div>
-						</div>
-					</div>
-
-					<DrawerFooter class="flex gap-3 border-t px-4 pb-4">
-						<Button
-							class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
-							onclick={() => (showAddEventDialog = false)}>Cancel</Button
-						>
-						<Button class="w-full" onclick={addNewEvent} disabled={isAddingEvent}>
-							{#if isAddingEvent}
-								<div class="flex items-center gap-2">
-									<div
-										class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
-									></div>
-									<span>Saving...</span>
-								</div>
-							{:else}
-								{isEditing ? 'Update Event' : 'Save Event'}
-							{/if}
-						</Button>
-					</DrawerFooter>
-				</DrawerContent>
-			</Drawer>
-		{/if}
-
-		<!-- Add Event Sheet (Desktop) -->
-		{#if !isMobile}
-			<Sheet bind:open={showAddEventDialog}>
-				<SheetContent class="hidden flex-col sm:flex sm:max-w-2xl">
-					<SheetHeader>
-						<SheetTitle class="text-lg font-semibold"
-							>{isEditing ? 'Edit Event' : 'Add New Event'}</SheetTitle
-						>
-					</SheetHeader>
-					<div class="flex-1 overflow-y-auto px-4 pb-4">
-						<div class="mb-4 text-sm text-muted-foreground">
-							Create a new recurring or custom event
-						</div>
-						<div class="space-y-4">
-							<!-- Event Name -->
+						<!-- Time & Location -->
+						<div class="grid grid-cols-2 gap-3">
 							<div>
-								<Label for="eventName" class="text-xs font-bold tracking-wider uppercase"
-									>Event Name</Label
-								>
+								<div class="flex items-center justify-between">
+									<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+									<button
+										type="button"
+										class="cursor-pointer text-xs font-medium text-primary hover:underline"
+										onclick={() => {
+											const d = new Date();
+											newEvent.startTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+										}}>Now</button
+									>
+								</div>
 								<Input
-									id="eventName"
-									type="text"
-									placeholder="e.g. Sunday Service"
-									bind:value={newEvent.name}
-									class="mt-2 w-full rounded-xl border-input py-3 placeholder-muted-foreground-mobile"
-								/>
-							</div>
-
-							<!-- Type & Schedule -->
-							<div class="grid grid-cols-2 gap-3">
-								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Type</Label>
-									<Select.Root type="single" bind:value={newEvent.type}>
-										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
-											{newEvent.type === 'recurring' ? 'Recurring' : 'Custom / One-time'}
-										</Select.Trigger>
-										<Select.Content class="rounded-xl border-border/40 bg-popover">
-											<Select.Item value="recurring">Recurring</Select.Item>
-											<Select.Item value="custom">Custom / One-time</Select.Item>
-										</Select.Content>
-									</Select.Root>
-								</div>
-								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Schedule</Label>
-									<Select.Root type="single" bind:value={newEvent.schedule}>
-										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
-											{newEvent.schedule === 'weekly'
-												? 'Weekly'
-												: newEvent.schedule === 'monthly'
-													? 'Monthly'
-													: 'One-time'}
-										</Select.Trigger>
-										<Select.Content class="rounded-xl border-border/40 bg-popover">
-											<Select.Item value="weekly" disabled={newEvent.type === 'custom'}
-												>Weekly</Select.Item
-											>
-											<Select.Item value="monthly" disabled={newEvent.type === 'custom'}
-												>Monthly</Select.Item
-											>
-											<Select.Item value="one-time" disabled={newEvent.type === 'recurring'}
-												>One-time</Select.Item
-											>
-										</Select.Content>
-									</Select.Root>
-								</div>
-							</div>
-
-							<!-- Weekly Days -->
-							{#if newEvent.schedule === 'weekly'}
-								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Days of Week</Label>
-									<div class="mt-2 grid grid-cols-4 gap-2">
-										{#each weekdays as day}
-											<button
-												type="button"
-												class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/30"
-												aria-pressed={newEvent.days.includes(day)}
-												onclick={() => toggleWeekday(day)}
-												onkeydown={(e) =>
-													(e.key === 'Enter' || e.key === ' ') &&
-													(e.preventDefault(), toggleWeekday(day))}
-											>
-												<div
-													class="flex size-4 items-center justify-center rounded-sm border border-border"
-												>
-													{#if newEvent.days.includes(day)}
-														<Check class="size-3 text-primary" />
-													{/if}
-												</div>
-												<span>{day.slice(0, 3)}</span>
-											</button>
-										{/each}
-									</div>
-								</div>
-							{/if}
-
-							<!-- Monthly Rule -->
-							{#if newEvent.schedule === 'monthly'}
-								<div class="grid grid-cols-2 gap-3">
-									<div>
-										<Label class="text-xs font-bold tracking-wider uppercase">Ordinal</Label>
-										<Select.Root type="single" bind:value={newEvent.monthlyOrdinal}>
-											<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
-												>{newEvent.monthlyOrdinal}</Select.Trigger
-											>
-											<Select.Content class="rounded-xl border-border/40 bg-popover">
-												<Select.Item value="First">First</Select.Item>
-												<Select.Item value="Second">Second</Select.Item>
-												<Select.Item value="Third">Third</Select.Item>
-												<Select.Item value="Fourth">Fourth</Select.Item>
-												<Select.Item value="Last">Last</Select.Item>
-											</Select.Content>
-										</Select.Root>
-									</div>
-									<div>
-										<Label class="text-xs font-bold tracking-wider uppercase">Weekday</Label>
-										<Select.Root type="single" bind:value={newEvent.monthlyWeekday}>
-											<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
-												>{newEvent.monthlyWeekday}</Select.Trigger
-											>
-											<Select.Content class="rounded-xl border-border/40 bg-popover">
-												{#each weekdays as day}
-													<Select.Item value={day}>{day}</Select.Item>
-												{/each}
-											</Select.Content>
-										</Select.Root>
-									</div>
-								</div>
-							{/if}
-
-							<!-- One-time Date (custom) -->
-							{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
-								<div>
-									<div class="flex items-center justify-between">
-										<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
-										<button
-											type="button"
-											class="cursor-pointer text-xs font-medium text-primary hover:underline"
-											onclick={() => (newEvent.date = new Date().toLocaleDateString('en-CA'))}
-											>Today</button
-										>
-									</div>
-									<Input
-										id="eventDate"
-										type="date"
-										bind:value={newEvent.date}
-										class="mt-2 w-full rounded-xl border-input py-3"
-									/>
-								</div>
-							{/if}
-
-							<!-- Time & Location -->
-							<div class="grid grid-cols-2 gap-3">
-								<div>
-									<div class="flex items-center justify-between">
-										<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
-										<button
-											type="button"
-											class="cursor-pointer text-xs font-medium text-primary hover:underline"
-											onclick={() => {
-												const d = new Date();
-												newEvent.startTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-											}}>Now</button
-										>
-									</div>
-									<Input
-										id="startTime"
-										type="time"
-										bind:value={newEvent.startTime}
-										class="mt-2 w-full rounded-xl border-input py-3"
-									/>
-								</div>
-								<div>
-									<div class="flex items-center justify-between">
-										<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
-										<button
-											type="button"
-											class="cursor-pointer text-xs font-medium text-primary hover:underline"
-											onclick={() => {
-												const d = new Date();
-												d.setHours(d.getHours() + 1);
-												newEvent.endTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-											}}>+1h</button
-										>
-									</div>
-									<Input
-										id="endTime"
-										type="time"
-										bind:value={newEvent.endTime}
-										class="mt-2 w-full rounded-xl border-input py-3"
-									/>
-								</div>
-							</div>
-
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Location</Label>
-								<Input
-									id="location"
-									type="text"
-									bind:value={newEvent.location}
-									placeholder="e.g. Main Sanctuary"
+									id="startTime"
+									type="time"
+									bind:value={newEvent.startTime}
 									class="mt-2 w-full rounded-xl border-input py-3"
 								/>
 							</div>
-
-							<!-- Record Absents Toggle -->
-							<div
-								class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
-							>
-								<div>
-									<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
-									<p class="mt-1 text-xs text-muted-foreground">
-										When OFF, only present attendees are recorded
-									</p>
+							<div>
+								<div class="flex items-center justify-between">
+									<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+									<button
+										type="button"
+										class="cursor-pointer text-xs font-medium text-primary hover:underline"
+										onclick={() => {
+											const d = new Date();
+											d.setHours(d.getHours() + 1);
+											newEvent.endTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+										}}>+1h</button
+									>
 								</div>
-								<Switch bind:checked={newEvent.record_absents} />
+								<Input
+									id="endTime"
+									type="time"
+									bind:value={newEvent.endTime}
+									class="mt-2 w-full rounded-xl border-input py-3"
+								/>
 							</div>
 						</div>
-					</div>
 
-					<SheetFooter class="flex gap-3 px-4 pb-4">
-						<Button
-							class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 md:w-auto"
-							onclick={() => (showAddEventDialog = false)}>Cancel</Button
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Location</Label>
+							<Input
+								id="location"
+								type="text"
+								bind:value={newEvent.location}
+								placeholder="e.g. Main Sanctuary"
+								class="mt-2 w-full rounded-xl border-input py-3"
+							/>
+						</div>
+
+						<!-- Record Absents Toggle -->
+						<div
+							class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
 						>
-						<Button class="w-full md:w-auto" onclick={addNewEvent} disabled={isAddingEvent}>
-							{#if isAddingEvent}
-								<div class="flex items-center gap-2">
-									<div
-										class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
-									></div>
-									<span>Saving...</span>
-								</div>
-							{:else}
-								{isEditing ? 'Update Event' : 'Save Event'}
-							{/if}
-						</Button>
-					</SheetFooter>
-				</SheetContent>
-			</Sheet>
-		{/if}
-
-		<!-- Stats Cards -->
-		<div class="grid grid-cols-3 gap-2">
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center p-4">
-					<Calendar class="mb-2 h-6 w-6 text-muted-foreground" />
-					<div class="mb-1 text-2xl font-bold">{totalEvents}</div>
-					<div class="text-center text-sm font-medium">Total Events</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center p-4">
-					<Calendar class="mb-2 h-6 w-6 text-green-500" />
-					<div class="mb-1 text-2xl font-bold text-green-500">{activeRecurring}</div>
-					<div class="text-center text-sm font-medium">Active</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center p-4">
-					<Calendar class="mb-2 h-6 w-6 text-red-500" />
-					<div class="mb-1 text-2xl font-bold text-red-500">{inactiveRecurring}</div>
-					<div class="text-center text-sm font-medium">Inactive</div>
-				</CardContent>
-			</Card>
-		</div>
-
-		<!-- Recurring and Custom Events -->
-		<div class="flex flex-col gap-6">
-			<!-- Recurring Events -->
-			<div>
-				<h2 class="mb-4 text-lg font-semibold md:text-xl">Recurring Events</h2>
-				<div class="space-y-3 sm:space-y-4">
-					{#each recurringEventTypes as event (event.event_id)}
-						<Card>
-							<CardContent class="p-4 sm:p-5">
-								<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-									<div class="min-w-0 flex-1">
-										<h3 class="mb-2 text-base font-semibold sm:text-lg">{event.name}</h3>
-										<div class="flex flex-col gap-2 text-sm text-muted-foreground">
-											<div class="flex items-center gap-2">
-												<Calendar class="h-4 w-4 shrink-0" />
-												<span>{event.day_name}</span>
-											</div>
-											<div class="flex items-center gap-2">
-												<Clock class="h-4 w-4 shrink-0" />
-												<span>{event.start_time_formatted} - {event.end_time_formatted}</span>
-											</div>
-										</div>
-									</div>
-									<div class="flex items-center gap-2 sm:gap-3">
-										<Switch
-											checked={event.is_active}
-											onCheckedChange={() => toggleActive(event.event_id)}
-										/>
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-9 w-9 p-0"
-											onclick={() => editEvent(event.event_id)}
-										>
-											<Pencil class="h-4 w-4" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-9 w-9 p-0"
-											disabled={isDeletingEvent}
-											onclick={() => deleteEvent(event.event_id)}
-										>
-											{#if isDeletingEvent}
-												<div
-													class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"
-												></div>
-											{:else}
-												<Trash2 class="h-4 w-4" />
-											{/if}
-										</Button>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
-					{/each}
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
+								<p class="mt-1 text-xs text-muted-foreground">
+									When OFF, only present attendees are recorded
+								</p>
+							</div>
+							<Switch bind:checked={newEvent.record_absents} />
+						</div>
+					</div>
 				</div>
-			</div>
 
-			<!-- Custom Events -->
-			<div>
-				<h2 class="mb-4 text-lg font-semibold md:text-xl">Custom Events</h2>
-				<div class="space-y-3 sm:space-y-4">
-					{#each upcomingCustomEvents as event (event.event_id)}
-						<Card>
-							<CardContent class="p-4 sm:p-5">
-								<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-									<div class="min-w-0 flex-1">
-										<div class="mb-2 flex items-center gap-2">
-											<h3 class="text-base font-semibold sm:text-lg">{event.name}</h3>
-											<Badge
-												class="shrink-0"
-												variant={new Date(event.event_date) > new Date() ? 'default' : 'secondary'}
+				<DrawerFooter class="flex gap-3 border-t px-4 pb-4">
+					<Button
+						class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+						onclick={() => (showAddEventDialog = false)}>Cancel</Button
+					>
+					<Button class="w-full" onclick={addNewEvent} disabled={isAddingEvent}>
+						{#if isAddingEvent}
+							<div class="flex items-center gap-2">
+								<div
+									class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+								></div>
+								<span>Saving...</span>
+							</div>
+						{:else}
+							{isEditing ? 'Update Event' : 'Save Event'}
+						{/if}
+					</Button>
+				</DrawerFooter>
+			</DrawerContent>
+		</Drawer>
+	{/if}
+
+	<!-- Add Event Sheet (Desktop) -->
+	{#if !isMobile}
+		<Sheet bind:open={showAddEventDialog}>
+			<SheetContent class="hidden flex-col sm:flex sm:max-w-2xl">
+				<SheetHeader>
+					<SheetTitle class="text-lg font-semibold"
+						>{isEditing ? 'Edit Event' : 'Add New Event'}</SheetTitle
+					>
+				</SheetHeader>
+				<div class="flex-1 overflow-y-auto px-4 pb-4">
+					<div class="mb-4 text-sm text-muted-foreground">
+						Create a new recurring or custom event
+					</div>
+					<div class="space-y-4">
+						<!-- Event Name -->
+						<div>
+							<Label for="eventName" class="text-xs font-bold tracking-wider uppercase"
+								>Event Name</Label
+							>
+							<Input
+								id="eventName"
+								type="text"
+								placeholder="e.g. Sunday Service"
+								bind:value={newEvent.name}
+								class="mt-2 w-full rounded-xl border-input py-3 placeholder-muted-foreground-mobile"
+							/>
+						</div>
+
+						<!-- Type & Schedule -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Type</Label>
+								<Select.Root type="single" bind:value={newEvent.type}>
+									<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
+										{newEvent.type === 'recurring' ? 'Recurring' : 'Custom / One-time'}
+									</Select.Trigger>
+									<Select.Content class="rounded-xl border-border/40 bg-popover">
+										<Select.Item value="recurring">Recurring</Select.Item>
+										<Select.Item value="custom">Custom / One-time</Select.Item>
+									</Select.Content>
+								</Select.Root>
+							</div>
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Schedule</Label>
+								<Select.Root type="single" bind:value={newEvent.schedule}>
+									<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left">
+										{newEvent.schedule === 'weekly'
+											? 'Weekly'
+											: newEvent.schedule === 'monthly'
+												? 'Monthly'
+												: 'One-time'}
+									</Select.Trigger>
+									<Select.Content class="rounded-xl border-border/40 bg-popover">
+										<Select.Item value="weekly" disabled={newEvent.type === 'custom'}
+											>Weekly</Select.Item
+										>
+										<Select.Item value="monthly" disabled={newEvent.type === 'custom'}
+											>Monthly</Select.Item
+										>
+										<Select.Item value="one-time" disabled={newEvent.type === 'recurring'}
+											>One-time</Select.Item
+										>
+									</Select.Content>
+								</Select.Root>
+							</div>
+						</div>
+
+						<!-- Weekly Days -->
+						{#if newEvent.schedule === 'weekly'}
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Days of Week</Label>
+								<div class="mt-2 grid grid-cols-4 gap-2">
+									{#each weekdays as day}
+										<button
+											type="button"
+											class="flex items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/30"
+											aria-pressed={newEvent.days.includes(day)}
+											onclick={() => toggleWeekday(day)}
+											onkeydown={(e) =>
+												(e.key === 'Enter' || e.key === ' ') &&
+												(e.preventDefault(), toggleWeekday(day))}
+										>
+											<div
+												class="flex size-4 items-center justify-center rounded-sm border border-border"
 											>
-												{new Date(event.event_date) > new Date() ? 'Upcoming' : 'Occurring'}
-											</Badge>
-										</div>
-										<div class="flex flex-col gap-2 text-sm text-muted-foreground">
-											<div class="flex items-center gap-2">
-												<Calendar class="h-4 w-4 shrink-0" />
-												<span
-													>{event.event_date
-														? new Date(event.event_date).toLocaleDateString()
-														: 'N/A'}</span
-												>
+												{#if newEvent.days.includes(day)}
+													<Check class="size-3 text-primary" />
+												{/if}
 											</div>
-											<div class="flex items-center gap-2">
-												<Clock class="h-4 w-4 shrink-0" />
-												<span>{event.start_time} - {event.end_time}</span>
-											</div>
-											{#if event.location}
-												<div class="flex items-center gap-2">
-													<MapPin class="h-4 w-4 shrink-0" />
-													<span>{event.location}</span>
-												</div>
-											{/if}
-										</div>
-									</div>
-									<div class="flex items-center gap-2 sm:gap-3">
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-9 w-9 p-0"
-											onclick={() => editEvent(event.event_id)}
-										>
-											<Pencil class="h-4 w-4" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-9 w-9 p-0"
-											disabled={isDeletingEvent}
-											onclick={() => deleteEvent(event.event_id)}
-										>
-											{#if isDeletingEvent}
-												<div
-													class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"
-												></div>
-											{:else}
-												<Trash2 class="h-4 w-4" />
-											{/if}
-										</Button>
-									</div>
+											<span>{day.slice(0, 3)}</span>
+										</button>
+									{/each}
 								</div>
-							</CardContent>
-						</Card>
-					{/each}
-					{#if upcomingCustomEvents.length === 0}
-						<div class="py-8 text-center text-muted-foreground">No upcoming custom events</div>
-					{/if}
+							</div>
+						{/if}
+
+						<!-- Monthly Rule -->
+						{#if newEvent.schedule === 'monthly'}
+							<div class="grid grid-cols-2 gap-3">
+								<div>
+									<Label class="text-xs font-bold tracking-wider uppercase">Ordinal</Label>
+									<Select.Root type="single" bind:value={newEvent.monthlyOrdinal}>
+										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
+											>{newEvent.monthlyOrdinal}</Select.Trigger
+										>
+										<Select.Content class="rounded-xl border-border/40 bg-popover">
+											<Select.Item value="First">First</Select.Item>
+											<Select.Item value="Second">Second</Select.Item>
+											<Select.Item value="Third">Third</Select.Item>
+											<Select.Item value="Fourth">Fourth</Select.Item>
+											<Select.Item value="Last">Last</Select.Item>
+										</Select.Content>
+									</Select.Root>
+								</div>
+								<div>
+									<Label class="text-xs font-bold tracking-wider uppercase">Weekday</Label>
+									<Select.Root type="single" bind:value={newEvent.monthlyWeekday}>
+										<Select.Trigger class="mt-2 w-full rounded-xl border-input py-3 text-left"
+											>{newEvent.monthlyWeekday}</Select.Trigger
+										>
+										<Select.Content class="rounded-xl border-border/40 bg-popover">
+											{#each weekdays as day}
+												<Select.Item value={day}>{day}</Select.Item>
+											{/each}
+										</Select.Content>
+									</Select.Root>
+								</div>
+							</div>
+						{/if}
+
+						<!-- One-time Date (custom) -->
+						{#if newEvent.schedule === 'one-time' || newEvent.type === 'custom'}
+							<div>
+								<div class="flex items-center justify-between">
+									<Label class="text-xs font-bold tracking-wider uppercase">Date</Label>
+									<button
+										type="button"
+										class="cursor-pointer text-xs font-medium text-primary hover:underline"
+										onclick={() => (newEvent.date = new Date().toLocaleDateString('en-CA'))}
+										>Today</button
+									>
+								</div>
+								<Input
+									id="eventDate"
+									type="date"
+									bind:value={newEvent.date}
+									class="mt-2 w-full rounded-xl border-input py-3"
+								/>
+							</div>
+						{/if}
+
+						<!-- Time & Location -->
+						<div class="grid grid-cols-2 gap-3">
+							<div>
+								<div class="flex items-center justify-between">
+									<Label class="text-xs font-bold tracking-wider uppercase">Start Time</Label>
+									<button
+										type="button"
+										class="cursor-pointer text-xs font-medium text-primary hover:underline"
+										onclick={() => {
+											const d = new Date();
+											newEvent.startTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+										}}>Now</button
+									>
+								</div>
+								<Input
+									id="startTime"
+									type="time"
+									bind:value={newEvent.startTime}
+									class="mt-2 w-full rounded-xl border-input py-3"
+								/>
+							</div>
+							<div>
+								<div class="flex items-center justify-between">
+									<Label class="text-xs font-bold tracking-wider uppercase">End Time</Label>
+									<button
+										type="button"
+										class="cursor-pointer text-xs font-medium text-primary hover:underline"
+										onclick={() => {
+											const d = new Date();
+											d.setHours(d.getHours() + 1);
+											newEvent.endTime = `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+										}}>+1h</button
+									>
+								</div>
+								<Input
+									id="endTime"
+									type="time"
+									bind:value={newEvent.endTime}
+									class="mt-2 w-full rounded-xl border-input py-3"
+								/>
+							</div>
+						</div>
+
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Location</Label>
+							<Input
+								id="location"
+								type="text"
+								bind:value={newEvent.location}
+								placeholder="e.g. Main Sanctuary"
+								class="mt-2 w-full rounded-xl border-input py-3"
+							/>
+						</div>
+
+						<!-- Record Absents Toggle -->
+						<div
+							class="flex items-center justify-between rounded-lg border border-border/50 bg-muted/30 p-3"
+						>
+							<div>
+								<Label class="text-xs font-bold tracking-wider uppercase">Record Absents</Label>
+								<p class="mt-1 text-xs text-muted-foreground">
+									When OFF, only present attendees are recorded
+								</p>
+							</div>
+							<Switch bind:checked={newEvent.record_absents} />
+						</div>
+					</div>
 				</div>
+
+				<SheetFooter class="flex gap-3 px-4 pb-4">
+					<Button
+						class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 md:w-auto"
+						onclick={() => (showAddEventDialog = false)}>Cancel</Button
+					>
+					<Button class="w-full md:w-auto" onclick={addNewEvent} disabled={isAddingEvent}>
+						{#if isAddingEvent}
+							<div class="flex items-center gap-2">
+								<div
+									class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+								></div>
+								<span>Saving...</span>
+							</div>
+						{:else}
+							{isEditing ? 'Update Event' : 'Save Event'}
+						{/if}
+					</Button>
+				</SheetFooter>
+			</SheetContent>
+		</Sheet>
+	{/if}
+
+	<!-- Stats Cards -->
+	<div class="grid grid-cols-3 gap-2">
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Calendar class="mb-2 h-6 w-6 text-muted-foreground" />
+				<div class="mb-1 text-2xl font-bold">{totalEvents}</div>
+				<div class="text-center text-sm font-medium">Total Events</div>
+			</CardContent>
+		</Card>
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Calendar class="mb-2 h-6 w-6 text-green-500" />
+				<div class="mb-1 text-2xl font-bold text-green-500">{activeRecurring}</div>
+				<div class="text-center text-sm font-medium">Active</div>
+			</CardContent>
+		</Card>
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Calendar class="mb-2 h-6 w-6 text-red-500" />
+				<div class="mb-1 text-2xl font-bold text-red-500">{inactiveRecurring}</div>
+				<div class="text-center text-sm font-medium">Inactive</div>
+			</CardContent>
+		</Card>
+	</div>
+
+	<!-- Recurring and Custom Events -->
+	<div class="flex flex-col gap-6">
+		<!-- Recurring Events -->
+		<div>
+			<h2 class="mb-4 text-lg font-semibold md:text-xl">Recurring Events</h2>
+			<div class="space-y-3 sm:space-y-4">
+				{#each recurringEventTypes as event (event.event_id)}
+					<Card>
+						<CardContent class="p-4 sm:p-5">
+							<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+								<div class="min-w-0 flex-1">
+									<h3 class="mb-2 text-base font-semibold sm:text-lg">{event.name}</h3>
+									<div class="flex flex-col gap-2 text-sm text-muted-foreground">
+										<div class="flex items-center gap-2">
+											<Calendar class="h-4 w-4 shrink-0" />
+											<span>{event.day_name}</span>
+										</div>
+										<div class="flex items-center gap-2">
+											<Clock class="h-4 w-4 shrink-0" />
+											<span>{event.start_time_formatted} - {event.end_time_formatted}</span>
+										</div>
+									</div>
+
+									{#if scheduleConflicts.has(event.event_id)}
+										{@const clashes = scheduleConflicts.get(event.event_id) ?? []}
+										<div
+											class="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs text-amber-700 dark:text-amber-400"
+											role="status"
+										>
+											<AlertTriangle class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+											<span>
+												Overlaps {clashes.map((c) => c.name).join(', ')}. Only one of them will
+												generate events each week - change the time or turn one off.
+											</span>
+										</div>
+									{/if}
+								</div>
+								<div class="flex items-center gap-2 sm:gap-3">
+									<Switch
+										checked={event.is_active}
+										onCheckedChange={() => toggleActive(event.event_id)}
+									/>
+									<Button
+										variant="ghost"
+										size="sm"
+										class="h-9 w-9 p-0"
+										onclick={() => editEvent(event.event_id)}
+									>
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										class="h-9 w-9 p-0"
+										disabled={isDeletingEvent}
+										onclick={() => deleteEvent(event.event_id)}
+									>
+										{#if isDeletingEvent}
+											<div
+												class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"
+											></div>
+										{:else}
+											<Trash2 class="h-4 w-4" />
+										{/if}
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
 			</div>
 		</div>
 
-		<!-- Past Events -->
-		{#if pastCustomEvents.length > 0}
-			<div>
-				<h2 class="mb-4 text-lg font-semibold text-muted-foreground md:text-xl">Past Events</h2>
-				<div class="space-y-3 sm:space-y-4">
-					{#each pastCustomEvents as event (event.event_id)}
-						<Card class="opacity-70">
-							<CardContent class="p-4 sm:p-5">
-								<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-									<div>
-										<h3 class="text-base font-semibold">{event.name}</h3>
-										<div class="mt-2 flex flex-col gap-2 text-sm text-muted-foreground">
-											<div class="flex items-center gap-2">
-												<Calendar class="h-4 w-4 shrink-0" />
-												<span
-													>{event.event_date
-														? new Date(event.event_date).toLocaleDateString()
-														: 'N/A'}</span
-												>
-											</div>
-											<div class="flex items-center gap-2">
-												<Clock class="h-4 w-4 shrink-0" />
-												<span>{event.start_time} - {event.end_time}</span>
-											</div>
-											{#if event.location}
-												<div class="flex items-center gap-2">
-													<MapPin class="h-4 w-4 shrink-0" />
-													<span>{event.location}</span>
-												</div>
-											{/if}
+		<!-- Custom Events -->
+		<div>
+			<h2 class="mb-4 text-lg font-semibold md:text-xl">Custom Events</h2>
+			<div class="space-y-3 sm:space-y-4">
+				{#each upcomingCustomEvents as event (event.event_id)}
+					<Card>
+						<CardContent class="p-4 sm:p-5">
+							<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+								<div class="min-w-0 flex-1">
+									<div class="mb-2 flex items-center gap-2">
+										<h3 class="text-base font-semibold sm:text-lg">{event.name}</h3>
+										<Badge
+											class="shrink-0"
+											variant={new Date(event.event_date) > new Date() ? 'default' : 'secondary'}
+										>
+											{new Date(event.event_date) > new Date() ? 'Upcoming' : 'Occurring'}
+										</Badge>
+									</div>
+									<div class="flex flex-col gap-2 text-sm text-muted-foreground">
+										<div class="flex items-center gap-2">
+											<Calendar class="h-4 w-4 shrink-0" />
+											<span
+												>{event.event_date
+													? new Date(event.event_date).toLocaleDateString()
+													: 'N/A'}</span
+											>
 										</div>
+										<div class="flex items-center gap-2">
+											<Clock class="h-4 w-4 shrink-0" />
+											<span>{event.start_time} - {event.end_time}</span>
+										</div>
+										{#if event.location}
+											<div class="flex items-center gap-2">
+												<MapPin class="h-4 w-4 shrink-0" />
+												<span>{event.location}</span>
+											</div>
+										{/if}
 									</div>
 								</div>
-							</CardContent>
-						</Card>
-					{/each}
-				</div>
+								<div class="flex items-center gap-2 sm:gap-3">
+									<Button
+										variant="ghost"
+										size="sm"
+										class="h-9 w-9 p-0"
+										onclick={() => editEvent(event.event_id)}
+									>
+										<Pencil class="h-4 w-4" />
+									</Button>
+									<Button
+										variant="ghost"
+										size="sm"
+										class="h-9 w-9 p-0"
+										disabled={isDeletingEvent}
+										onclick={() => deleteEvent(event.event_id)}
+									>
+										{#if isDeletingEvent}
+											<div
+												class="h-4 w-4 animate-spin rounded-full border-2 border-gray-600 border-t-transparent"
+											></div>
+										{:else}
+											<Trash2 class="h-4 w-4" />
+										{/if}
+									</Button>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
+				{#if upcomingCustomEvents.length === 0}
+					<div class="py-8 text-center text-muted-foreground">No upcoming custom events</div>
+				{/if}
 			</div>
-		{/if}
+		</div>
 	</div>
-{/if}
+
+	<!-- Past Events -->
+	{#if pastCustomEvents.length > 0}
+		<div>
+			<h2 class="mb-4 text-lg font-semibold text-muted-foreground md:text-xl">Past Events</h2>
+			<div class="space-y-3 sm:space-y-4">
+				{#each pastCustomEvents as event (event.event_id)}
+					<Card class="opacity-70">
+						<CardContent class="p-4 sm:p-5">
+							<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+								<div>
+									<h3 class="text-base font-semibold">{event.name}</h3>
+									<div class="mt-2 flex flex-col gap-2 text-sm text-muted-foreground">
+										<div class="flex items-center gap-2">
+											<Calendar class="h-4 w-4 shrink-0" />
+											<span
+												>{event.event_date
+													? new Date(event.event_date).toLocaleDateString()
+													: 'N/A'}</span
+											>
+										</div>
+										<div class="flex items-center gap-2">
+											<Clock class="h-4 w-4 shrink-0" />
+											<span>{event.start_time} - {event.end_time}</span>
+										</div>
+										{#if event.location}
+											<div class="flex items-center gap-2">
+												<MapPin class="h-4 w-4 shrink-0" />
+												<span>{event.location}</span>
+											</div>
+										{/if}
+									</div>
+								</div>
+							</div>
+						</CardContent>
+					</Card>
+				{/each}
+			</div>
+		</div>
+	{/if}
+</PageShell>

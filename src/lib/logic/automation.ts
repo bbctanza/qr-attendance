@@ -1,6 +1,19 @@
+import { dev } from '$app/environment';
 import { eventsApi } from '$lib/api/events';
 import type { AttendanceEvent, EventType } from '$lib/types';
 import { convertToUTC } from '$lib/utils/time';
+
+/**
+ * Progress logging for the scheduler, development only.
+ *
+ * These jobs run on 30-second and 10-minute timers for as long as the app is open, so in
+ * production they filled the console with a repeating status dump and buried everything
+ * else. They are genuinely useful when working on the scheduler, hence a switch rather than
+ * deletion. Warnings and errors below stay unconditional - those are worth seeing anywhere.
+ */
+function log(...args: unknown[]) {
+	if (dev) console.log(...args);
+}
 
 export class AutomationEngine {
 	private creationIntervalId: ReturnType<typeof setInterval> | undefined;
@@ -15,11 +28,11 @@ export class AutomationEngine {
 	start() {
 		// Prevent multiple starts
 		if (this.creationIntervalId || this.statusIntervalId || this.archivalIntervalId) {
-			console.log('🔄 Automation Engine Already Running');
+			log('🔄 Automation Engine Already Running');
 			return;
 		}
 
-		console.log('🔄 Automation Engine Started');
+		log('🔄 Automation Engine Started');
 
 		// Job 1: Event Creation (every 10 minutes)
 		this.creationIntervalId = setInterval(
@@ -46,7 +59,7 @@ export class AutomationEngine {
 	}
 
 	stop() {
-		console.log('⏹ Automation Engine Stopped');
+		log('⏹ Automation Engine Stopped');
 		if (this.creationIntervalId) clearInterval(this.creationIntervalId);
 		if (this.statusIntervalId) clearInterval(this.statusIntervalId);
 		if (this.archivalIntervalId) clearInterval(this.archivalIntervalId);
@@ -73,7 +86,7 @@ export class AutomationEngine {
 				}
 			}
 
-			console.log(`[Job] Creation: Running scan for recurring events (TZ: ${userTimezone})`);
+			log(`[Job] Creation: Running scan for recurring events (TZ: ${userTimezone})`);
 
 			// Process Today and the next 6 days (1 week window)
 			for (let i = 0; i < 7; i++) {
@@ -109,9 +122,7 @@ export class AutomationEngine {
 					const alreadyExists = existingEvents.some((e) => e.event_type_id === type.event_type_id);
 
 					if (!alreadyExists) {
-						console.log(
-							`[Job] Creation: Creating event for ${localDateStr} from template "${type.name}"`
-						);
+						log(`[Job] Creation: Creating event for ${localDateStr} from template "${type.name}"`);
 						await this.createEventFromTemplate(type, localDateStr, userTimezone);
 					}
 				}
@@ -166,7 +177,7 @@ export class AutomationEngine {
 			}
 
 			if (activeEvents.length > 0) {
-				console.log(
+				log(
 					`[Job] Status: Checking ${activeEvents.length} active events. Time:`,
 					now.toISOString(),
 					'(REAL)'
@@ -183,24 +194,24 @@ export class AutomationEngine {
 				const endLocal = this.formatTimeInTimezone(end, userTimezone);
 				const nowLocal = this.formatTimeInTimezone(now, userTimezone);
 
-				console.log(
+				log(
 					`[Job] Status: Event "${event.event_name}" (${event.event_id}) - Start: ${start.toISOString()} vs Now: ${now.toISOString()}`
 				);
 
 				// Upcoming -> Ongoing (compare in UTC)
 				if (event.status === 'upcoming' && now >= start && now < end) {
-					console.log(`[Job] Status: ✅ Starting event "${event.event_name}"`);
+					log(`[Job] Status: ✅ Starting event "${event.event_name}"`);
 					await eventsApi.updateEventStatus(event.event_id, 'ongoing');
 				}
 				// Ongoing -> Completed (compare in UTC)
 				else if (event.status === 'ongoing' && now >= end) {
-					console.log(`[Job] Status: ✅ Completing event "${event.event_name}"`);
+					log(`[Job] Status: ✅ Completing event "${event.event_name}"`);
 					await eventsApi.updateEventStatus(event.event_id, 'completed');
 				}
 				// Special Case: Upcoming -> Completed (Skipped event / missed window)
 				// If the event hasn't started yet but we are already past the end time.
 				else if (event.status === 'upcoming' && now >= end) {
-					console.log(
+					log(
 						`[Job] Status: ⚠️ Event "${event.event_name}" missed/finished. Marking as completed.`
 					);
 					await eventsApi.updateEventStatus(event.event_id, 'completed');
@@ -230,10 +241,10 @@ export class AutomationEngine {
 			const eventsToProcess = await eventsApi.getCompletedEventsWithPendingScans();
 
 			if (eventsToProcess.length > 0) {
-				console.log(`[Job] Archival: Found ${eventsToProcess.length} events to process.`);
+				log(`[Job] Archival: Found ${eventsToProcess.length} events to process.`);
 
 				for (const event of eventsToProcess) {
-					console.log(`[Job] Archival: Processing attendance for "${event.event_name}"`);
+					log(`[Job] Archival: Processing attendance for "${event.event_name}"`);
 					await eventsApi.processEventAttendance(event.event_id);
 				}
 			}

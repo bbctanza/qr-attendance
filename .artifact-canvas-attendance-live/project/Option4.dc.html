@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>4 - Keep the sidebar, trim both panels</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link
+					href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+					rel="stylesheet"
+				/>
+				<style>
+					body {
+						margin: 0;
+						font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695);
+						--muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831);
+						--brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896);
+					}
+				</style>
+			</helmet>
+
+			<div style="width: 1080px; box-sizing: border-box; background: #fff; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px">
+				<div style="font-size: 28px; font-weight: 800; color: var(--ink)">Attendance</div>
+
+				<!-- Same two-column skeleton as today - nothing structurally new - but each
+				     panel is right-sized to its own content instead of both stretching to match
+				     a tall neighbour, and Open Scanner is visible without a tall empty box above it. -->
+				<div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start">
+					<div style="border: 1px solid var(--line); border-radius: 16px; background: var(--wash); padding: 22px 24px; display: flex; align-items: center; gap: 16px">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5" style="flex: none"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+						<div>
+							<div style="font-size: 14px; font-weight: 700; color: var(--ink)">No live session</div>
+							<div style="margin-top: 2px; font-size: 12px; color: var(--muted); line-height: 1.5">Start or schedule one from the Events page and live attendance will appear here.</div>
+						</div>
+						<div style="margin-left: auto; flex: none; height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--ink); background: #fff; white-space: nowrap">Go to Events</div>
+					</div>
+
+					<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); display: flex; flex-direction: column; overflow: hidden">
+						<div style="padding: 13px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; color: var(--ink)">
+							<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 012-2h2M17 3h2a2 2 0 012 2v2M21 17v2a2 2 0 01-2 2h-2M7 21H5a2 2 0 01-2-2v-2"/></svg>
+							Recent Scans
+						</div>
+						<div style="padding: 20px 16px; text-align: center; font-size: 12px; color: var(--muted)">No session in progress - scans will stream in here once one starts.</div>
+						<div style="margin-top: auto; padding: 12px; border-top: 1px solid var(--line)">
+							<div style="height: 40px; border-radius: 10px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; gap: 8px; font-size: 13px; font-weight: 700">
+								<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+								Open Scanner
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); padding-bottom: 8px">
+					<div style="font-size: 17px; font-weight: 800; color: var(--ink)">Recent Sessions</div>
+					<div style="font-size: 12.5px; font-weight: 700; color: var(--brand)">View history</div>
+				</div>
+				<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px">
+					<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 16px; padding: 14px">
+						<div style="display: flex; align-items: center; justify-content: space-between">
+							<span style="font-size: 10px; letter-spacing: 0.04em; color: var(--muted)">NOV 1, 2026</span>
+							<span style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 7px">22</span>
+						</div>
+						<div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ink)">Choir practice</div>
+						<div style="margin-top: 2px; font-size: 11px; color: var(--muted)">4% of 515</div>
+					</div>
+					<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 16px; padding: 14px">
+						<div style="display: flex; align-items: center; justify-content: space-between">
+							<span style="font-size: 10px; letter-spacing: 0.04em; color: var(--muted)">NOV 1, 2026</span>
+							<span style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 7px">4</span>
+						</div>
+						<div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ink)">Church Choir Practice</div>
+						<div style="margin-top: 2px; font-size: 11px; color: var(--muted)">Headcount only</div>
+					</div>
+					<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 16px; padding: 14px">
+						<div style="display: flex; align-items: center; justify-content: space-between">
+							<span style="font-size: 10px; letter-spacing: 0.04em; color: var(--muted)">NOV 1, 2026</span>
+							<span style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 7px">78</span>
+						</div>
+						<div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ink)">Sunday Morning Wo...</div>
+						<div style="margin-top: 2px; font-size: 11px; color: var(--muted)">15% of 515</div>
+					</div>
+					<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 16px; padding: 14px">
+						<div style="display: flex; align-items: center; justify-content: space-between">
+							<span style="font-size: 10px; letter-spacing: 0.04em; color: var(--muted)">OCT 25, 2026</span>
+							<span style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 7px">36</span>
+						</div>
+						<div style="margin-top: 6px; font-size: 13px; font-weight: 700; color: var(--ink)">Church Choir Practice</div>
+						<div style="margin-top: 2px; font-size: 11px; color: var(--muted)">Headcount only</div>
+					</div>
+				</div>
+
+				<p style="margin: 2px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+					<strong style="color: var(--ink)">Most conservative.</strong> Keeps the exact two-column
+					shape and both panels - least to rebuild, lowest risk of a surprise once a session goes
+					live, since the live state barely changes. Just stops both panels from being tall
+					dashed boxes: the left one is a single compact banner, the right one's empty state is a
+					line of text instead of a second dashed rectangle nested inside the first panel's shape.
+				</p>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":700}}'>
+			class Component extends DCLogic {
+				renderVals() {
+					return {};
+				}
+			}
+		</script>
+	</body>
+</html>

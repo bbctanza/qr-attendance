@@ -44,13 +44,17 @@ const config = {
 					'https://challenges.cloudflare.com'
 				],
 
-				// Tailwind and the inline style="" blocks on the login and welcome pages.
-				'style-src': ['self', 'unsafe-inline'],
+				// Tailwind and the inline style="" blocks on the login and welcome pages, plus
+				// Google Fonts. app.html links the Inter stylesheet from fonts.googleapis.com; with
+				// that host missing here the browser blocked it outright and the whole app silently
+				// fell back to a system font.
+				'style-src': ['self', 'unsafe-inline', 'https://fonts.googleapis.com'],
 
 				// data:/blob: cover generated QR codes and jsPDF/jszip output; https: keeps avatars
 				// (api.dicebear.com) and Supabase storage working without enumerating every host.
 				'img-src': ['self', 'data:', 'blob:', 'https:'],
-				'font-src': ['self', 'data:'],
+				// The Inter faces the stylesheet above resolves to are served from gstatic.
+				'font-src': ['self', 'data:', 'https://fonts.gstatic.com'],
 				'media-src': ['self', 'blob:'],
 				'worker-src': ['self', 'blob:'],
 

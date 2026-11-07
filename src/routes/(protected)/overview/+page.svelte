@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import { DataTable, type Column } from '$lib/components/data-table';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
@@ -29,7 +31,6 @@
 	import { automation } from '$lib/logic/automation';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
-	import * as Table from '$lib/components/ui/table';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import { supabase } from '$lib/supabase';
 	import { Skeleton } from '$lib/components/ui/skeleton';
@@ -233,6 +234,22 @@
 	}
 </script>
 
+<svelte:head>
+	<title>Overview | {siteConfig.name}</title>
+</svelte:head>
+
+{#snippet eventNameCell(event: RecentEventData)}
+	<span class="font-medium">{event.name}</span>
+{/snippet}
+
+{#snippet eventDateCell(event: RecentEventData)}
+	<span class="text-muted-foreground">{event.date}</span>
+{/snippet}
+
+{#snippet eventRateCell(event: RecentEventData)}
+	<Badge variant="outline" class={getRateStyles(event.rate)}>{event.rate}%</Badge>
+{/snippet}
+
 {#if isLoading}
 	<!-- Mobile Skeleton -->
 	<div class="flex min-h-screen flex-col gap-6 bg-background p-4 pb-28 md:hidden">
@@ -256,7 +273,9 @@
 		<!-- Stats Grid Skeleton -->
 		<div class="grid grid-cols-3 gap-3">
 			{#each Array(3) as _}
-				<div class="flex flex-col items-center justify-center space-y-2 rounded-3xl border border-border/40 bg-card py-6">
+				<div
+					class="flex flex-col items-center justify-center space-y-2 rounded-3xl border border-border/40 bg-card py-6"
+				>
 					<Skeleton class="h-10 w-10 rounded-full" />
 					<Skeleton class="h-8 w-16" />
 					<Skeleton class="h-3 w-12" />
@@ -285,7 +304,7 @@
 				{/each}
 			</div>
 		</div>
-		
+
 		<!-- Quick Actions Skeleton -->
 		<div class="grid grid-cols-2 gap-4">
 			{#each Array(2) as _}
@@ -420,38 +439,20 @@
 				>
 			</div>
 
-			<div
-				class="divide-y divide-border/20 overflow-hidden rounded-3xl border border-border/40 bg-card"
-			>
-				{#if isLoading}
-					<div class="p-8 text-center text-muted-foreground">Loading history...</div>
-				{:else if recentEvents.length === 0}
-					<div class="p-8 text-center text-muted-foreground">No recent history</div>
-				{:else}
-					<div
-						class="grid grid-cols-[1.5fr_1fr_0.5fr] px-6 py-3 text-[10px] font-black tracking-widest text-muted-foreground/40 uppercase"
-					>
-						<div>EVENT NAME</div>
-						<div class="text-center text-nowrap">DATE</div>
-						<div class="text-right">RATE</div>
-					</div>
-					{#each recentEvents as event (event.name + event.date)}
-						<div class="grid grid-cols-[1.5fr_1fr_0.5fr] items-center px-6 py-4">
-							<div class="pr-2 text-sm leading-tight font-bold">{event.name}</div>
-							<div class="truncate text-center text-xs text-muted-foreground">{event.date}</div>
-							<div class="flex justify-end">
-								<span
-									class="rounded-lg border px-2 py-1 text-[10px] font-bold {getRateStyles(
-										event.rate
-									)}"
-								>
-									{event.rate}%
-								</span>
-							</div>
-						</div>
-					{/each}
-				{/if}
-			</div>
+			<DataTable
+				columns={[
+					{ key: 'name', header: 'Event Name', cell: eventNameCell, as: 'title' },
+					{ key: 'date', header: 'Date', cell: eventDateCell, align: 'right', nowrap: true },
+					{ key: 'rate', header: 'Rate', cell: eventRateCell, align: 'right' }
+				] satisfies Column<RecentEventData>[]}
+				rows={recentEvents}
+				rowKey={(event) => `${event.name}:${event.date}`}
+				{isLoading}
+				paginate={false}
+				caption="Attendance from previous sessions"
+				emptyTitle="No recent sessions"
+				emptyDescription="Finished events appear here."
+			/>
 		</div>
 
 		<!-- Quick Actions -->
@@ -651,44 +652,20 @@
 					</Button>
 				</CardHeader>
 				<CardContent>
-					<Table.Root>
-						<Table.Header>
-							<Table.Row>
-								<Table.Head class="min-w-37.5">Event Name</Table.Head>
-								<Table.Head class="text-right">Date</Table.Head>
-								<Table.Head class="text-right">Rate</Table.Head>
-							</Table.Row>
-						</Table.Header>
-						<Table.Body>
-							{#if isLoading}
-								<Table.Row>
-									<Table.Cell colspan={3} class="h-24 text-center text-muted-foreground"
-										>Loading history...</Table.Cell
-									>
-								</Table.Row>
-							{:else if recentEvents.length === 0}
-								<Table.Row>
-									<Table.Cell colspan={3} class="h-24 text-center text-muted-foreground"
-										>No recent sessions found.</Table.Cell
-									>
-								</Table.Row>
-							{:else}
-								{#each recentEvents as event (event.name + event.date)}
-									<Table.Row>
-										<Table.Cell>
-											<div class="font-medium">{event.name}</div>
-										</Table.Cell>
-										<Table.Cell class="text-right text-muted-foreground">{event.date}</Table.Cell>
-										<Table.Cell class="text-right">
-											<Badge variant="outline" class={getRateStyles(event.rate)}>
-												{event.rate}%
-											</Badge>
-										</Table.Cell>
-									</Table.Row>
-								{/each}
-							{/if}
-						</Table.Body>
-					</Table.Root>
+					<DataTable
+						columns={[
+							{ key: 'name', header: 'Event Name', cell: eventNameCell, as: 'title' },
+							{ key: 'date', header: 'Date', cell: eventDateCell, align: 'right', nowrap: true },
+							{ key: 'rate', header: 'Rate', cell: eventRateCell, align: 'right' }
+						] satisfies Column<RecentEventData>[]}
+						rows={recentEvents}
+						rowKey={(event) => `${event.name}:${event.date}`}
+						{isLoading}
+						paginate={false}
+						caption="Attendance from previous sessions"
+						emptyTitle="No recent sessions"
+						emptyDescription="Finished events appear here."
+					/>
 				</CardContent>
 			</Card>
 

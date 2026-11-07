@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
@@ -8,7 +10,6 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
 	import {
-		ChevronLeft,
 		Construction,
 		Database,
 		Wrench,
@@ -26,7 +27,6 @@
 		EyeOff
 	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
-	import { goto } from '$app/navigation';
 	import { devTools } from '$lib/stores/dev';
 	import { supabase } from '$lib/supabase';
 
@@ -48,8 +48,7 @@
 
 	// Derived validation for wipe button
 	let isWipeConfirmed = $derived(
-		wipeConfirmationText.trim().toUpperCase() === 'WIPE' &&
-			accountPassword.trim().length > 0
+		wipeConfirmationText.trim().toUpperCase() === 'WIPE' && accountPassword.trim().length > 0
 	);
 
 	let isInitialized = $state(false);
@@ -204,23 +203,15 @@
 	}
 </script>
 
-<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-	<!-- Header -->
-	<div class="hidden items-center gap-3 sm:flex sm:gap-4">
-		<button
-			onclick={() => goto('/settings')}
-			class="shrink-0 rounded-lg p-2 transition hover:bg-muted"
-		>
-			<ChevronLeft class="h-5 w-5 sm:h-6 sm:w-6" />
-		</button>
-		<div class="min-w-0 flex-1">
-			<h1 class="text-2xl font-bold md:text-3xl">Developer Tools</h1>
-			<p class="mt-1 hidden text-sm text-muted-foreground sm:block">
-				Debug controls, database testing routines, and audit trail configurations
-			</p>
-		</div>
-	</div>
+<svelte:head>
+	<title>Developer Tools | {siteConfig.name}</title>
+</svelte:head>
 
+<PageShell
+	title="Developer Tools"
+	description="Debug controls, database testing routines, and audit trail configurations"
+	backTo="/settings"
+>
 	<!-- Main Settings Grid -->
 	<div class="grid auto-rows-max grid-cols-1 gap-6 lg:grid-cols-2">
 		<!-- Testing & Validation Controls -->
@@ -245,7 +236,8 @@
 							{/if}
 						</div>
 						<p class="text-xs leading-relaxed text-muted-foreground">
-							Allows scanning into ANY event regardless of its start or end time. Recommended for local testing without altering real dates.
+							Allows scanning into ANY event regardless of its start or end time. Recommended for
+							local testing without altering real dates.
 						</p>
 					</div>
 					<Switch bind:checked={bypassEventTimeValidation} class="mt-1 shrink-0" />
@@ -274,7 +266,9 @@
 						</div>
 						<div>
 							<h4 class="text-sm font-medium">Fix Past Events</h4>
-							<p class="text-xs text-muted-foreground">Mark past events as completed & process attendance.</p>
+							<p class="text-xs text-muted-foreground">
+								Mark past events as completed & process attendance.
+							</p>
 						</div>
 					</div>
 					<Button
@@ -299,7 +293,9 @@
 						</div>
 						<div>
 							<h4 class="text-sm font-medium">Process All Events</h4>
-							<p class="text-xs text-muted-foreground">Force re-process attendance for all completed events.</p>
+							<p class="text-xs text-muted-foreground">
+								Force re-process attendance for all completed events.
+							</p>
 						</div>
 					</div>
 					<Button
@@ -323,8 +319,12 @@
 							<Trash2 class="h-4 w-4" />
 						</div>
 						<div>
-							<h4 class="text-sm font-medium text-red-600 dark:text-red-400">Clear Attendance History</h4>
-							<p class="text-xs text-muted-foreground">Permanently delete all attendance history logs.</p>
+							<h4 class="text-sm font-medium text-red-600 dark:text-red-400">
+								Clear Attendance History
+							</h4>
+							<p class="text-xs text-muted-foreground">
+								Permanently delete all attendance history logs.
+							</p>
 						</div>
 					</div>
 					<Button
@@ -359,7 +359,9 @@
 							</div>
 							<div class="min-w-0">
 								<Label class="text-sm font-medium">Audit Trail Enabled</Label>
-								<p class="mt-0.5 text-xs text-muted-foreground">Log system operations and security events</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									Log system operations and security events
+								</p>
 							</div>
 						</div>
 						<Switch bind:checked={auditTrailEnabled} class="shrink-0" />
@@ -375,7 +377,9 @@
 							</div>
 							<div class="min-w-0">
 								<Label class="text-sm font-medium">GDPR Mode</Label>
-								<p class="mt-0.5 text-xs text-muted-foreground">Anonymization and soft-delete grace periods</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									Anonymization and soft-delete grace periods
+								</p>
 							</div>
 						</div>
 						<Switch bind:checked={gdprModeEnabled} class="shrink-0" />
@@ -391,7 +395,9 @@
 							</div>
 							<div class="min-w-0">
 								<Label class="text-sm font-medium">Restrict Undo to Admin</Label>
-								<p class="mt-0.5 text-xs text-muted-foreground">Lock undo/restore permissions strictly to admins</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									Lock undo/restore permissions strictly to admins
+								</p>
 							</div>
 						</div>
 						<Switch bind:checked={restrictUndoToAdmin} class="shrink-0" />
@@ -407,7 +413,9 @@
 							</div>
 							<div class="min-w-0">
 								<Label class="text-sm font-medium">Require Undo Approval</Label>
-								<p class="mt-0.5 text-xs text-muted-foreground">Enforce approval workflow before restores</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									Enforce approval workflow before restores
+								</p>
 							</div>
 						</div>
 						<Switch bind:checked={requireUndoApproval} class="shrink-0" />
@@ -423,7 +431,9 @@
 							</div>
 							<div class="min-w-0">
 								<Label class="text-sm font-medium">Smart Queue Batching</Label>
-								<p class="mt-0.5 text-xs text-muted-foreground">Optimize audit writes with queued batching (~90% reduction)</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									Optimize audit writes with queued batching (~90% reduction)
+								</p>
 							</div>
 						</div>
 						<Switch bind:checked={auditBatchingEnabled} class="shrink-0" />
@@ -439,7 +449,9 @@
 							</div>
 							<div class="min-w-0">
 								<Label class="text-sm font-medium">Log Retention Period</Label>
-								<p class="mt-0.5 text-xs text-muted-foreground">Days to retain audit history (default 90)</p>
+								<p class="mt-0.5 text-xs text-muted-foreground">
+									Days to retain audit history (default 90)
+								</p>
 							</div>
 						</div>
 						<Input
@@ -463,7 +475,9 @@
 					</div>
 					<div>
 						<p class="text-sm font-medium">Reset Developer Settings</p>
-						<p class="text-xs text-muted-foreground">Restore developer tools and audit flags back to defaults.</p>
+						<p class="text-xs text-muted-foreground">
+							Restore developer tools and audit flags back to defaults.
+						</p>
 					</div>
 				</div>
 				<Button variant="outline" size="sm" class="w-full sm:w-auto" onclick={handleResetDefaults}>
@@ -472,7 +486,7 @@
 			</CardContent>
 		</Card>
 	</div>
-</div>
+</PageShell>
 
 <!-- Security Lock Wipe Dialog Modal -->
 <AlertDialog.Root bind:open={showWipeDialog}>
@@ -483,7 +497,9 @@
 				<AlertDialog.Title class="text-lg font-bold">Clear Attendance History</AlertDialog.Title>
 			</div>
 			<AlertDialog.Description class="text-xs leading-relaxed text-muted-foreground">
-				This action is <strong class="font-semibold text-foreground">destructive and permanent</strong>. All attendance records will be purged.
+				This action is <strong class="font-semibold text-foreground"
+					>destructive and permanent</strong
+				>. All attendance records will be purged.
 			</AlertDialog.Description>
 		</AlertDialog.Header>
 
@@ -516,7 +532,7 @@
 					/>
 					<button
 						type="button"
-						class="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground transition hover:text-foreground focus:outline-none"
+						class="absolute top-1/2 right-2.5 -translate-y-1/2 rounded p-1 text-muted-foreground transition hover:text-foreground focus:outline-none"
 						onclick={() => (showPassword = !showPassword)}
 						title={showPassword ? 'Hide password' : 'Show password'}
 					>

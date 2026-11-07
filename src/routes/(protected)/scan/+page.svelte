@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
@@ -1090,6 +1091,10 @@
 		};
 	});
 </script>
+
+<svelte:head>
+	<title>Scan | {siteConfig.name}</title>
+</svelte:head>
 
 <!-- Mobile View -->
 <div class="flex flex-1 flex-col gap-6 p-4 pb-24 md:hidden">

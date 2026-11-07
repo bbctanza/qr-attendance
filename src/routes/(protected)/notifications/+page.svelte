@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
 	import { notifications, unreadCount } from '$lib/stores/notifications';
 	import { Button } from '$lib/components/ui/button';
 	import {
@@ -34,6 +35,10 @@
 		}
 	}
 </script>
+
+<svelte:head>
+	<title>Notifications | {siteConfig.name}</title>
+</svelte:head>
 
 <div class="flex min-h-screen flex-col bg-background pb-20 md:pb-0">
 	<!-- Header Actions -->

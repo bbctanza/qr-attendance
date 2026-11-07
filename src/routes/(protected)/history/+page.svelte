@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 
@@ -7,5 +8,9 @@
 		goto('/attendance', { replaceState: true });
 	});
 </script>
+
+<svelte:head>
+	<title>Redirecting... | {siteConfig.name}</title>
+</svelte:head>
 
 <div class="p-6 text-center text-muted-foreground">Redirecting to Attendance…</div>

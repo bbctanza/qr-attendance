@@ -24,6 +24,7 @@
 	import { goto } from '$app/navigation';
 	import { touchSession } from '$lib/utils/sessions';
 	import { pwaInfo } from 'virtual:pwa-info';
+	import { CURRENT_VERSION } from '$lib/config/changelog';
 
 	// Initialize theme synchronously from localStorage before render
 	if (browser) {
@@ -182,7 +183,9 @@
 
 <svelte:head>
 	{@html pwaInfo?.webManifest.linkTag}
-	<link rel="icon" href="/favicon.svg?v={Date.now()}" />
+	<!-- Keyed to the release, not the clock. Date.now() differed between the server render
+	     and hydration a few milliseconds later, and re-downloaded the icon on every page load. -->
+	<link rel="icon" href="/favicon.svg?v={CURRENT_VERSION}" />
 	<title>{$systemSettings.siteName}</title>
 </svelte:head>
 
@@ -232,10 +235,31 @@
 
 			<!-- Custom Mobile Header -->
 			{#if breadcrumbs && breadcrumbs.length > 0}
-				<MobileHeader title={breadcrumbs[breadcrumbs.length - 1].name} />
+				<!-- A trail longer than one means this page has a parent, which is what turns the
+				     menu button into a back arrow. Derived here so no page declares it. -->
+				<MobileHeader
+					title={breadcrumbs[breadcrumbs.length - 1].name}
+					backTo={breadcrumbs.length > 1
+						? (breadcrumbs[0].href ?? null)
+						: // Notifications is reached from the bell on every page, so it has no parent
+							// in the trail - but it is still somewhere you leave, and the bottom nav
+							// does not list it. Overview is the predictable way out.
+							$page.url.pathname === '/notifications'
+							? '/overview'
+							: null}
+				/>
 			{/if}
 
-			<main class="flex flex-1 flex-col gap-4 p-4 pt-0 pb-24 md:pb-0">
+			<!-- No padding here on purpose: every page already supplies its own, and having both
+			     doubled the margins on phones. Only the bottom-nav clearance belongs at this level.
+
+			     pb-32, not pb-24: the clearance has to cover the scan button, not the bar. The bar
+			     measures 97px, but the FAB is pulled up with `-top-8` and carries a `ring-4`, so the
+			     chrome's real top edge is 120px above the viewport bottom. At pb-24 (96px) the last
+			     12px of page content sat behind an opaque circle, dead centre - which is exactly
+			     where a stacked pagination footer puts its Previous/Next row.
+			     Measured in mobile-nav-clearance.svelte.test.ts. -->
+			<main class="flex flex-1 flex-col pb-32 md:pb-0">
 				{@render children()}
 			</main>
 			<MobileNav class="md:hidden" />

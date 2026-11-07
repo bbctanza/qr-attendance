@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
@@ -18,7 +20,6 @@
 	} from '@internationalized/date';
 	import { cn, getErrorMessage, getErrorTitle } from '$lib/utils';
 	import {
-		ChevronLeft,
 		Bell,
 		Eye,
 		Lock,
@@ -31,7 +32,6 @@
 		ScanLine
 	} from '@lucide/svelte';
 	import { toast } from 'svelte-sonner';
-	import { goto } from '$app/navigation';
 	import { mode } from 'mode-watcher';
 	import { systemSettings, loadSettings } from '$lib/stores/settings';
 	import { logAuditChange } from '$lib/utils/auditLogger';
@@ -471,23 +471,15 @@
 	}
 </script>
 
-<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-	<!-- Header -->
-	<div class="hidden items-center gap-3 sm:flex sm:gap-4">
-		<button
-			onclick={() => goto('/settings')}
-			class="shrink-0 rounded-lg p-2 transition hover:bg-muted"
-		>
-			<ChevronLeft class="h-5 w-5 sm:h-6 sm:w-6" />
-		</button>
-		<div class="min-w-0 flex-1">
-			<h1 class="text-2xl font-bold md:text-3xl">App Settings</h1>
-			<p class="mt-1 hidden text-sm text-muted-foreground sm:block">
-				Configure preferences and notifications
-			</p>
-		</div>
-	</div>
+<svelte:head>
+	<title>App Settings | {siteConfig.name}</title>
+</svelte:head>
 
+<PageShell
+	title="App Settings"
+	description="Configure preferences and notifications"
+	backTo="/settings"
+>
 	<!-- Guest Restriction Banner -->
 	{#if isGuest}
 		<div class="flex items-start gap-3 rounded-lg border border-red-500/20 bg-red-500/10 p-4">
@@ -1265,7 +1257,7 @@
 			Reset to Defaults
 		</Button>
 	</div>
-</div>
+</PageShell>
 
 <!-- Floating Save Button (Desktop) -->
 {#if isDirty}

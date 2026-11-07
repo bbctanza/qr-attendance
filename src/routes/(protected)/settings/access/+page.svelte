@@ -1,4 +1,8 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
+	import FilterChips from '$lib/components/common/filter-chips.svelte';
+	import { DataTable, type Column } from '$lib/components/data-table';
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
@@ -24,21 +28,9 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Skeleton } from '$lib/components/ui/skeleton';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
-	import { Card, CardContent, CardFooter, CardHeader } from '$lib/components/ui/card';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-	import * as Select from '$lib/components/ui/select';
 	import {
-		Table,
-		TableBody,
-		TableCell,
-		TableHead,
-		TableHeader,
-		TableRow
-	} from '$lib/components/ui/table';
-	import {
-		ChevronLeft,
-		ChevronRight,
 		Search,
 		RefreshCw,
 		UserPlus,
@@ -55,8 +47,7 @@
 		Clock,
 		Lock,
 		LockOpen,
-		Send,
-		Users
+		Send
 	} from '@lucide/svelte';
 
 	/**
@@ -98,22 +89,24 @@
 		account?: DirectoryAccount;
 	}
 
-	const STATUS_FILTER_LABELS: Record<string, string> = {
-		all: 'All statuses',
-		active: 'Active',
-		pending: 'Pending',
-		suspended: 'Suspended'
-	};
+	/**
+	 * One filter dimension, not two.
+	 *
+	 * This page used to carry four summary tiles and two dropdowns, which between them were
+	 * three controls for one job - and the tiles already reset the other filter when clicked,
+	 * so the pair was never really combined. Collapsing to a single value makes the chip row
+	 * able to show which filter is on, which neither the tiles nor the dropdowns ever did.
+	 */
+	type QuickFilter = 'all' | 'pending' | 'admin' | 'staff' | 'guest' | 'suspended';
 
-	let pageLoading = $state(true);
+	let isLoading = $state(true);
 	let isFetching = $state(false);
 	let me = $state<DirectoryAccount | null>(null);
 	let accounts = $state<DirectoryAccount[]>([]);
 	let invitations = $state<PendingInvitation[]>([]);
 
 	let searchQuery = $state('');
-	let roleFilter = $state<string>('all');
-	let statusFilter = $state<string>('all');
+	let quickFilter = $state<QuickFilter>('all');
 	let currentPage = $state(1);
 	let pageSize = $state(10);
 
@@ -161,7 +154,7 @@
 			console.error(e);
 			goto('/settings');
 		} finally {
-			pageLoading = false;
+			isLoading = false;
 		}
 	});
 
@@ -193,6 +186,10 @@
 	 * where it supplies the things only it knows: who invited them, when the link dies,
 	 * and how many times it has been sent.
 	 */
+	/** Pending, half-finished setup, or suspended - anything an administrator still owes a decision. */
+	const isUnresolved = (row: Row) =>
+		row.status === 'pending' || row.status === 'invited' || row.status === 'suspended';
+
 	let rows = $derived.by<Row[]>(() => {
 		// A plain record rather than a Map: this is a throwaway index inside a derivation,
 		// and the lint rule steering reactive state towards SvelteMap does not distinguish
@@ -250,20 +247,37 @@
 			invitation
 		}));
 
-		// Rows awaiting a response first: they are the ones that need someone to act.
-		const needsAction = (row: Row) =>
-			row.status === 'pending' || row.status === 'invited' ? 0 : 1;
+		// Rows needing someone to act come first. Suspended joins pending here: the mobile
+		// list groups on exactly this predicate, and a group heading can only be drawn once
+		// if every row it covers is already contiguous.
+		const needsAction = (row: Row) => (isUnresolved(row) ? 0 : 1);
 		return [...orphanRows, ...accountRows].sort((a, b) => needsAction(a) - needsAction(b));
 	});
+
+	function matchesQuickFilter(row: Row): boolean {
+		switch (quickFilter) {
+			case 'all':
+				return true;
+			// 'invited' is someone who accepted but abandoned setup. They belong with pending
+			// under one heading because the question they pose is the same: this person cannot
+			// use the system yet.
+			case 'pending':
+				return row.status === 'pending' || row.status === 'invited';
+			case 'suspended':
+				return row.status === 'suspended';
+			// Developer is an administrator with more rope; separating them in the filter would
+			// mean a chip that reads 1 on exactly one account.
+			case 'admin':
+				return row.role === 'admin' || row.role === 'developer';
+			default:
+				return row.role === quickFilter;
+		}
+	}
 
 	let filteredRows = $derived.by(() => {
 		const q = searchQuery.trim().toLowerCase();
 		return rows.filter((row) => {
-			if (roleFilter !== 'all' && row.role !== roleFilter) return false;
-			if (statusFilter === 'active' && row.status !== 'active') return false;
-			if (statusFilter === 'suspended' && row.status !== 'suspended') return false;
-			if (statusFilter === 'pending' && row.status !== 'pending' && row.status !== 'invited')
-				return false;
+			if (!matchesQuickFilter(row)) return false;
 			if (!q) return true;
 			return (
 				(row.name ?? '').toLowerCase().includes(q) ||
@@ -273,16 +287,9 @@
 		});
 	});
 
-	let totalPages = $derived(Math.max(1, Math.ceil(filteredRows.length / pageSize)));
-	let paginatedRows = $derived(
-		filteredRows.slice((currentPage - 1) * pageSize, (currentPage - 1) * pageSize + pageSize)
-	);
-
-	// Filtering can shrink the list out from under the current page; clamping rather than
-	// resetting keeps the admin's place when they only widened a filter.
-	$effect(() => {
-		if (currentPage > totalPages) currentPage = totalPages;
-	});
+	// Page count, slicing, and resetting to page 1 when the filtered set changes all live in
+	// DataTable now. This page used to clamp instead, which left you on the tail of a
+	// filtered list wondering where the matches went.
 
 	/**
 	 * Counted off `rows`, not off `accounts` and `invitations` separately, so a tile's
@@ -291,6 +298,7 @@
 	 * belongs in that list but has no invitation row.
 	 */
 	let stats = $derived.by(() => ({
+		total: rows.length,
 		admins: rows.filter((r) => r.role === 'admin' || r.role === 'developer').length,
 		staff: rows.filter((r) => r.role === 'staff').length,
 		guests: rows.filter((r) => r.role === 'guest').length,
@@ -581,542 +589,434 @@
 </script>
 
 <svelte:head>
-	<title>Access Directory</title>
+	<title>Access Directory | {siteConfig.name}</title>
 </svelte:head>
 
-{#if pageLoading}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<div class="flex items-center gap-4">
-			<Skeleton class="h-10 w-10 rounded-lg" />
-			<div class="space-y-2">
-				<Skeleton class="h-8 w-48" />
-				<Skeleton class="h-4 w-64" />
+{#snippet personCell(row: Row)}
+	<div class="flex min-w-0 items-center gap-3">
+		{#if row.status === 'pending'}
+			<div
+				class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-500"
+			>
+				<Mail class="h-3.5 w-3.5" />
+			</div>
+		{:else}
+			<Avatar class="h-8 w-8 shrink-0 border">
+				<AvatarImage src={row.avatarUrl ?? undefined} alt="" />
+				<AvatarFallback class="text-xs font-semibold">{initials(row)}</AvatarFallback>
+			</Avatar>
+		{/if}
+		<div class="min-w-0 flex-1">
+			<div class="flex items-center gap-1.5">
+				<span class="truncate text-xs font-semibold">{row.name || row.email}</span>
+				{#if row.isSelf}
+					<Badge variant="secondary" class="h-4 shrink-0 px-1 text-[9px]">You</Badge>
+				{/if}
+			</div>
+			<div class="truncate text-[11px] text-muted-foreground">
+				{#if row.invitation}
+					Invited by {row.invitation.invited_by_email ?? 'an administrator'}
+					{#if row.invitation.resend_count > 0}
+						· sent {row.invitation.resend_count + 1}×
+					{/if}
+				{:else if row.name}
+					{row.email}
+				{:else}
+					Hasn't finished setting up
+				{/if}
 			</div>
 		</div>
-		<div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-			{#each ['a', 'b', 'c', 'd'] as key (key)}
-				<Skeleton class="h-20 rounded-xl" />
-			{/each}
+	</div>
+{/snippet}
+
+{#snippet personCardMobile(row: Row)}
+	{@const tone =
+		row.status === 'suspended'
+			? 'bg-destructive'
+			: row.status === 'pending' || row.status === 'invited'
+				? 'bg-amber-500'
+				: 'bg-primary'}
+	<!--
+		The phone card. Separate cards with a 4px status-coloured edge, rather than a pill per
+		row: the edge carries the state without spending a line on it, and the state is still
+		written out in the meta line below, so nothing here depends on colour alone.
+
+		Two things keep this inside the screen, and the test suite was used to find out which
+		(the 517px-card-on-a-415px-screen regression came back a different way each time):
+
+		  - `truncate` on the name and email. Load-bearing. Remove it and the card overflows
+		    even with both min-width floors below in place.
+		  - A min-width floor, so the text column is allowed to shrink at all. There are two,
+		    `minmax(0,1fr)` on the track and `min-w-0` on the item, and they are redundant with
+		    each other - removing either alone changes nothing, removing both overflows. Kept
+		    as written because `1fr` silently means `minmax(auto,1fr)`, and `auto` is
+		    min-content, which for an unbroken email is the width of the whole address.
+
+		Measured in data-table.svelte.test.ts > 'mobile card sizing'.
+	-->
+	<div class="flex overflow-hidden rounded-xl border bg-card shadow-xs">
+		<div class="w-1 shrink-0 {tone}" aria-hidden="true"></div>
+		<div class="grid min-w-0 flex-1 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 p-3">
+			{#if row.status === 'pending'}
+				<!-- A dashed empty ring, so an invitation nobody has accepted looks unfinished. -->
+				<div
+					class="flex h-10 w-10 items-center justify-center rounded-full border border-dashed border-amber-500/50 bg-amber-500/10 text-amber-600 dark:text-amber-500"
+				>
+					<Mail class="h-4 w-4" />
+				</div>
+			{:else}
+				<Avatar class="h-10 w-10 border">
+					<AvatarImage src={row.avatarUrl ?? undefined} alt="" />
+					<AvatarFallback class="text-xs font-semibold">{initials(row)}</AvatarFallback>
+				</Avatar>
+			{/if}
+
+			<div class="min-w-0">
+				<div class="flex min-w-0 items-center gap-1.5">
+					<span class="truncate text-sm font-semibold">{row.name || row.email}</span>
+					{#if row.isSelf}
+						<Badge variant="secondary" class="h-4 shrink-0 px-1 text-[9px]">You</Badge>
+					{/if}
+				</div>
+				<div class="truncate text-xs text-muted-foreground">
+					{#if row.status === 'pending'}
+						Invitation not yet accepted
+					{:else if row.name}
+						{row.email}
+					{:else}
+						Hasn't finished setting up
+					{/if}
+				</div>
+				<!--
+					One quiet line. The role is plain muted text - it was briefly bold, which made
+					every card shout a word that is the same on most of them. Only the state is
+					coloured, and only when it is not "active", so a calm list stays calm and the
+					two rows that want attention are the two that are not grey.
+				-->
+				<div class="mt-1 truncate text-[11px] text-muted-foreground">
+					{#if row.status === 'pending'}
+						<span class="font-medium text-amber-600 dark:text-amber-500">Invited</span>
+						· {roleLabel(row.role)}{row.invitation ? ` · ${expiryLabel(row.invitation)}` : ''}
+					{:else if row.status === 'invited'}
+						<span class="font-medium text-sky-600 dark:text-sky-400">Setting up</span>
+						· {roleLabel(row.role)}
+					{:else if row.status === 'suspended'}
+						<span class="font-medium text-destructive">Suspended</span>
+						· {roleLabel(row.role)} · seen {relativeTime(row.lastActiveAt)}
+					{:else}
+						{roleLabel(row.role)} · seen {relativeTime(row.lastActiveAt)}
+					{/if}
+				</div>
+			</div>
+
+			<div class="self-start">{@render rowActions(row)}</div>
+		</div>
+	</div>
+{/snippet}
+
+{#snippet roleCell(row: Row)}
+	<div class="flex items-center gap-1.5">
+		{#if row.isDeveloper}
+			<ShieldAlert class="h-3.5 w-3.5 shrink-0 text-destructive" />
+		{:else if row.role === 'admin'}
+			<ShieldCheck class="h-3.5 w-3.5 shrink-0 text-primary" />
+		{/if}
+		<span class="text-xs font-medium">{roleLabel(row.role)}</span>
+	</div>
+{/snippet}
+
+{#snippet statusCell(row: Row)}
+	{#if row.status === 'pending'}
+		<div class="flex flex-col gap-0.5">
+			<Badge
+				variant="outline"
+				class="h-5 w-fit gap-1 border-amber-500/40 px-1.5 text-[10px] text-amber-600 dark:text-amber-500"
+			>
+				<Clock class="h-2.5 w-2.5" />
+				Invited
+			</Badge>
+			{#if row.invitation}
+				<span class="text-[10px] text-muted-foreground">{expiryLabel(row.invitation)}</span>
+			{/if}
+		</div>
+	{:else if row.status === 'invited'}
+		<Badge
+			variant="outline"
+			class="h-5 w-fit gap-1 border-sky-500/40 px-1.5 text-[10px] text-sky-600 dark:text-sky-400"
+		>
+			<Clock class="h-2.5 w-2.5" />
+			Setting up
+		</Badge>
+	{:else if row.status === 'suspended'}
+		<Badge
+			variant="outline"
+			class="h-5 w-fit gap-1 border-destructive/40 px-1.5 text-[10px] text-destructive"
+		>
+			<Ban class="h-2.5 w-2.5" />
+			Suspended
+		</Badge>
+	{:else}
+		<Badge variant="outline" class="h-5 w-fit gap-1 px-1.5 text-[10px] text-muted-foreground">
+			<CircleCheck class="h-2.5 w-2.5 text-primary" />
+			Active
+		</Badge>
+	{/if}
+{/snippet}
+
+{#snippet lastActiveCell(row: Row)}
+	<span class="text-xs text-muted-foreground">
+		{row.kind === 'invitation' || row.status === 'pending' ? '—' : relativeTime(row.lastActiveAt)}
+	</span>
+{/snippet}
+
+{#snippet rowActions(row: Row)}
+	{@const locked = lockedReason(row)}
+	{#if busyRowId === row.id}
+		<Loader2 class="ml-auto h-4 w-4 animate-spin text-muted-foreground" />
+	{:else}
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger>
+				{#snippet child({ props })}
+					<Button
+						{...props}
+						variant="ghost"
+						size="icon"
+						class="h-8 w-8"
+						aria-label="Actions for {row.email}"
+					>
+						<MoreHorizontal class="h-4 w-4" />
+					</Button>
+				{/snippet}
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Content align="end" class="w-56">
+				<!-- Every GroupHeading is wrapped in a Group deliberately: bits-ui resolves
+			     the heading against the group context and Context.get() throws when
+			     there is none, which took the whole menu down with it. -->
+				{#if row.invitation}
+					<!-- A live invitation drives the resend/revoke pair whether or not an
+				     account row sits behind it; Supabase creates the account when the
+				     mail is sent, so usually one does. -->
+					<DropdownMenu.Group>
+						<DropdownMenu.GroupHeading
+							class="px-2 py-1.5 text-[10px] tracking-wide text-muted-foreground uppercase"
+						>
+							Invitation
+						</DropdownMenu.GroupHeading>
+						<DropdownMenu.Item onclick={() => resendInvite(row)}>
+							<Send class="mr-2 h-3.5 w-3.5" />
+							Resend invitation
+						</DropdownMenu.Item>
+						<DropdownMenu.Item
+							class="text-destructive data-highlighted:text-destructive"
+							onclick={() => (revocation = row)}
+						>
+							<MailX class="mr-2 h-3.5 w-3.5" />
+							Revoke invitation
+						</DropdownMenu.Item>
+					</DropdownMenu.Group>
+				{/if}
+
+				{#if row.kind === 'account'}
+					{#if row.invitation}
+						<DropdownMenu.Separator />
+					{/if}
+					{#if locked}
+						<div class="px-2 py-3 text-xs text-muted-foreground">
+							<Lock class="mr-1.5 inline h-3 w-3" />
+							{locked}
+						</div>
+					{:else}
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading
+								class="px-2 py-1.5 text-[10px] tracking-wide text-muted-foreground uppercase"
+							>
+								Change role
+							</DropdownMenu.GroupHeading>
+							{#each ROLE_DEFINITIONS as definition (definition.value)}
+								<DropdownMenu.Item
+									disabled={row.role === definition.value}
+									onclick={() => (roleChange = { row, newRole: definition.value })}
+								>
+									<span class="mr-2 flex h-3.5 w-3.5 items-center justify-center">
+										{#if row.role === definition.value}
+											<Check class="h-3.5 w-3.5 text-primary" />
+										{/if}
+									</span>
+									<span class="flex-1">{definition.label}</span>
+								</DropdownMenu.Item>
+							{/each}
+						</DropdownMenu.Group>
+
+						<DropdownMenu.Separator />
+
+						<DropdownMenu.Group>
+							{#if row.status === 'suspended'}
+								<DropdownMenu.Item onclick={() => (statusChange = { row, next: 'active' })}>
+									<CircleCheck class="mr-2 h-3.5 w-3.5" />
+									Reactivate account
+								</DropdownMenu.Item>
+							{:else}
+								<DropdownMenu.Item onclick={() => (statusChange = { row, next: 'suspended' })}>
+									<Ban class="mr-2 h-3.5 w-3.5" />
+									Suspend access
+								</DropdownMenu.Item>
+							{/if}
+
+							<!-- Revoking already deletes the half-created account, so offering
+						     Remove next to it would be two destructive items doing one thing. -->
+							{#if !row.invitation}
+								<DropdownMenu.Item
+									class="text-destructive data-highlighted:text-destructive"
+									onclick={() => {
+										removalConfirmText = '';
+										removal = row;
+									}}
+								>
+									<Trash2 class="mr-2 h-3.5 w-3.5" />
+									Remove permanently
+								</DropdownMenu.Item>
+							{/if}
+						</DropdownMenu.Group>
+					{/if}
+				{/if}
+			</DropdownMenu.Content>
+		</DropdownMenu.Root>
+	{/if}
+{/snippet}
+
+<PageShell
+	title="Access Directory"
+	description="Everyone who can sign in, what they can do, and who's been invited."
+	backTo="/settings"
+	{isLoading}
+>
+	{#snippet skeleton()}
+		<!-- Mirrors the real layout: a toolbar row, a chip row, then the list. -->
+		<div class="flex flex-col gap-3">
+			<div class="flex items-center gap-2">
+				<Skeleton class="h-9 min-w-0 flex-1 rounded-md md:max-w-xs" />
+				<Skeleton class="h-9 w-9 shrink-0 rounded-md" />
+				<Skeleton class="h-9 w-24 shrink-0 rounded-md" />
+			</div>
+			<div class="flex gap-2 overflow-hidden">
+				{#each ['a', 'b', 'c', 'd', 'e', 'f'] as key (key)}
+					<Skeleton class="h-8 w-20 shrink-0 rounded-full" />
+				{/each}
+			</div>
 		</div>
 		<Skeleton class="h-96 w-full rounded-xl" />
-	</div>
-{:else}
-	<div class="flex w-full flex-col gap-5 p-4 md:p-6 lg:p-8">
-		<!-- Header -->
-		<div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-			<div class="flex items-start gap-2 sm:gap-3">
-				<button
-					onclick={() => goto('/settings')}
-					class="mt-0.5 shrink-0 rounded-lg p-2 transition hover:bg-muted"
-					aria-label="Back to options"
-				>
-					<ChevronLeft class="h-5 w-5" />
-				</button>
-				<div class="min-w-0">
-					<h1 class="text-xl font-bold md:text-3xl">Access Directory</h1>
-					<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
-						Everyone who can sign in, what they can do, and who's been invited.
-					</p>
-				</div>
-			</div>
+	{/snippet}
 
-			<div class="flex shrink-0 items-center gap-2 pl-11 sm:pl-0">
-				{#if $isElevated}
-					<!-- Elevation is invisible state that changes what the next click does, so it
-					     gets a persistent indicator rather than only appearing in the dialog. -->
-					<button
-						type="button"
-						onclick={() => elevation.clear()}
-						class="hidden items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-[11px] font-medium text-primary transition hover:bg-primary/15 sm:inline-flex"
-						title="End confirmed session now"
-					>
-						<LockOpen class="h-3 w-3" />
-						Confirmed · {$elevationRemaining}
-					</button>
-				{/if}
-				<Button size="sm" class="gap-1.5" onclick={() => (isInviteOpen = true)}>
-					<UserPlus class="h-4 w-4" />
-					Invite people
-				</Button>
-			</div>
-		</div>
+	<!--
+		One toolbar row, then one chip row.
 
-		<!-- Summary. Each tile is a filter: the number and the way to act on it are the
-		     same control, so "3 pending" doesn't require hunting for them in the table. -->
-		<div class="grid grid-cols-2 gap-2.5 sm:grid-cols-4 sm:gap-3">
-			{#each [{ key: 'pending', label: 'Awaiting setup', value: stats.pending, icon: Clock, tone: 'text-amber-600 dark:text-amber-500', filter: () => {
-							statusFilter = 'pending';
-							roleFilter = 'all';
-						} }, { key: 'admins', label: 'Administrators', value: stats.admins, icon: ShieldCheck, tone: 'text-primary', filter: () => {
-							roleFilter = 'admin';
-							statusFilter = 'all';
-						} }, { key: 'staff', label: 'Staff', value: stats.staff, icon: Users, tone: 'text-sky-600 dark:text-sky-400', filter: () => {
-							roleFilter = 'staff';
-							statusFilter = 'all';
-						} }, { key: 'suspended', label: 'Suspended', value: stats.suspended, icon: Ban, tone: 'text-destructive', filter: () => {
-							statusFilter = 'suspended';
-							roleFilter = 'all';
-						} }] as tile (tile.key)}
+		What used to be here: a description, a lone Invite button on its own line, four summary
+		tiles in a 2x2 grid, and a Card whose entire contents were a search box and two dropdowns.
+		412px of chrome on a 390px-wide phone - 54% of the screen before the first person. This
+		is 134px, and nothing that did anything was removed.
+	-->
+	<div class="flex flex-col gap-3">
+		<div class="flex items-center gap-2">
+			<div class="relative min-w-0 flex-1 md:max-w-xs">
+				<Search
+					class="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+				/>
+				<Input
+					type="search"
+					placeholder="Search people"
+					bind:value={searchQuery}
+					class="h-9 pl-9 text-sm"
+				/>
+			</div>
+			<!--
+				Refresh is icon-only and sits here rather than in the title bar: MobileHeader already
+				carries the notification bell and the profile avatar on its right, and a third icon
+				there would be page-specific furniture in a layout-level component.
+			-->
+			<Button
+				variant="outline"
+				size="icon"
+				onclick={refresh}
+				disabled={isFetching}
+				aria-label="Refresh the directory"
+				class="h-9 w-9 shrink-0"
+			>
+				<RefreshCw class="h-4 w-4 {isFetching ? 'animate-spin' : ''}" />
+			</Button>
+			<Button size="sm" class="h-9 shrink-0 gap-1.5" onclick={() => (isInviteOpen = true)}>
+				<UserPlus class="h-4 w-4" />
+				Invite
+			</Button>
+			{#if $isElevated}
+				<!--
+					Elevation is invisible state that changes what the next click does, so it gets a
+					persistent indicator. It sits in the toolbar rather than PageShell's actions slot
+					because it is desktop-only: left in that slot it would keep the whole header row
+					alive on mobile to display nothing.
+				-->
 				<button
 					type="button"
-					onclick={tile.filter}
-					class="flex items-center gap-3 rounded-xl border border-border/60 bg-card/40 px-3 py-2.5 text-left transition hover:border-border hover:bg-card/70 sm:px-4 sm:py-3"
+					onclick={() => elevation.clear()}
+					class="hidden h-9 shrink-0 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 text-[11px] font-medium text-primary transition-colors duration-150 hover:bg-primary/15 motion-reduce:transition-none md:inline-flex"
+					title="End confirmed session now"
 				>
-					<tile.icon class="h-4 w-4 shrink-0 {tile.tone}" />
-					<div class="min-w-0">
-						<div class="text-lg leading-none font-bold sm:text-xl">{tile.value}</div>
-						<div class="mt-1 truncate text-[11px] text-muted-foreground">{tile.label}</div>
-					</div>
+					<LockOpen class="h-3 w-3" />
+					Confirmed · {$elevationRemaining}
 				</button>
-			{/each}
+			{/if}
 		</div>
 
-		<!-- Directory -->
-		<Card>
-			<CardHeader class="gap-3 px-4 py-3 sm:px-6">
-				<div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-					<div class="relative w-full sm:max-w-xs">
-						<Search
-							class="absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
-						/>
-						<Input
-							type="search"
-							placeholder="Search by name or email..."
-							bind:value={searchQuery}
-							class="h-8 pl-8 text-xs"
-						/>
-					</div>
-
-					<div class="flex items-center gap-2">
-						<Select.Root type="single" bind:value={roleFilter}>
-							<Select.Trigger
-								size="sm"
-								class="h-8 w-[7.5rem] px-2.5 text-xs"
-								aria-label="Filter by role"
-							>
-								{roleFilter === 'all' ? 'All roles' : roleLabel(roleFilter)}
-							</Select.Trigger>
-							<Select.Content>
-								<Select.Item value="all" label="All roles">All roles</Select.Item>
-								{#each ROLE_DEFINITIONS as role (role.value)}
-									<Select.Item value={role.value} label={role.label}>{role.label}</Select.Item>
-								{/each}
-								<Select.Item value="developer" label="Developer">Developer</Select.Item>
-							</Select.Content>
-						</Select.Root>
-						<Select.Root type="single" bind:value={statusFilter}>
-							<Select.Trigger
-								size="sm"
-								class="h-8 w-[7.5rem] px-2.5 text-xs"
-								aria-label="Filter by status"
-							>
-								{STATUS_FILTER_LABELS[statusFilter] ?? 'All statuses'}
-							</Select.Trigger>
-							<Select.Content>
-								{#each Object.entries(STATUS_FILTER_LABELS) as [value, label] (value)}
-									<Select.Item {value} {label}>{label}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-						<Button
-							variant="outline"
-							size="sm"
-							onclick={refresh}
-							disabled={isFetching}
-							class="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
-						>
-							<RefreshCw class="h-3.5 w-3.5 {isFetching ? 'animate-spin' : ''}" />
-							<span class="hidden sm:inline">Refresh</span>
-						</Button>
-					</div>
-				</div>
-			</CardHeader>
-
-			<CardContent class="p-0">
-				{#if isFetching && rows.length === 0}
-					<div class="flex flex-col items-center justify-center gap-2 py-16">
-						<Loader2 class="h-6 w-6 animate-spin text-primary" />
-						<p class="text-xs text-muted-foreground">Loading the directory...</p>
-					</div>
-				{:else if filteredRows.length === 0}
-					<div class="flex flex-col items-center gap-2 px-6 py-16 text-center">
-						<Users class="h-8 w-8 text-muted-foreground/40" />
-						<p class="text-sm font-medium">
-							{#if searchQuery || roleFilter !== 'all' || statusFilter !== 'all'}
-								Nothing matches these filters
-							{:else}
-								No one has access yet
-							{/if}
-						</p>
-						<p class="max-w-sm text-xs text-muted-foreground">
-							{#if searchQuery || roleFilter !== 'all' || statusFilter !== 'all'}
-								Try a different search, or clear the role and status filters.
-							{:else}
-								Invite your first colleague to give them access to the system.
-							{/if}
-						</p>
-						{#if searchQuery || roleFilter !== 'all' || statusFilter !== 'all'}
-							<Button
-								variant="outline"
-								size="sm"
-								class="mt-2 h-8 text-xs"
-								onclick={() => {
-									searchQuery = '';
-									roleFilter = 'all';
-									statusFilter = 'all';
-								}}
-							>
-								Clear filters
-							</Button>
-						{:else}
-							<Button
-								size="sm"
-								class="mt-2 h-8 gap-1.5 text-xs"
-								onclick={() => (isInviteOpen = true)}
-							>
-								<UserPlus class="h-3.5 w-3.5" />
-								Invite people
-							</Button>
-						{/if}
-					</div>
-				{:else}
-					<div class="overflow-x-auto">
-						<Table>
-							<TableHeader>
-								<TableRow class="bg-muted/50 hover:bg-muted/50">
-									<TableHead class="px-4 text-xs font-semibold text-muted-foreground sm:px-6">
-										Person
-									</TableHead>
-									<TableHead class="w-36 px-4 text-xs font-semibold text-muted-foreground sm:px-6">
-										Role
-									</TableHead>
-									<TableHead class="w-36 px-4 text-xs font-semibold text-muted-foreground sm:px-6">
-										Status
-									</TableHead>
-									<TableHead
-										class="hidden w-32 px-4 text-xs font-semibold text-muted-foreground sm:px-6 lg:table-cell"
-									>
-										Last active
-									</TableHead>
-									<TableHead
-										class="w-16 px-4 text-right text-xs font-semibold text-muted-foreground sm:px-6"
-									>
-										<span class="sr-only">Actions</span>
-									</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{#each paginatedRows as row (row.kind + row.id)}
-									{@const locked = lockedReason(row)}
-									<TableRow
-										class="transition-colors hover:bg-muted/30 {row.status === 'suspended'
-											? 'opacity-60'
-											: ''}"
-									>
-										<!-- Person -->
-										<TableCell class="px-4 py-2.5 sm:px-6">
-											<div class="flex items-center gap-3">
-												{#if row.status === 'pending'}
-													<div
-														class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-500"
-													>
-														<Mail class="h-3.5 w-3.5" />
-													</div>
-												{:else}
-													<Avatar class="h-8 w-8 shrink-0 border">
-														<AvatarImage src={row.avatarUrl ?? undefined} alt="" />
-														<AvatarFallback class="text-xs font-semibold">
-															{initials(row)}
-														</AvatarFallback>
-													</Avatar>
-												{/if}
-												<div class="min-w-0 flex-1">
-													<div class="flex items-center gap-1.5">
-														<span class="truncate text-xs font-semibold">
-															{row.name || row.email}
-														</span>
-														{#if row.isSelf}
-															<Badge variant="secondary" class="h-4 shrink-0 px-1 text-[9px]"
-																>You</Badge
-															>
-														{/if}
-													</div>
-													<div class="truncate text-[11px] text-muted-foreground">
-														{#if row.invitation}
-															Invited by {row.invitation.invited_by_email ?? 'an administrator'}
-															{#if row.invitation.resend_count > 0}
-																· sent {row.invitation.resend_count + 1}×
-															{/if}
-														{:else if row.name}
-															{row.email}
-														{:else}
-															Hasn't finished setting up
-														{/if}
-													</div>
-												</div>
-											</div>
-										</TableCell>
-
-										<!-- Role -->
-										<TableCell class="px-4 py-2.5 sm:px-6">
-											<div class="flex items-center gap-1.5">
-												{#if row.isDeveloper}
-													<ShieldAlert class="h-3.5 w-3.5 shrink-0 text-destructive" />
-												{:else if row.role === 'admin'}
-													<ShieldCheck class="h-3.5 w-3.5 shrink-0 text-primary" />
-												{/if}
-												<span class="text-xs font-medium">{roleLabel(row.role)}</span>
-											</div>
-										</TableCell>
-
-										<!-- Status -->
-										<TableCell class="px-4 py-2.5 sm:px-6">
-											{#if row.status === 'pending'}
-												<div class="flex flex-col gap-0.5">
-													<Badge
-														variant="outline"
-														class="h-5 w-fit gap-1 border-amber-500/40 px-1.5 text-[10px] text-amber-600 dark:text-amber-500"
-													>
-														<Clock class="h-2.5 w-2.5" />
-														Invited
-													</Badge>
-													{#if row.invitation}
-														<span class="text-[10px] text-muted-foreground">
-															{expiryLabel(row.invitation)}
-														</span>
-													{/if}
-												</div>
-											{:else if row.status === 'invited'}
-												<Badge
-													variant="outline"
-													class="h-5 w-fit gap-1 border-sky-500/40 px-1.5 text-[10px] text-sky-600 dark:text-sky-400"
-												>
-													<Clock class="h-2.5 w-2.5" />
-													Setting up
-												</Badge>
-											{:else if row.status === 'suspended'}
-												<Badge
-													variant="outline"
-													class="h-5 w-fit gap-1 border-destructive/40 px-1.5 text-[10px] text-destructive"
-												>
-													<Ban class="h-2.5 w-2.5" />
-													Suspended
-												</Badge>
-											{:else}
-												<Badge
-													variant="outline"
-													class="h-5 w-fit gap-1 px-1.5 text-[10px] text-muted-foreground"
-												>
-													<CircleCheck class="h-2.5 w-2.5 text-primary" />
-													Active
-												</Badge>
-											{/if}
-										</TableCell>
-
-										<!-- Last active -->
-										<TableCell
-											class="hidden px-4 py-2.5 text-xs text-muted-foreground sm:px-6 lg:table-cell"
-										>
-											{row.kind === 'invitation' || row.status === 'pending'
-												? '—'
-												: relativeTime(row.lastActiveAt)}
-										</TableCell>
-
-										<!-- Actions -->
-										<TableCell class="px-4 py-2.5 text-right sm:px-6">
-											{#if busyRowId === row.id}
-												<Loader2 class="ml-auto h-4 w-4 animate-spin text-muted-foreground" />
-											{:else}
-												<DropdownMenu.Root>
-													<DropdownMenu.Trigger>
-														{#snippet child({ props })}
-															<Button
-																{...props}
-																variant="ghost"
-																size="icon"
-																class="h-8 w-8"
-																aria-label="Actions for {row.email}"
-															>
-																<MoreHorizontal class="h-4 w-4" />
-															</Button>
-														{/snippet}
-													</DropdownMenu.Trigger>
-													<DropdownMenu.Content align="end" class="w-56">
-														<!-- Every GroupHeading is wrapped in a Group deliberately: bits-ui resolves
-														     the heading against the group context and Context.get() throws when
-														     there is none, which took the whole menu down with it. -->
-														{#if row.invitation}
-															<!-- A live invitation drives the resend/revoke pair whether or not an
-															     account row sits behind it; Supabase creates the account when the
-															     mail is sent, so usually one does. -->
-															<DropdownMenu.Group>
-																<DropdownMenu.GroupHeading
-																	class="px-2 py-1.5 text-[10px] tracking-wide text-muted-foreground uppercase"
-																>
-																	Invitation
-																</DropdownMenu.GroupHeading>
-																<DropdownMenu.Item onclick={() => resendInvite(row)}>
-																	<Send class="mr-2 h-3.5 w-3.5" />
-																	Resend invitation
-																</DropdownMenu.Item>
-																<DropdownMenu.Item
-																	class="text-destructive data-highlighted:text-destructive"
-																	onclick={() => (revocation = row)}
-																>
-																	<MailX class="mr-2 h-3.5 w-3.5" />
-																	Revoke invitation
-																</DropdownMenu.Item>
-															</DropdownMenu.Group>
-														{/if}
-
-														{#if row.kind === 'account'}
-															{#if row.invitation}
-																<DropdownMenu.Separator />
-															{/if}
-															{#if locked}
-																<div class="px-2 py-3 text-xs text-muted-foreground">
-																	<Lock class="mr-1.5 inline h-3 w-3" />
-																	{locked}
-																</div>
-															{:else}
-																<DropdownMenu.Group>
-																	<DropdownMenu.GroupHeading
-																		class="px-2 py-1.5 text-[10px] tracking-wide text-muted-foreground uppercase"
-																	>
-																		Change role
-																	</DropdownMenu.GroupHeading>
-																	{#each ROLE_DEFINITIONS as definition (definition.value)}
-																		<DropdownMenu.Item
-																			disabled={row.role === definition.value}
-																			onclick={() =>
-																				(roleChange = { row, newRole: definition.value })}
-																		>
-																			<span
-																				class="mr-2 flex h-3.5 w-3.5 items-center justify-center"
-																			>
-																				{#if row.role === definition.value}
-																					<Check class="h-3.5 w-3.5 text-primary" />
-																				{/if}
-																			</span>
-																			<span class="flex-1">{definition.label}</span>
-																		</DropdownMenu.Item>
-																	{/each}
-																</DropdownMenu.Group>
-
-																<DropdownMenu.Separator />
-
-																<DropdownMenu.Group>
-																	{#if row.status === 'suspended'}
-																		<DropdownMenu.Item
-																			onclick={() => (statusChange = { row, next: 'active' })}
-																		>
-																			<CircleCheck class="mr-2 h-3.5 w-3.5" />
-																			Reactivate account
-																		</DropdownMenu.Item>
-																	{:else}
-																		<DropdownMenu.Item
-																			onclick={() => (statusChange = { row, next: 'suspended' })}
-																		>
-																			<Ban class="mr-2 h-3.5 w-3.5" />
-																			Suspend access
-																		</DropdownMenu.Item>
-																	{/if}
-
-																	<!-- Revoking already deletes the half-created account, so offering
-																	     Remove next to it would be two destructive items doing one thing. -->
-																	{#if !row.invitation}
-																		<DropdownMenu.Item
-																			class="text-destructive data-highlighted:text-destructive"
-																			onclick={() => {
-																				removalConfirmText = '';
-																				removal = row;
-																			}}
-																		>
-																			<Trash2 class="mr-2 h-3.5 w-3.5" />
-																			Remove permanently
-																		</DropdownMenu.Item>
-																	{/if}
-																</DropdownMenu.Group>
-															{/if}
-														{/if}
-													</DropdownMenu.Content>
-												</DropdownMenu.Root>
-											{/if}
-										</TableCell>
-									</TableRow>
-								{/each}
-							</TableBody>
-						</Table>
-					</div>
-				{/if}
-			</CardContent>
-
-			{#if filteredRows.length > 0}
-				<CardFooter
-					class="flex flex-col items-center justify-between gap-3 border-t px-4 py-2.5 sm:flex-row sm:px-6"
-				>
-					<div class="flex items-center gap-4 text-xs text-muted-foreground">
-						<span>
-							<strong>{Math.min((currentPage - 1) * pageSize + 1, filteredRows.length)}</strong
-							>–<strong>{Math.min(currentPage * pageSize, filteredRows.length)}</strong>
-							of <strong>{filteredRows.length}</strong>
-						</span>
-						<div class="flex items-center gap-1.5">
-							<span class="hidden sm:inline">Per page:</span>
-							<Select.Root
-								type="single"
-								value={String(pageSize)}
-								onValueChange={(value) => {
-									pageSize = Number(value);
-									currentPage = 1;
-								}}
-							>
-								<Select.Trigger
-									size="sm"
-									class="h-8 w-[4.5rem] px-2.5 text-xs"
-									aria-label="Rows per page"
-								>
-									{pageSize}
-								</Select.Trigger>
-								<Select.Content>
-									{#each [10, 25, 50, 100] as size (size)}
-										<Select.Item value={String(size)} label={String(size)}>{size}</Select.Item>
-									{/each}
-								</Select.Content>
-							</Select.Root>
-						</div>
-					</div>
-
-					<div class="flex items-center gap-2">
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={currentPage === 1}
-							onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-							class="h-8 gap-1 px-3 text-xs"
-						>
-							<ChevronLeft class="h-3.5 w-3.5" />
-							<span class="hidden sm:inline">Previous</span>
-						</Button>
-						<span class="px-1 text-xs font-medium text-muted-foreground">
-							{currentPage} / {totalPages}
-						</span>
-						<Button
-							variant="outline"
-							size="sm"
-							disabled={currentPage >= totalPages}
-							onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
-							class="h-8 gap-1 px-3 text-xs"
-						>
-							<span class="hidden sm:inline">Next</span>
-							<ChevronRight class="h-3.5 w-3.5" />
-						</Button>
-					</div>
-				</CardFooter>
-			{/if}
-		</Card>
+		<FilterChips
+			label="Filter people"
+			bind:value={quickFilter}
+			options={[
+				{ value: 'all', label: 'All', count: stats.total },
+				{ value: 'pending', label: 'Awaiting', count: stats.pending },
+				{ value: 'admin', label: 'Admins', count: stats.admins },
+				{ value: 'staff', label: 'Staff', count: stats.staff },
+				{ value: 'guest', label: 'Guests', count: stats.guests },
+				{ value: 'suspended', label: 'Suspended', count: stats.suspended }
+			]}
+		/>
 	</div>
-{/if}
+
+	<!--
+		The hand-rolled table, its spinner, its empty state and its pagination all collapse
+		into DataTable. Below `md` each person becomes a card, so the four columns no longer
+		scroll sideways on a phone.
+	-->
+	<DataTable
+		columns={[
+			{ key: 'person', header: 'Person', cell: personCell, as: 'title' },
+			{ key: 'role', header: 'Role', cell: roleCell, width: 'w-36' },
+			{ key: 'status', header: 'Status', cell: statusCell, width: 'w-36' },
+			{
+				key: 'lastActive',
+				header: 'Last active',
+				cell: lastActiveCell,
+				width: 'w-32',
+				hideBelow: 'lg',
+				nowrap: true
+			},
+			{ key: 'actions', header: 'Actions', cell: rowActions, align: 'right', as: 'actions' }
+		] satisfies Column<Row>[]}
+		rows={filteredRows}
+		rowKey={(row) => `${row.kind}:${row.id}`}
+		mobileCard={personCardMobile}
+		groupBy={(row) => (isUnresolved(row) ? 'Needs attention' : 'Active')}
+		isLoading={isFetching && rows.length === 0}
+		bind:page={currentPage}
+		bind:pageSize
+		noun="people"
+		caption="Everyone with access"
+		emptyTitle={searchQuery || quickFilter !== 'all'
+			? 'Nothing matches these filters'
+			: 'No one has access yet'}
+		emptyDescription={searchQuery || quickFilter !== 'all'
+			? 'Try a different search, or pick the All chip.'
+			: 'Invite your first colleague to give them access to the system.'}
+	/>
+</PageShell>
 
 <!-- Invite ------------------------------------------------------------------>
 <AlertDialog.Root bind:open={isInviteOpen}>

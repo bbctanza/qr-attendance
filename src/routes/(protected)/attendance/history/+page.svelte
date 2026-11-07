@@ -1,46 +1,61 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { Card, CardHeader, CardTitle, CardContent } from '$lib/components/ui/card';
+	import { siteConfig } from '$lib/config/site';
+	import { onMount, tick } from 'svelte';
+	import { page } from '$app/stores';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
-	import { Avatar, AvatarFallback } from '$lib/components/ui/avatar';
-	import { ChevronRight, ChevronDown, ChevronLeft, Download, Search } from '@lucide/svelte';
-	import { supabase } from '$lib/supabase';
-	import Progress from '$lib/components/ui/progress';
+	import { Card, CardContent, CardHeader } from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { formatLocalTime } from '$lib/utils/time';
-	import { exportToCSV, exportToPDF, type ExportRecord } from '$lib/utils/attendanceExport';
+	import Progress from '$lib/components/ui/progress';
+	import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
 	import {
-		DropdownMenu,
-		DropdownMenuContent,
-		DropdownMenuItem,
-		DropdownMenuTrigger
-	} from '$lib/components/ui/dropdown-menu';
+		CalendarRange,
+		ChevronDown,
+		ChevronLeft,
+		ChevronRight,
+		Download,
+		Loader2,
+		Search,
+		Users
+	} from '@lucide/svelte';
 
-	type Event = {
-		event_id: number;
-		event_name: string;
-		event_date: string;
-		start_datetime: string;
-		end_datetime: string;
-		record_absents?: boolean;
-		attendees?: {
-			member_id: string;
-			first_name: string;
-			last_name: string;
-			time?: string;
-			care_group?: string;
-		}[];
-		absent?: { member_id: string; first_name: string; last_name: string; care_group?: string }[];
-	};
+	import PersonRow from '$lib/components/attendance/person-row.svelte';
+	import EmptyState from '$lib/components/common/empty-state.svelte';
+	import KpiCard from '$lib/components/common/kpi-card.svelte';
+	import PageShell from '$lib/components/page-shell.svelte';
 
-	let events = $state<Event[]>([]);
-	let openEventId = $state<number | null>(null);
-	let selectedMonth = $state('');
-	let filterPresent = $state(true);
-	let months = $state<string[]>([]);
-	let eventSearchQueries = $state<Record<number, string>>({}); // Search query per event
-	const monthOrder = [
+	import {
+		attendanceApi,
+		summariseAttendance,
+		type AttendanceSummaryRow,
+		type RosterEntry,
+		type RosterKind
+	} from '$lib/api/attendance';
+	import { supabase } from '$lib/supabase';
+	import { showErrorToast, showWarningToast } from '$lib/utils/errorHandler';
+	import { formatTimeSync, parseEventDate } from '$lib/utils/time';
+	import { exportToCSV, exportToPDF, type ExportRecord } from '$lib/utils/attendanceExport';
+
+	/**
+	 * Attendance history.
+	 *
+	 * The previous version fetched every completed event ever on each visit, then issued two
+	 * roster queries per event with full member joins - a year of weekly services is over a
+	 * hundred round trips - and the month filter discarded nearly all of it client-side.
+	 * Loading is now scoped to the selected month via one get_attendance_summary() call, with
+	 * each event's roster fetched the first time it is expanded and cached after that.
+	 *
+	 * Two correctness fixes came with it:
+	 *
+	 *  - The attendance rate could exceed 100%. Present totals counted every event in the
+	 *    month while expected totals skipped events with record_absents off, so the two sides
+	 *    of the division described different populations. Both now come from the same subset.
+	 *
+	 *  - /attendance linked here with ?event=<id> and nothing read it. The parameter now
+	 *    selects the right month and opens that event.
+	 */
+
+	const MONTH_LABELS = [
 		'JAN',
 		'FEB',
 		'MAR',
@@ -54,65 +69,197 @@
 		'NOV',
 		'DEC'
 	];
-	let monthPage = $state(0);
-	let monthsPerPage = 4;
+	const MONTHS_PER_PAGE = 4;
+	const ROSTER_PAGE_SIZE = 25;
+
+	type Mode = RosterKind;
+
 	let isLoading = $state(true);
+	let loadError = $state<string | null>(null);
+	let isLoadingMonth = $state(false);
+
+	let months = $state<string[]>([]);
+	let selectedMonth = $state('');
+	let monthPage = $state(0);
+	let mode = $state<Mode>('present');
+
+	let summary = $state<AttendanceSummaryRow[]>([]);
+	let openEventId = $state<number | null>(null);
+
+	/** Rosters are cached per event and kind, so collapsing and reopening costs nothing. */
+	let rosters = $state<Record<string, RosterEntry[]>>({});
+	let rosterLoading = $state<string | null>(null);
+	let rosterSearch = $state<Record<number, string>>({});
+	let rosterPage = $state<Record<number, number>>({});
+
 	let userDisplayName = $state('System User');
+	let isExporting = $state(false);
 
-	let visibleMonths = $derived(
-		months.slice(monthPage * monthsPerPage, (monthPage + 1) * monthsPerPage)
-	);
-	let hasPrev = $derived(monthPage > 0);
-	let hasNext = $derived((monthPage + 1) * monthsPerPage < months.length);
+	// -----------------------------------------------------------------------
+	// Month handling
+	// -----------------------------------------------------------------------
 
-	// Helper function to filter members by search query
-	function filterMembers(members: any[] | undefined, query: string | undefined) {
-		if (!members || !query || !query.trim()) return members || [];
-		const lowerQuery = query.toLowerCase();
-		return members.filter(
-			(m) =>
-				`${m.first_name} ${m.last_name}`.toLowerCase().includes(lowerQuery) ||
-				m.care_group?.toLowerCase().includes(lowerQuery)
-		);
+	function monthKey(date: Date) {
+		return `${MONTH_LABELS[date.getMonth()]} ${date.getFullYear()}`;
 	}
 
-	// Filtering
-	let filteredEvents = $derived(
-		events.filter((e) => {
-			const d = new Date(e.event_date);
-			const m = monthOrder[d.getMonth()];
-			const y = d.getFullYear();
-			return `${m} ${y}` === selectedMonth;
-		})
-	);
+	/** Inclusive first/last day of a "MON YYYY" key, as the RPC's DATE bounds. */
+	function monthBounds(key: string): { from: string; to: string } {
+		const [label, year] = key.split(' ');
+		const monthIndex = MONTH_LABELS.indexOf(label);
+		const y = Number(year);
+		const pad = (n: number) => String(n).padStart(2, '0');
+		const lastDay = new Date(y, monthIndex + 1, 0).getDate();
+		return {
+			from: `${y}-${pad(monthIndex + 1)}-01`,
+			to: `${y}-${pad(monthIndex + 1)}-${pad(lastDay)}`
+		};
+	}
 
-	// Attendance calculations - Only include events that record absents
-	let totalAttendees = $derived(
-		filteredEvents.reduce((s, e) => s + (e.attendees ? e.attendees.length : 0), 0)
+	let visibleMonths = $derived(
+		months.slice(monthPage * MONTHS_PER_PAGE, (monthPage + 1) * MONTHS_PER_PAGE)
 	);
-	let totalExpected = $derived(
-		filteredEvents.reduce((s, e) => {
-			// Only count expected attendance for events that record absents
-			if (e.record_absents !== false) {
-				return s + ((e.attendees?.length || 0) + (e.absent?.length || 0));
-			}
-			return s; // For events without absent records, don't count them in overall stats
-		}, 0)
-	);
+	let hasPrevMonths = $derived(monthPage > 0);
+	let hasNextMonths = $derived((monthPage + 1) * MONTHS_PER_PAGE < months.length);
 
-	let averageSize = $derived(
-		filteredEvents.length ? Math.round(totalAttendees / filteredEvents.length) : 0
-	);
-	let attendanceRate = $derived(
-		totalExpected > 0 ? Math.round((totalAttendees / totalExpected) * 100) : 0
-	);
+	/** Keep the selected month on screen when it is chosen programmatically (deep link). */
+	function pageForMonth(key: string) {
+		const index = months.indexOf(key);
+		return index < 0 ? 0 : Math.floor(index / MONTHS_PER_PAGE);
+	}
+
+	// -----------------------------------------------------------------------
+	// Stats
+	//
+	// Partitioned on records_absents: an event that did not record absentees has no expected
+	// total, so it can contribute a headcount but not a rate. Dividing across the two
+	// together is what used to let the figure pass 100%.
+	// -----------------------------------------------------------------------
+
+	let totals = $derived(summariseAttendance(summary));
+	let tracked = $derived(totals.tracked);
+	let untracked = $derived(totals.untracked);
+	let trackedPresent = $derived(totals.trackedPresent);
+	let trackedExpected = $derived(totals.trackedExpected);
+	let attendanceRate = $derived(totals.attendanceRate);
+	let totalPresent = $derived(totals.totalPresent);
+	let averageSize = $derived(totals.averageSize);
+
+	// -----------------------------------------------------------------------
+	// Loading
+	// -----------------------------------------------------------------------
+
+	async function loadMonths() {
+		const dates = await attendanceApi.getCompletedEventDates();
+		const seen = new Set<string>();
+		// Already ordered newest-first by the query, so insertion order is the display order.
+		for (const date of dates) seen.add(monthKey(parseEventDate(date)));
+		months = [...seen];
+	}
+
+	async function loadMonth(key: string) {
+		if (!key) {
+			summary = [];
+			return;
+		}
+		isLoadingMonth = true;
+		try {
+			const { from, to } = monthBounds(key);
+			summary = await attendanceApi.getAttendanceSummary(from, to);
+		} finally {
+			isLoadingMonth = false;
+		}
+	}
+
+	function rosterKey(eventId: number, kind: Mode) {
+		return `${eventId}:${kind}`;
+	}
+
+	async function ensureRoster(eventId: number, kind: Mode) {
+		const key = rosterKey(eventId, kind);
+		if (rosters[key]) return;
+		rosterLoading = key;
+		try {
+			rosters[key] = await attendanceApi.getEventRoster(eventId, kind);
+		} catch (error) {
+			showErrorToast(error, 'Could not load this roster');
+		} finally {
+			rosterLoading = null;
+		}
+	}
+
+	async function toggleEvent(eventId: number) {
+		if (openEventId === eventId) {
+			openEventId = null;
+			return;
+		}
+		openEventId = eventId;
+		rosterPage[eventId] = 1;
+		await ensureRoster(eventId, mode);
+	}
+
+	async function selectMonth(key: string) {
+		if (key === selectedMonth) return;
+		selectedMonth = key;
+		openEventId = null;
+		try {
+			await loadMonth(key);
+		} catch (error) {
+			showErrorToast(error, 'Could not load that month');
+		}
+	}
+
+	async function setMode(next: Mode) {
+		if (next === mode) return;
+		mode = next;
+		// The open event needs the other roster; everything else loads on demand.
+		if (openEventId !== null) await ensureRoster(openEventId, next);
+	}
+
+	/** Deep link from /attendance's "Recent Sessions" cards. */
+	async function openFromQuery(eventIdRaw: string) {
+		const eventId = Number(eventIdRaw);
+		if (!Number.isFinite(eventId)) return;
+
+		const { data, error } = await supabase
+			.from('events')
+			.select('event_date')
+			.eq('event_id', eventId)
+			.maybeSingle();
+
+		if (error || !data) return;
+
+		const key = monthKey(parseEventDate(data.event_date as string));
+		if (!months.includes(key)) return;
+
+		selectedMonth = key;
+		monthPage = pageForMonth(key);
+		await loadMonth(key);
+
+		if (!summary.some((row) => row.event_id === eventId)) return;
+		openEventId = eventId;
+		rosterPage[eventId] = 1;
+		await ensureRoster(eventId, mode);
+
+		await tick();
+		document
+			.getElementById(`event-${eventId}`)
+			?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+	}
 
 	onMount(async () => {
-		isLoading = true;
 		try {
-			await fetchHistory();
+			await loadMonths();
 
-			// Get current user for PDF exports
+			const requested = $page.url.searchParams.get('event');
+			if (requested) {
+				await openFromQuery(requested);
+			}
+			if (!selectedMonth && months.length > 0) {
+				selectedMonth = months[0];
+				await loadMonth(selectedMonth);
+			}
+
 			const {
 				data: { session }
 			} = await supabase.auth.getSession();
@@ -121,751 +268,549 @@
 					.from('profiles')
 					.select('full_name, email')
 					.eq('id', session.user.id)
-					.single();
-
-				if (profile) {
-					userDisplayName = profile.full_name || profile.email || 'System User';
-				} else {
-					userDisplayName = session.user.email || 'System User';
-				}
+					.maybeSingle();
+				userDisplayName =
+					profile?.full_name || profile?.email || session.user.email || 'System User';
 			}
+		} catch (error) {
+			loadError = error instanceof Error ? error.message : 'Could not load attendance history.';
+			showErrorToast(error, 'History unavailable');
 		} finally {
 			isLoading = false;
 		}
 	});
 
-	async function fetchHistory() {
-		// 1. Fetch completed events - Include all for display, but mark which ones to exclude from stats
-		const { data: completedEvents, error } = await supabase
-			.from('events')
-			.select('*')
-			.eq('status', 'completed')
-			.order('end_datetime', { ascending: false });
+	// -----------------------------------------------------------------------
+	// Roster display
+	// -----------------------------------------------------------------------
 
-		if (error) {
-			console.error('Error fetching history events:', error);
-			return;
-		}
-
-		if (!completedEvents) {
-			events = [];
-			return;
-		}
-
-		// 2. Hydrate events with attendance data
-		// Optimized approach: Fetch all history for these events in parallel or one batch if possible.
-		// For now, simpler map loop until performance is an issue.
-		const eventsWithDetails = await Promise.all(
-			completedEvents.map(async (ev) => {
-				// Get Present
-				const { data: presentData } = await supabase
-					.from('attendance_present')
-					.select('member_id, scan_datetime, members(first_name, last_name, groups(name))')
-					.eq('event_id', ev.event_id)
-					.order('scan_datetime', { ascending: false });
-
-				const attendees = await Promise.all(
-					(presentData || []).map(async (p: any) => ({
-						member_id: p.member_id,
-						first_name: p.members?.first_name || 'Unknown',
-						last_name: p.members?.last_name || 'Member',
-						care_group: p.members?.groups?.name || '-',
-						time: await formatLocalTime(p.scan_datetime)
-					}))
-				);
-
-				const { data: absentData } = await supabase
-					.from('attendance_absent')
-					.select('member_id, members(first_name, last_name, groups(name))')
-					.eq('event_id', ev.event_id);
-
-				const absent = (absentData || []).map((a: any) => ({
-					member_id: a.member_id,
-					first_name: a.members?.first_name || 'Unknown',
-					last_name: a.members?.last_name || 'Member',
-					care_group: a.members?.groups?.name || '-'
-				}));
-
-				return {
-					event_id: ev.event_id,
-					event_name: ev.event_name,
-					event_date: ev.event_date,
-					start_datetime: ev.start_datetime,
-					end_datetime: ev.end_datetime,
-					record_absents: (ev.metadata as any)?.record_absents !== false,
-					attendees,
-					absent
-				};
-			})
+	function filterRoster(entries: RosterEntry[], query: string | undefined) {
+		if (!query?.trim()) return entries;
+		const q = query.toLowerCase();
+		return entries.filter(
+			(entry) =>
+				`${entry.first_name} ${entry.last_name}`.toLowerCase().includes(q) ||
+				entry.care_group.toLowerCase().includes(q)
 		);
-
-		events = eventsWithDetails;
-
-		// Extract unique months from events and sort them
-		const uniqueMonths = new Set<string>();
-		eventsWithDetails.forEach((event) => {
-			const date = new Date(event.event_date);
-			const monthIndex = date.getMonth();
-			const year = date.getFullYear();
-			const monthStr = monthOrder[monthIndex];
-			uniqueMonths.add(`${monthStr} ${year}`);
-		});
-
-		// Sort months chronologically (Latest first)
-		const sortedMonths = Array.from(uniqueMonths).sort((a, b) => {
-			const [mA, yA] = a.split(' ');
-			const [mB, yB] = b.split(' ');
-			const yearDiff = parseInt(yB) - parseInt(yA);
-			if (yearDiff !== 0) return yearDiff;
-			return monthOrder.indexOf(mB) - monthOrder.indexOf(mA);
-		});
-		months = sortedMonths;
-		// Set selected month to the latest month (first in sorted array)
-		if (sortedMonths.length > 0) {
-			selectedMonth = sortedMonths[0];
-		}
-		monthPage = 0; // Reset pagination
 	}
 
-	function toggleEvent(id: number) {
-		openEventId = openEventId === id ? null : id;
+	function countFor(row: AttendanceSummaryRow) {
+		return mode === 'present' ? row.present_count : row.absent_count;
 	}
 
-	function handleExportPresentCSV() {
+	// -----------------------------------------------------------------------
+	// Export
+	//
+	// exportToCSV/exportToPDF are already generic over viewMode; what was duplicated were six
+	// call sites that each rebuilt the records, the period label and the same stats object.
+	// -----------------------------------------------------------------------
+
+	function buildRecords(
+		rows: AttendanceSummaryRow[],
+		kind: Mode,
+		entriesFor: (id: number) => RosterEntry[]
+	) {
 		const records: ExportRecord[] = [];
-
-		filteredEvents.forEach((event) => {
-			(event.attendees || []).forEach((attendee) => {
+		for (const row of rows) {
+			for (const entry of entriesFor(row.event_id)) {
 				records.push({
-					member_id: attendee.member_id,
-					care_group: attendee.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: attendee.first_name,
-					last_name: attendee.last_name,
-					time: attendee.time || '-'
+					member_id: entry.member_id,
+					care_group: entry.care_group,
+					event_name: row.event_name,
+					event_date: row.event_date,
+					first_name: entry.first_name,
+					last_name: entry.last_name,
+					...(kind === 'present'
+						? { time: entry.scan_datetime ? formatTimeSync(new Date(entry.scan_datetime)) : '-' }
+						: {})
 				});
-			});
-		});
-
-		if (records.length === 0) {
-			alert('No present members to export');
-			return;
-		}
-
-		const periodLabel =
-			records.length > 0 && records[0].event_date
-				? new Date(records[0].event_date).toLocaleString('default', {
-						month: 'long',
-						year: 'numeric'
-					})
-				: selectedMonth;
-
-		exportToCSV(records, {
-			viewMode: 'present',
-			selectedMonth: periodLabel,
-			stats: {
-				totalPresent: totalAttendees,
-				totalAbsent: totalExpected - totalAttendees,
-				attendanceRate: attendanceRate
 			}
-		});
+		}
+		return records;
 	}
 
-	async function handleExportPresentPDF() {
-		const records: ExportRecord[] = [];
-
-		filteredEvents.forEach((event) => {
-			(event.attendees || []).forEach((attendee) => {
-				records.push({
-					member_id: attendee.member_id,
-					care_group: attendee.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: attendee.first_name,
-					last_name: attendee.last_name,
-					time: attendee.time || '-'
-				});
-			});
-		});
-
-		if (records.length === 0) {
-			alert('No present members to export');
+	/**
+	 * `scope` undefined exports the whole month, which needs every roster in it - so they are
+	 * fetched here rather than up front, which is the whole point of loading them lazily.
+	 */
+	async function runExport(format: 'csv' | 'pdf', scope?: AttendanceSummaryRow) {
+		const rows = scope ? [scope] : summary;
+		if (rows.length === 0) {
+			showWarningToast('There are no events in this month to export.', 'Nothing to export');
 			return;
 		}
 
-		const periodLabel =
-			records.length > 0 && records[0].event_date
-				? new Date(records[0].event_date).toLocaleString('default', {
+		isExporting = true;
+		try {
+			await Promise.all(rows.map((row) => ensureRoster(row.event_id, mode)));
+
+			const records = buildRecords(rows, mode, (id) => rosters[rosterKey(id, mode)] ?? []);
+			if (records.length === 0) {
+				showWarningToast(
+					mode === 'present'
+						? 'No one was marked present in this selection.'
+						: 'No one was marked absent in this selection.',
+					'Nothing to export'
+				);
+				return;
+			}
+
+			const periodLabel = scope
+				? parseEventDate(scope.event_date).toLocaleString('default', {
 						month: 'long',
 						year: 'numeric'
 					})
 				: selectedMonth;
 
-		try {
-			await exportToPDF(records, {
-				viewMode: 'present',
+			const statsRows = scope ? [scope] : tracked;
+			const present = statsRows.reduce((sum, row) => sum + row.present_count, 0);
+			const absent = statsRows.reduce((sum, row) => sum + row.absent_count, 0);
+			const options = {
+				viewMode: mode,
 				selectedMonth: periodLabel,
 				stats: {
-					totalPresent: totalAttendees,
-					totalAbsent: totalExpected - totalAttendees,
-					attendanceRate: attendanceRate
+					totalPresent: present,
+					totalAbsent: absent,
+					attendanceRate:
+						present + absent > 0 ? Math.round((present / (present + absent)) * 100) : 0
 				},
 				generatedBy: userDisplayName
-			});
-		} catch (err) {
-			console.error('PDF export error:', err);
-			alert(
-				'PDF export requires jsPDF and jspdf-autotable packages. Please install them: npm install jspdf jspdf-autotable'
-			);
-		}
-	}
+			};
 
-	function handleExportAbsentCSV() {
-		const records: ExportRecord[] = [];
-
-		filteredEvents.forEach((event) => {
-			(event.absent || []).forEach((member) => {
-				records.push({
-					member_id: member.member_id,
-					care_group: member.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: member.first_name,
-					last_name: member.last_name
-				});
-			});
-		});
-
-		if (records.length === 0) {
-			alert('No absent members to export');
-			return;
-		}
-
-		const periodLabel =
-			records.length > 0 && records[0].event_date
-				? new Date(records[0].event_date).toLocaleString('default', {
-						month: 'long',
-						year: 'numeric'
-					})
-				: selectedMonth;
-
-		exportToCSV(records, {
-			viewMode: 'absent',
-			selectedMonth: periodLabel,
-			stats: {
-				totalPresent: totalAttendees,
-				totalAbsent: totalExpected - totalAttendees,
-				attendanceRate: attendanceRate
+			if (format === 'csv') {
+				exportToCSV(records, options);
+			} else {
+				await exportToPDF(records, options);
 			}
-		});
-	}
-
-	async function handleExportAbsentPDF() {
-		const records: ExportRecord[] = [];
-
-		filteredEvents.forEach((event) => {
-			(event.absent || []).forEach((member) => {
-				records.push({
-					member_id: member.member_id,
-					care_group: member.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: member.first_name,
-					last_name: member.last_name
-				});
-			});
-		});
-
-		if (records.length === 0) {
-			alert('No absent members to export');
-			return;
-		}
-
-		const periodLabel =
-			records.length > 0 && records[0].event_date
-				? new Date(records[0].event_date).toLocaleString('default', {
-						month: 'long',
-						year: 'numeric'
-					})
-				: selectedMonth;
-
-		try {
-			await exportToPDF(records, {
-				viewMode: 'absent',
-				selectedMonth: periodLabel,
-				stats: {
-					totalPresent: totalAttendees,
-					totalAbsent: totalExpected - totalAttendees,
-					attendanceRate: attendanceRate
-				},
-				generatedBy: userDisplayName
-			});
-		} catch (err) {
-			console.error('PDF export error:', err);
-			alert(
-				'PDF export requires jsPDF and jspdf-autotable packages. Please install them: npm install jspdf jspdf-autotable'
-			);
-		}
-	}
-
-	// Individual event export functions
-	function handleExportEventCSV(event: Event) {
-		const records: ExportRecord[] = [];
-
-		if (filterPresent) {
-			(event.attendees || []).forEach((attendee) => {
-				records.push({
-					member_id: attendee.member_id,
-					care_group: attendee.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: attendee.first_name,
-					last_name: attendee.last_name,
-					time: attendee.time || '-'
-				});
-			});
-		} else {
-			(event.absent || []).forEach((member) => {
-				records.push({
-					member_id: member.member_id,
-					care_group: member.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: member.first_name,
-					last_name: member.last_name
-				});
-			});
-		}
-
-		if (records.length === 0) {
-			alert('No data to export for this event');
-			return;
-		}
-
-		const evPresent = event.attendees?.length || 0;
-		const evAbsent = event.absent?.length || 0;
-		const evTotal = evPresent + evAbsent;
-		const evRate = evTotal > 0 ? Math.round((evPresent / evTotal) * 100) : 0;
-		const periodLabel = new Date(event.event_date).toLocaleString('default', {
-			month: 'long',
-			year: 'numeric'
-		});
-
-		exportToCSV(records, {
-			viewMode: filterPresent ? 'present' : 'absent',
-			selectedMonth: periodLabel,
-			stats: {
-				totalPresent: evPresent,
-				totalAbsent: evAbsent,
-				attendanceRate: evRate
-			}
-		});
-	}
-
-	async function handleExportEventPDF(event: Event) {
-		const records: ExportRecord[] = [];
-
-		if (filterPresent) {
-			(event.attendees || []).forEach((attendee) => {
-				records.push({
-					member_id: attendee.member_id,
-					care_group: attendee.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: attendee.first_name,
-					last_name: attendee.last_name,
-					time: attendee.time || '-'
-				});
-			});
-		} else {
-			(event.absent || []).forEach((member) => {
-				records.push({
-					member_id: member.member_id,
-					care_group: member.care_group,
-					event_name: event.event_name,
-					event_date: event.event_date,
-					first_name: member.first_name,
-					last_name: member.last_name
-				});
-			});
-		}
-
-		if (records.length === 0) {
-			alert('No data to export for this event');
-			return;
-		}
-
-		const evPresent = event.attendees?.length || 0;
-		const evAbsent = event.absent?.length || 0;
-		const evTotal = evPresent + evAbsent;
-		const evRate = evTotal > 0 ? Math.round((evPresent / evTotal) * 100) : 0;
-		const periodLabel = new Date(event.event_date).toLocaleString('default', {
-			month: 'long',
-			year: 'numeric'
-		});
-
-		try {
-			await exportToPDF(records, {
-				viewMode: filterPresent ? 'present' : 'absent',
-				selectedMonth: periodLabel,
-				stats: {
-					totalPresent: evPresent,
-					totalAbsent: evAbsent,
-					attendanceRate: evRate
-				},
-				generatedBy: userDisplayName
-			});
-		} catch (err) {
-			console.error('PDF export error:', err);
-			alert(
-				'PDF export requires jsPDF and jspdf-autotable packages. Please install them: npm install jspdf jspdf-autotable'
-			);
+		} catch (error) {
+			// jspdf and jspdf-autotable are dependencies; the old handler told the user to npm
+			// install them, which was both wrong and useless to anyone running the app.
+			showErrorToast(error, 'Export failed');
+		} finally {
+			isExporting = false;
 		}
 	}
 </script>
 
-{#if isLoading}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<Card>
-			<CardHeader class="flex flex-row items-center justify-between pb-2">
-				<Skeleton class="h-6 w-40" />
-				<Skeleton class="h-8 w-24 rounded-md" />
+<svelte:head>
+	<title>Attendance History | {siteConfig.name}</title>
+</svelte:head>
+
+<PageShell
+	title="Attendance History"
+	description="Monthly totals and the roster for every completed event."
+	backTo="/settings"
+	{isLoading}
+	error={loadError}
+	onRetry={() => window.location.reload()}
+>
+	{#snippet skeleton()}
+		<!--
+			Mirrors the real grid, not three equal boxes: same responsive classes as the live
+			one below, so the loading state doesn't jump in shape once data arrives. Rate's
+			placeholder spans two columns below lg and is taller, matching the Card it stands
+			in for being bigger than a KpiCard.
+		-->
+		<div class="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-[1.3fr_1fr_1fr] lg:items-stretch">
+			<Skeleton class="col-span-2 h-48 rounded-xl lg:col-span-1" />
+			<Skeleton class="h-32 rounded-xl" />
+			<Skeleton class="h-32 rounded-xl" />
+		</div>
+		<Skeleton class="h-12 w-full rounded-2xl" />
+		<div class="space-y-3">
+			{#each ['a', 'b', 'c'] as key (key)}
+				<Skeleton class="h-20 w-full rounded-2xl" />
+			{/each}
+		</div>
+	{/snippet}
+
+	{#if months.length === 0}
+		<EmptyState
+			icon={CalendarRange}
+			title="No completed events yet"
+			description="Once an event finishes, its attendance is recorded here."
+		/>
+	{:else}
+		<!--
+			One grid, not two stacked ones. Below lg, Rate spans both columns (full width,
+			row of its own) and Events/Average sit side by side beneath it - the layout this
+			already had. At lg and up the columns become 1.3fr/1fr/1fr and Rate's span drops
+			to 1, so all three land in a single row with Rate wider - the thing the design
+			actually showed and the real page wasn't doing: it just stacked Rate above a
+			separate 2-up grid at every width, desktop included.
+		-->
+		<div class="grid grid-cols-2 gap-4 md:gap-6 lg:grid-cols-[1.3fr_1fr_1fr] lg:items-stretch">
+			<Card class="col-span-2 lg:col-span-1">
+				<CardHeader class="flex flex-row items-center justify-between gap-3 pb-2">
+				<div class="min-w-0">
+					<h2 class="truncate font-bold">Attendance Rate</h2>
+					<p class="mt-0.5 text-[11px] text-muted-foreground">
+						{#if untracked.length > 0}
+							Across {tracked.length}
+							{tracked.length === 1 ? 'event' : 'events'} that recorded absences
+						{:else}
+							{selectedMonth}
+						{/if}
+					</p>
+				</div>
+				<DropdownMenu.Root>
+					<DropdownMenu.Trigger>
+						{#snippet child({ props })}
+							<Button
+								{...props}
+								variant="outline"
+								size="sm"
+								class="shrink-0 gap-2"
+								disabled={isExporting}
+							>
+								{#if isExporting}
+									<Loader2 class="h-4 w-4 animate-spin" />
+								{:else}
+									<Download class="h-4 w-4" />
+								{/if}
+								<span class="hidden sm:inline">Export</span>
+							</Button>
+						{/snippet}
+					</DropdownMenu.Trigger>
+					<DropdownMenu.Content align="end">
+						<DropdownMenu.Group>
+							<DropdownMenu.GroupHeading
+								class="px-2 py-1.5 text-[10px] tracking-wide text-muted-foreground uppercase"
+							>
+								{mode === 'present' ? 'Present' : 'Absent'} · {selectedMonth}
+							</DropdownMenu.GroupHeading>
+							<DropdownMenu.Item onclick={() => runExport('csv')}>
+								<Download class="mr-2 h-4 w-4" />
+								Export as CSV
+							</DropdownMenu.Item>
+							<DropdownMenu.Item onclick={() => runExport('pdf')}>
+								<Download class="mr-2 h-4 w-4" />
+								Export as PDF
+							</DropdownMenu.Item>
+						</DropdownMenu.Group>
+					</DropdownMenu.Content>
+				</DropdownMenu.Root>
 			</CardHeader>
 			<CardContent>
-				<div class="flex items-center justify-between mb-4">
-					<Skeleton class="h-10 w-24" />
-					<Skeleton class="h-4 w-16" />
-				</div>
-				<Skeleton class="h-2 w-full rounded-full" />
-			</CardContent>
-		</Card>
-
-		<div class="grid grid-cols-2 gap-4 md:gap-6">
-			{#each Array(2) as _}
-				<div class="rounded-2xl border border-border/20 bg-card p-4 space-y-2">
-					<Skeleton class="h-3 w-16" />
-					<Skeleton class="h-8 w-12" />
-					<Skeleton class="h-3 w-20" />
-				</div>
-			{/each}
-		</div>
-
-		<div class="mt-2 flex flex-col items-center md:mt-4 md:flex-row md:items-center md:justify-between gap-4">
-			<div class="flex items-center gap-2">
-				<Skeleton class="h-8 w-8 rounded-full" />
-				<Skeleton class="h-8 w-16 rounded-full" />
-				<Skeleton class="h-8 w-16 rounded-full" />
-				<Skeleton class="h-8 w-16 rounded-full" />
-				<Skeleton class="h-8 w-8 rounded-full" />
-			</div>
-			<Skeleton class="h-10 w-48 rounded-2xl" />
-		</div>
-
-		<div class="space-y-4 mt-2">
-			{#each Array(3) as _}
-				<div class="rounded-2xl border border-border/20 bg-card p-4 md:p-6">
-					<div class="flex items-center justify-between">
-						<div class="flex items-center gap-3">
-							<Skeleton class="h-10 w-1.5 rounded-l-full" />
-							<div class="space-y-2">
-								<Skeleton class="h-5 w-32" />
-								<Skeleton class="h-4 w-24" />
-							</div>
+				{#if trackedExpected === 0}
+					<p class="text-sm text-muted-foreground">
+						No event this month recorded absences, so there is no expected total to compare against. {totalPresent}
+						attended in total.
+					</p>
+				{:else}
+					<div class="flex items-end justify-between gap-3">
+						<div class="text-4xl font-black tabular-nums">
+							{attendanceRate}<small class="text-primary">%</small>
 						</div>
-						<div class="flex items-center gap-2 md:gap-3">
-							<Skeleton class="h-6 w-10 rounded-md" />
-							<Skeleton class="h-8 w-8 rounded-full" />
-							<Skeleton class="h-8 w-8 rounded-full" />
+						<div class="text-right text-xs text-muted-foreground">
+							<div class="tabular-nums">{trackedPresent} / {trackedExpected}</div>
+							<div>{selectedMonth}</div>
 						</div>
 					</div>
-				</div>
-			{/each}
-		</div>
-	</div>
-{:else}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<Card>
-			<CardHeader class="flex flex-row items-center justify-between pb-2">
-				<CardTitle>Total Attendance</CardTitle>
-				<div>
-					{#if filterPresent}
-						<DropdownMenu>
-							<DropdownMenuTrigger>
-								{#snippet child({ props })}
-									<Button variant="outline" size="sm" class="gap-2" {...props}>
-										<Download class="h-4 w-4" />
-										<span class="hidden sm:inline">Export</span>
-									</Button>
-								{/snippet}
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onclick={handleExportPresentCSV}>
-									<Download class="mr-2 h-4 w-4" />
-									<span>Export as CSV</span>
-								</DropdownMenuItem>
-								<DropdownMenuItem onclick={handleExportPresentPDF}>
-									<Download class="mr-2 h-4 w-4" />
-									<span>Export as PDF</span>
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					{:else}
-						<DropdownMenu>
-							<DropdownMenuTrigger>
-								{#snippet child({ props })}
-									<Button variant="outline" size="sm" class="gap-2" {...props}>
-										<Download class="h-4 w-4" />
-										<span class="hidden sm:inline">Export</span>
-									</Button>
-								{/snippet}
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onclick={handleExportAbsentCSV}>
-									<Download class="mr-2 h-4 w-4" />
-									<span>Export as CSV</span>
-								</DropdownMenuItem>
-								<DropdownMenuItem onclick={handleExportAbsentPDF}>
-									<Download class="mr-2 h-4 w-4" />
-									<span>Export as PDF</span>
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
+					<div class="mt-4">
+						<Progress value={attendanceRate} max={100} />
+					</div>
+					{#if untracked.length > 0}
+						<!-- Folding these into the rate is what used to push it past 100%. -->
+						<p class="mt-3 text-[11px] text-muted-foreground">
+							{untracked.length}
+							{untracked.length === 1 ? 'event' : 'events'} this month recorded only a headcount and
+							{untracked.length === 1 ? 'is' : 'are'} excluded from this rate.
+						</p>
 					{/if}
-				</div>
-			</CardHeader>
-			<CardContent>
-				<div class="flex items-center justify-between">
-					<div class="text-4xl font-black">
-						{attendanceRate}<small class="text-primary">%</small>
-					</div>
-					<div class="text-sm text-muted-foreground">{selectedMonth}</div>
-				</div>
-				<div class="mt-4">
-					<Progress value={attendanceRate} max={100} />
-				</div>
+				{/if}
 			</CardContent>
-		</Card>
+			</Card>
 
-		<div class="grid grid-cols-2 gap-4 md:gap-6">
-			<div class="rounded-2xl border border-border/20 bg-card p-4">
-				<div class="text-xs text-muted-foreground uppercase">Events</div>
-				<div class="mt-2 text-xl font-bold">{filteredEvents.length}</div>
-				<div class="text-sm text-muted-foreground">This month</div>
-			</div>
-			<div class="rounded-2xl border border-border/20 bg-card p-4">
-				<div class="text-xs text-muted-foreground uppercase">Average</div>
-				<div class="mt-2 text-xl font-bold">{averageSize}</div>
-				<div class="text-sm text-muted-foreground">Members</div>
-			</div>
+			<!--
+				Real KpiCard, not a one-off div - these two were rounded-2xl/border-border-40 with
+				no icon and no shadow, matching neither the Rate Card beside them nor the four
+				KpiCards Analytics builds from this same component. Direct children of the grid
+				above, not a second nested grid - that is what kept them from ever joining Rate's
+				row at lg.
+			-->
+			<KpiCard label="Events" value={summary.length} icon={CalendarRange} detail="This month" />
+			<KpiCard label="Average" value={averageSize} icon={Users} detail="Attended per event" />
 		</div>
 
-		<div
-			class="mt-2 flex flex-col items-center md:mt-4 md:flex-row md:items-center md:justify-between"
-		>
-			<div class="flex items-center gap-2">
+		<!-- Month strip + present/absent -->
+		<div class="flex flex-col items-center gap-3 md:flex-row md:justify-between">
+			<div class="flex items-center gap-1.5">
 				<button
-					class="rounded-full bg-card/30 p-2 text-muted-foreground hover:bg-card/50 disabled:opacity-50"
-					disabled={!hasPrev}
+					class="rounded-full p-2 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+					disabled={!hasPrevMonths}
+					aria-label="Earlier months"
 					onclick={() => monthPage--}
 				>
 					<ChevronLeft class="h-4 w-4" />
 				</button>
-				{#each visibleMonths as m}
+				{#each visibleMonths as key (key)}
 					<button
-						class="rounded-full px-4 py-2 text-sm font-bold md:px-6 md:py-3 {m === selectedMonth
+						class="rounded-full px-3 py-2 text-xs font-bold transition md:px-5 md:text-sm {key ===
+						selectedMonth
 							? 'bg-primary text-primary-foreground'
-							: 'bg-card/30 text-muted-foreground'}"
-						onclick={() => (selectedMonth = m)}>{m}</button
+							: 'text-muted-foreground hover:bg-muted'}"
+						onclick={() => selectMonth(key)}
 					>
+						{key}
+					</button>
 				{/each}
 				<button
-					class="rounded-full bg-card/30 p-2 text-muted-foreground hover:bg-card/50 disabled:opacity-50"
-					disabled={!hasNext}
+					class="rounded-full p-2 text-muted-foreground transition hover:bg-muted disabled:opacity-40"
+					disabled={!hasNextMonths}
+					aria-label="Later months"
 					onclick={() => monthPage++}
 				>
 					<ChevronRight class="h-4 w-4" />
 				</button>
 			</div>
+
 			<div
 				role="tablist"
-				aria-label="Present or Absent"
-				class="mt-4 inline-flex rounded-2xl border border-border/20 bg-card/10 p-1 md:mt-0"
+				aria-label="Present or absent"
+				class="inline-flex rounded-2xl border border-border/40 bg-card/40 p-1"
 			>
 				<button
 					role="tab"
-					aria-selected={filterPresent}
-					class={'rounded-xl px-6 py-2 text-center text-sm font-bold transition-all ' +
-						(filterPresent
-							? 'bg-primary text-primary-foreground shadow-sm'
-							: 'text-muted-foreground')}
-					onclick={() => (filterPresent = true)}
+					aria-selected={mode === 'present'}
+					class="rounded-xl px-5 py-2 text-sm font-bold transition {mode === 'present'
+						? 'bg-primary text-primary-foreground shadow-sm'
+						: 'text-muted-foreground'}"
+					onclick={() => setMode('present')}
 				>
 					PRESENT
 				</button>
 				<button
 					role="tab"
-					aria-selected={!filterPresent}
-					class={'rounded-xl px-6 py-2 text-center text-sm font-bold transition-all ' +
-						(!filterPresent
-							? 'bg-destructive text-primary-foreground shadow-sm'
-							: 'text-muted-foreground')}
-					onclick={() => (filterPresent = false)}
+					aria-selected={mode === 'absent'}
+					class="rounded-xl px-5 py-2 text-sm font-bold transition {mode === 'absent'
+						? 'bg-destructive text-white shadow-sm'
+						: 'text-muted-foreground'}"
+					onclick={() => setMode('absent')}
 				>
 					ABSENT
 				</button>
 			</div>
 		</div>
 
-		<div class="space-y-4">
-			{#each filteredEvents as ev}
-				<div class="overflow-hidden rounded-2xl border border-border/20 bg-card">
-					<div class="flex flex-col gap-3 p-4 md:p-6">
-						<!-- Event Header -->
-						<div class="flex items-center justify-between">
-							<div class="flex flex-1 items-center gap-3">
-								<div class="h-10 w-1.5 rounded-l-full bg-primary/60"></div>
-								<div>
-									<div class="font-bold uppercase">{ev.event_name}</div>
-									<div class="mt-1 text-sm text-muted-foreground">
-										{new Date(ev.event_date).toLocaleDateString(undefined, {
-											month: 'short',
-											day: 'numeric',
-											year: 'numeric'
-										})}
+		<!-- Events -->
+		{#if isLoadingMonth}
+			<div class="space-y-3">
+				{#each ['a', 'b', 'c'] as key (key)}
+					<Skeleton class="h-20 w-full rounded-2xl" />
+				{/each}
+			</div>
+		{:else if summary.length === 0}
+			<EmptyState
+				icon={CalendarRange}
+				title="No events in {selectedMonth}"
+				description="Pick another month from the strip above."
+				compact
+			/>
+		{:else}
+			<div class="space-y-3">
+				{#each summary as row (row.event_id)}
+					{@const isOpen = openEventId === row.event_id}
+					{@const key = rosterKey(row.event_id, mode)}
+					{@const entries = rosters[key] ?? []}
+					{@const query = rosterSearch[row.event_id] ?? ''}
+					{@const matches = filterRoster(entries, query)}
+					{@const pageNum = rosterPage[row.event_id] ?? 1}
+					{@const totalPages = Math.max(1, Math.ceil(matches.length / ROSTER_PAGE_SIZE))}
+					{@const visible = matches.slice(
+						(pageNum - 1) * ROSTER_PAGE_SIZE,
+						pageNum * ROSTER_PAGE_SIZE
+					)}
+
+					<div
+						id="event-{row.event_id}"
+						class="overflow-hidden rounded-2xl border border-border/40 bg-card"
+					>
+						<div class="flex flex-col gap-3 p-4 md:p-5">
+							<div class="flex items-center justify-between gap-3">
+								<div class="flex min-w-0 flex-1 items-center gap-3">
+									<div class="h-10 w-1.5 shrink-0 rounded-full bg-primary/60"></div>
+									<div class="min-w-0">
+										<div class="truncate font-bold uppercase">{row.event_name}</div>
+										<div class="mt-0.5 text-xs text-muted-foreground">
+											{parseEventDate(row.event_date).toLocaleDateString(undefined, {
+												month: 'short',
+												day: 'numeric',
+												year: 'numeric'
+											})}
+											{#if !row.records_absents}
+												· headcount only
+											{/if}
+										</div>
 									</div>
 								</div>
-							</div>
-							<div class="flex items-center gap-2 md:gap-3">
-								<div class="rounded-md bg-muted px-3 py-1 text-sm font-medium">
-									{filterPresent ? ev.attendees?.length || 0 : ev.absent?.length || 0}
+								<div class="flex shrink-0 items-center gap-2">
+									<div
+										class="rounded-md bg-muted px-3 py-1 text-sm font-medium tabular-nums"
+										title={mode === 'present' ? 'Present' : 'Absent'}
+									>
+										{countFor(row)}
+									</div>
+									<DropdownMenu.Root>
+										<DropdownMenu.Trigger>
+											{#snippet child({ props })}
+												<button
+													{...props}
+													class="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-muted"
+													title="Export this event"
+													aria-label="Export {row.event_name}"
+												>
+													<Download class="h-4 w-4" />
+												</button>
+											{/snippet}
+										</DropdownMenu.Trigger>
+										<DropdownMenu.Content align="end">
+											<DropdownMenu.Group>
+												<DropdownMenu.Item onclick={() => runExport('csv', row)}>
+													<Download class="mr-2 h-4 w-4" />
+													CSV
+												</DropdownMenu.Item>
+												<DropdownMenu.Item onclick={() => runExport('pdf', row)}>
+													<Download class="mr-2 h-4 w-4" />
+													PDF
+												</DropdownMenu.Item>
+											</DropdownMenu.Group>
+										</DropdownMenu.Content>
+									</DropdownMenu.Root>
+									<button
+										class="flex h-8 w-8 items-center justify-center rounded-full transition hover:bg-muted"
+										aria-expanded={isOpen}
+										aria-label={isOpen ? 'Collapse' : 'Expand'}
+										onclick={() => toggleEvent(row.event_id)}
+									>
+										{#if isOpen}
+											<ChevronDown class="h-4 w-4" />
+										{:else}
+											<ChevronRight class="h-4 w-4" />
+										{/if}
+									</button>
 								</div>
-								<DropdownMenu>
-									<DropdownMenuTrigger>
-										{#snippet child({ props })}
-											<button
-												class="flex h-8 w-8 items-center justify-center rounded-full bg-card/10 transition-colors hover:bg-card/20"
-												title="Export options"
-												{...props}
-											>
-												<Download class="h-4 w-4" />
-											</button>
-										{/snippet}
-									</DropdownMenuTrigger>
-									<DropdownMenuContent align="end">
-										<DropdownMenuItem onclick={() => handleExportEventCSV(ev)}>
-											<Download class="mr-2 h-4 w-4" />
-											<span>CSV</span>
-										</DropdownMenuItem>
-										<DropdownMenuItem onclick={() => handleExportEventPDF(ev)}>
-											<Download class="mr-2 h-4 w-4" />
-											<span>PDF</span>
-										</DropdownMenuItem>
-									</DropdownMenuContent>
-								</DropdownMenu>
-								<button
-									class="flex h-8 w-8 items-center justify-center rounded-full bg-card/10"
-									onclick={() => toggleEvent(ev.event_id)}
-								>
-									{#if openEventId === ev.event_id}
-										<ChevronDown />
-									{:else}
-										<ChevronRight />
-									{/if}
-								</button>
 							</div>
+
+							{#if isOpen && entries.length > 0}
+								<div class="relative">
+									<Search
+										class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+									/>
+									<Input
+										type="search"
+										placeholder="Search by name or group..."
+										class="pl-10"
+										value={query}
+										oninput={(e) => {
+											rosterSearch[row.event_id] = (e.target as HTMLInputElement).value;
+											rosterPage[row.event_id] = 1;
+										}}
+									/>
+								</div>
+								{#if query}
+									<div class="text-xs text-muted-foreground">
+										{matches.length} of {entries.length}
+										{mode}
+									</div>
+								{/if}
+							{/if}
 						</div>
 
-						<!-- Search Bar (visible for both mobile and web) -->
-						{#if openEventId === ev.event_id}
-							<div class="relative">
-								<Search
-									class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground"
-								/>
-								<Input
-									type="text"
-									placeholder="Search by name or group..."
-									class="pl-10"
-									value={eventSearchQueries[ev.event_id] || ''}
-									oninput={(e) =>
-										(eventSearchQueries[ev.event_id] = (e.target as HTMLInputElement).value)}
-								/>
-							</div>
-							{#if eventSearchQueries[ev.event_id]}
-								<div class="text-xs text-muted-foreground">
-									{#if filterPresent}
-										{filterMembers(ev.attendees, eventSearchQueries[ev.event_id]).length} of {ev
-											.attendees?.length || 0} present
-									{:else}
-										{filterMembers(ev.absent, eventSearchQueries[ev.event_id]).length} of {ev.absent
-											?.length || 0} absent
-									{/if}
-								</div>
-							{/if}
-						{/if}
-					</div>
-
-					{#if openEventId === ev.event_id}
-						<div class="border-t border-border/20 p-3 md:p-4">
-							<div class="grid gap-3">
-								{#if filterPresent}
-									{#each filterMembers(ev.attendees, eventSearchQueries[ev.event_id]) as a (a.member_id)}
-										<div class="flex items-center justify-between p-2 md:p-3">
-											<div class="flex items-center gap-3">
-												<Avatar class="h-10 w-10"
-													><AvatarFallback>{a.first_name[0]}{a.last_name[0]}</AvatarFallback
-													></Avatar
-												>
-												<div>
-													<div class="font-medium">{a.first_name} {a.last_name}</div>
-													<div class="text-xs text-muted-foreground">{a.care_group}</div>
+						{#if isOpen}
+							<div class="border-t border-border/40 p-3 md:p-4">
+								{#if rosterLoading === key}
+									<div class="space-y-2">
+										{#each ['a', 'b', 'c', 'd'] as skeletonKey (skeletonKey)}
+											<div class="flex items-center gap-3 p-2">
+												<Skeleton class="h-9 w-9 rounded-full" />
+												<div class="flex-1 space-y-1.5">
+													<Skeleton class="h-3.5 w-36" />
+													<Skeleton class="h-3 w-20" />
 												</div>
 											</div>
-											<div class="flex items-center gap-3">
-												<div class="rounded-md bg-primary/10 px-3 py-1 text-sm text-primary">
-													{a.time}
-												</div>
-											</div>
-										</div>
-									{/each}
-									{#if !filterMembers(ev.attendees, eventSearchQueries[ev.event_id]).length}
-										<div class="py-4 text-center text-sm text-muted-foreground">
-											No members found
-										</div>
-									{/if}
+										{/each}
+									</div>
+								{:else if entries.length === 0}
+									<p class="py-4 text-center text-sm text-muted-foreground">
+										{mode === 'present'
+											? 'No one was marked present for this event.'
+											: row.records_absents
+												? 'No one was marked absent for this event.'
+												: 'This event recorded only a headcount, so it has no absence list.'}
+									</p>
+								{:else if matches.length === 0}
+									<p class="py-4 text-center text-sm text-muted-foreground">No members found</p>
 								{:else}
-									{#each filterMembers(ev.absent, eventSearchQueries[ev.event_id]) as a (a.member_id)}
-										<div class="flex items-center justify-between p-2 md:p-3">
-											<div class="flex items-center gap-3">
-												<Avatar class="h-10 w-10"
-													><AvatarFallback>{a.first_name[0]}{a.last_name[0]}</AvatarFallback
-													></Avatar
+									<div class="space-y-1">
+										{#each visible as entry (entry.member_id)}
+											<PersonRow
+												firstName={entry.first_name}
+												lastName={entry.last_name}
+												careGroup={entry.care_group}
+											>
+												{#snippet trailing()}
+													{#if mode === 'present'}
+														<span
+															class="rounded-md bg-primary/10 px-2.5 py-1 text-xs text-primary tabular-nums"
+														>
+															{entry.scan_datetime
+																? formatTimeSync(new Date(entry.scan_datetime))
+																: '—'}
+														</span>
+													{:else}
+														<span
+															class="rounded-md bg-destructive/10 px-2.5 py-1 text-xs text-destructive"
+														>
+															Absent
+														</span>
+													{/if}
+												{/snippet}
+											</PersonRow>
+										{/each}
+									</div>
+
+									{#if totalPages > 1}
+										<div
+											class="mt-3 flex items-center justify-between gap-3 border-t border-border/40 pt-3"
+										>
+											<span class="text-xs text-muted-foreground tabular-nums">
+												{(pageNum - 1) * ROSTER_PAGE_SIZE + 1}–{Math.min(
+													pageNum * ROSTER_PAGE_SIZE,
+													matches.length
+												)} of {matches.length}
+											</span>
+											<div class="flex items-center gap-2">
+												<Button
+													variant="outline"
+													size="sm"
+													class="h-8 px-2.5 text-xs"
+													disabled={pageNum === 1}
+													onclick={() => (rosterPage[row.event_id] = pageNum - 1)}
 												>
-												<div>
-													<div class="font-medium">{a.first_name} {a.last_name}</div>
-													<div class="text-xs text-muted-foreground">{a.care_group}</div>
-												</div>
-											</div>
-											<div class="flex items-center gap-3">
-												<div
-													class="rounded-md bg-destructive/10 px-3 py-1 text-sm text-destructive"
+													<ChevronLeft class="h-3.5 w-3.5" />
+												</Button>
+												<span class="text-xs font-medium tabular-nums">
+													{pageNum} / {totalPages}
+												</span>
+												<Button
+													variant="outline"
+													size="sm"
+													class="h-8 px-2.5 text-xs"
+													disabled={pageNum >= totalPages}
+													onclick={() => (rosterPage[row.event_id] = pageNum + 1)}
 												>
-													Absent
-												</div>
+													<ChevronRight class="h-3.5 w-3.5" />
+												</Button>
 											</div>
-										</div>
-									{/each}
-									{#if !filterMembers(ev.absent, eventSearchQueries[ev.event_id]).length}
-										<div class="py-4 text-center text-sm text-muted-foreground">
-											No members found
 										</div>
 									{/if}
 								{/if}
 							</div>
-						</div>
-					{/if}
-				</div>
-			{/each}
-		</div>
-	</div>
-{/if}
+						{/if}
+					</div>
+				{/each}
+			</div>
+		{/if}
+	{/if}
+</PageShell>

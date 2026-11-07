@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Label } from '$lib/components/ui/label';
@@ -339,15 +341,31 @@
 	});
 </script>
 
-{#if isLoading}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+<svelte:head>
+	<title>Groups | {siteConfig.name}</title>
+</svelte:head>
+
+<PageShell
+	title="Groups Management"
+	description="Manage and organize team groups"
+	backTo="/settings"
+	{isLoading}
+>
+	{#snippet actions()}
+		<Button onclick={openAddGroup} class="w-full sm:w-auto">
+			<Plus class="mr-2 h-4 w-4" />
+			Add New Group
+		</Button>
+	{/snippet}
+
+	{#snippet skeleton()}
 		<!-- Header -->
 		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div class="hidden sm:block space-y-2">
+			<div class="hidden space-y-2 sm:block">
 				<Skeleton class="h-8 w-64" />
 				<Skeleton class="h-4 w-48" />
 			</div>
-			<Skeleton class="h-10 w-full sm:w-32 rounded-lg" />
+			<Skeleton class="h-10 w-full rounded-lg sm:w-32" />
 		</div>
 
 		<!-- Search -->
@@ -406,127 +424,61 @@
 				{/each}
 			</div>
 		</div>
+	{/snippet}
+
+	<!-- Search -->
+	<div class="relative">
+		<Search class="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+		<Input bind:value={searchQuery} placeholder="Search groups..." class="rounded-2xl py-3 pl-10" />
 	</div>
-{:else}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Header with Add Button -->
-		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div>
-				<h1 class="hidden text-2xl font-bold sm:block md:text-3xl">Groups Management</h1>
-				<p class="mt-1 hidden text-muted-foreground sm:block">Manage and organize team groups</p>
-			</div>
-			<Button onclick={openAddGroup} class="w-full sm:w-auto">
-				<Plus class="mr-2 h-4 w-4" />
-				Add New Group
-			</Button>
-		</div>
 
-		<!-- Search -->
-		<div class="relative">
-			<Search class="absolute top-1/2 left-4 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-			<Input
-				bind:value={searchQuery}
-				placeholder="Search groups..."
-				class="rounded-2xl py-3 pl-10"
-			/>
-		</div>
+	<!-- Stats Cards -->
+	<div class="grid grid-cols-3 gap-2">
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Users class="mb-2 h-6 w-6 text-muted-foreground" />
+				<div class="mb-1 text-2xl font-bold">{totalGroups}</div>
+				<div class="text-center text-sm font-medium">Total Groups</div>
+			</CardContent>
+		</Card>
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Users class="mb-2 h-6 w-6 text-green-500" />
+				<div class="mb-1 text-2xl font-bold text-green-500">{activeGroups}</div>
+				<div class="text-center text-sm font-medium">Active</div>
+			</CardContent>
+		</Card>
+		<Card>
+			<CardContent class="flex flex-col items-center justify-center p-4">
+				<Users class="mb-2 h-6 w-6 text-blue-500" />
+				<div class="mb-1 text-2xl font-bold text-blue-500">{totalMembers}</div>
+				<div class="text-center text-sm font-medium">Members</div>
+			</CardContent>
+		</Card>
+	</div>
 
-		<!-- Stats Cards -->
-		<div class="grid grid-cols-3 gap-2">
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center p-4">
-					<Users class="mb-2 h-6 w-6 text-muted-foreground" />
-					<div class="mb-1 text-2xl font-bold">{totalGroups}</div>
-					<div class="text-center text-sm font-medium">Total Groups</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center p-4">
-					<Users class="mb-2 h-6 w-6 text-green-500" />
-					<div class="mb-1 text-2xl font-bold text-green-500">{activeGroups}</div>
-					<div class="text-center text-sm font-medium">Active</div>
-				</CardContent>
-			</Card>
-			<Card>
-				<CardContent class="flex flex-col items-center justify-center p-4">
-					<Users class="mb-2 h-6 w-6 text-blue-500" />
-					<div class="mb-1 text-2xl font-bold text-blue-500">{totalMembers}</div>
-					<div class="text-center text-sm font-medium">Members</div>
-				</CardContent>
-			</Card>
-		</div>
-
-		<!-- Groups List -->
-		<div>
-			<h2 class="mb-4 text-xl font-semibold">Groups</h2>
-			<div class="hidden grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid lg:grid-cols-3">
-				{#each filteredGroups as group}
-					<Card>
-						<CardContent class="p-4">
-							<div class="space-y-3">
-								<!-- Header -->
-								<div>
-									<h3 class="text-base font-medium">{group.name}</h3>
-									<p class="mt-1 text-sm text-muted-foreground">{group.description}</p>
-								</div>
-								<!-- Members Badge -->
-								<div class="flex items-center justify-between border-t pt-3">
-									<div
-										class="rounded-full px-2 py-1 text-xs font-medium"
-										style="background-color: {group.color}20; color: {group.color};"
-									>
-										{group.members} members
-									</div>
-									<div class="flex items-center gap-1">
-										<Button variant="ghost" size="sm" onclick={() => editGroup(group.id)}>
-											<Edit class="h-4 w-4" />
-										</Button>
-										<Button variant="ghost" size="sm" onclick={() => openDeleteDialog(group.id)}>
-											<Trash2 class="h-4 w-4" />
-										</Button>
-									</div>
-								</div>
+	<!-- Groups List -->
+	<div>
+		<h2 class="mb-4 text-xl font-semibold">Groups</h2>
+		<div class="hidden grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 lg:grid lg:grid-cols-3">
+			{#each filteredGroups as group}
+				<Card>
+					<CardContent class="p-4">
+						<div class="space-y-3">
+							<!-- Header -->
+							<div>
+								<h3 class="text-base font-medium">{group.name}</h3>
+								<p class="mt-1 text-sm text-muted-foreground">{group.description}</p>
 							</div>
-						</CardContent>
-					</Card>
-				{/each}
-				{#if filteredGroups.length === 0}
-					<div class="col-span-full flex flex-col items-center justify-center py-12 text-center">
-						<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
-						<p class="font-medium text-muted-foreground">No groups found</p>
-						<p class="mt-1 text-xs text-muted-foreground">
-							Try adjusting your search or create a new group
-						</p>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Mobile/Tablet View -->
-			<div class="space-y-3 sm:space-y-4 lg:hidden">
-				{#each filteredGroups as group}
-					<Card>
-						<CardContent class="p-3 sm:p-4">
-							<div class="flex items-center justify-between">
-								<div class="min-w-0 flex-1">
-									<h3 class="truncate text-sm font-medium sm:text-base">{group.name}</h3>
-									<div
-										class="mt-1 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:gap-2"
-									>
-										<div class="flex items-center gap-1">
-											<Users class="h-3 w-3" />
-											<span class="truncate">{group.description}</span>
-										</div>
-										<div class="flex items-center gap-1">
-											<span
-												class="rounded-full px-2 py-0.5 text-xs font-medium"
-												style="background-color: {group.color}20; color: {group.color};"
-											>
-												{group.members} members
-											</span>
-										</div>
-									</div>
+							<!-- Members Badge -->
+							<div class="flex items-center justify-between border-t pt-3">
+								<div
+									class="rounded-full px-2 py-1 text-xs font-medium"
+									style="background-color: {group.color}20; color: {group.color};"
+								>
+									{group.members} members
 								</div>
-								<div class="ml-2 flex shrink-0 items-center gap-1">
+								<div class="flex items-center gap-1">
 									<Button variant="ghost" size="sm" onclick={() => editGroup(group.id)}>
 										<Edit class="h-4 w-4" />
 									</Button>
@@ -535,116 +487,164 @@
 									</Button>
 								</div>
 							</div>
-						</CardContent>
-					</Card>
-				{/each}
-				{#if filteredGroups.length === 0}
-					<div class="flex flex-col items-center justify-center py-12 text-center">
-						<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
-						<p class="font-medium text-muted-foreground">No groups found</p>
-						<p class="mt-1 text-xs text-muted-foreground">
-							Try adjusting your search or create a new group
-						</p>
-					</div>
-				{/if}
-			</div>
+						</div>
+					</CardContent>
+				</Card>
+			{/each}
+			{#if filteredGroups.length === 0}
+				<div class="col-span-full flex flex-col items-center justify-center py-12 text-center">
+					<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
+					<p class="font-medium text-muted-foreground">No groups found</p>
+					<p class="mt-1 text-xs text-muted-foreground">
+						Try adjusting your search or create a new group
+					</p>
+				</div>
+			{/if}
 		</div>
 
-		<!-- Drawer (Mobile) -->
-		{#if isMobile}
-			<Drawer bind:open={showGroupDialog}>
-				<DrawerContent class="max-h-[90vh]">
-					<DrawerHeader>
-						<DrawerTitle class="text-lg font-semibold"
-							>{isEditingGroup ? 'Edit Group' : 'Add Group'}</DrawerTitle
-						>
-					</DrawerHeader>
-					<div class="max-h-[calc(90vh-180px)] overflow-y-auto px-4 pb-4">
-						<div class="space-y-4">
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Group Name</Label>
-								<Input
-									bind:value={groupForm.name}
-									placeholder="e.g. ENGINEERING"
-									class="mt-2 w-full rounded-xl border-input py-3"
-								/>
-							</div>
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Description</Label>
-								<Input
-									bind:value={groupForm.description}
-									placeholder="Short description"
-									class="mt-2 w-full rounded-xl border-input py-3"
-								/>
-							</div>
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Group Color</Label>
-								<div class="mt-2">
-									<Color bind:hex={groupForm.color} />
+		<!-- Mobile/Tablet View -->
+		<div class="space-y-3 sm:space-y-4 lg:hidden">
+			{#each filteredGroups as group}
+				<Card>
+					<CardContent class="p-3 sm:p-4">
+						<div class="flex items-center justify-between">
+							<div class="min-w-0 flex-1">
+								<h3 class="truncate text-sm font-medium sm:text-base">{group.name}</h3>
+								<div
+									class="mt-1 flex flex-col gap-1 text-xs text-muted-foreground sm:flex-row sm:items-center sm:gap-2"
+								>
+									<div class="flex items-center gap-1">
+										<Users class="h-3 w-3" />
+										<span class="truncate">{group.description}</span>
+									</div>
+									<div class="flex items-center gap-1">
+										<span
+											class="rounded-full px-2 py-0.5 text-xs font-medium"
+											style="background-color: {group.color}20; color: {group.color};"
+										>
+											{group.members} members
+										</span>
+									</div>
 								</div>
 							</div>
-						</div>
-					</div>
-					<DrawerFooter class="flex gap-3 border-t px-4 pb-4">
-						<Button
-							class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
-							onclick={() => (showGroupDialog = false)}>Cancel</Button
-						>
-						<Button class="w-full" onclick={saveGroup}
-							>{isEditingGroup ? 'Update Group' : 'Create Group'}</Button
-						>
-					</DrawerFooter>
-				</DrawerContent>
-			</Drawer>
-		{:else}
-			<!-- Sheet (Desktop) -->
-			<Sheet bind:open={showGroupDialog}>
-				<SheetContent class="hidden flex-col sm:flex sm:max-w-2xl">
-					<SheetHeader>
-						<SheetTitle class="text-lg font-semibold"
-							>{isEditingGroup ? 'Edit Group' : 'Add Group'}</SheetTitle
-						>
-					</SheetHeader>
-					<div class="flex-1 overflow-y-auto px-4 py-6">
-						<div class="space-y-4">
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Group Name</Label>
-								<Input
-									bind:value={groupForm.name}
-									placeholder="e.g. ENGINEERING"
-									class="mt-2 w-full rounded-xl border-input py-3"
-								/>
-							</div>
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Description</Label>
-								<Input
-									bind:value={groupForm.description}
-									placeholder="Short description"
-									class="mt-2 w-full rounded-xl border-input py-3"
-								/>
-							</div>
-							<div>
-								<Label class="text-xs font-bold tracking-wider uppercase">Group Color</Label>
-								<div class="mt-2">
-									<Color bind:hex={groupForm.color} />
-								</div>
+							<div class="ml-2 flex shrink-0 items-center gap-1">
+								<Button variant="ghost" size="sm" onclick={() => editGroup(group.id)}>
+									<Edit class="h-4 w-4" />
+								</Button>
+								<Button variant="ghost" size="sm" onclick={() => openDeleteDialog(group.id)}>
+									<Trash2 class="h-4 w-4" />
+								</Button>
 							</div>
 						</div>
-					</div>
-					<SheetFooter class="flex gap-3 px-4 pb-4">
-						<Button
-							class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 md:w-auto"
-							onclick={() => (showGroupDialog = false)}>Cancel</Button
-						>
-						<Button class="w-full md:w-auto" onclick={saveGroup}
-							>{isEditingGroup ? 'Update Group' : 'Create Group'}</Button
-						>
-					</SheetFooter>
-				</SheetContent>
-			</Sheet>
-		{/if}
+					</CardContent>
+				</Card>
+			{/each}
+			{#if filteredGroups.length === 0}
+				<div class="flex flex-col items-center justify-center py-12 text-center">
+					<Users class="mb-4 h-12 w-12 text-muted-foreground/50" />
+					<p class="font-medium text-muted-foreground">No groups found</p>
+					<p class="mt-1 text-xs text-muted-foreground">
+						Try adjusting your search or create a new group
+					</p>
+				</div>
+			{/if}
+		</div>
 	</div>
-{/if}
+
+	<!-- Drawer (Mobile) -->
+	{#if isMobile}
+		<Drawer bind:open={showGroupDialog}>
+			<DrawerContent class="max-h-[90vh]">
+				<DrawerHeader>
+					<DrawerTitle class="text-lg font-semibold"
+						>{isEditingGroup ? 'Edit Group' : 'Add Group'}</DrawerTitle
+					>
+				</DrawerHeader>
+				<div class="max-h-[calc(90vh-180px)] overflow-y-auto px-4 pb-4">
+					<div class="space-y-4">
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Group Name</Label>
+							<Input
+								bind:value={groupForm.name}
+								placeholder="e.g. ENGINEERING"
+								class="mt-2 w-full rounded-xl border-input py-3"
+							/>
+						</div>
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Description</Label>
+							<Input
+								bind:value={groupForm.description}
+								placeholder="Short description"
+								class="mt-2 w-full rounded-xl border-input py-3"
+							/>
+						</div>
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Group Color</Label>
+							<div class="mt-2">
+								<Color bind:hex={groupForm.color} />
+							</div>
+						</div>
+					</div>
+				</div>
+				<DrawerFooter class="flex gap-3 border-t px-4 pb-4">
+					<Button
+						class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80"
+						onclick={() => (showGroupDialog = false)}>Cancel</Button
+					>
+					<Button class="w-full" onclick={saveGroup}
+						>{isEditingGroup ? 'Update Group' : 'Create Group'}</Button
+					>
+				</DrawerFooter>
+			</DrawerContent>
+		</Drawer>
+	{:else}
+		<!-- Sheet (Desktop) -->
+		<Sheet bind:open={showGroupDialog}>
+			<SheetContent class="hidden flex-col sm:flex sm:max-w-2xl">
+				<SheetHeader>
+					<SheetTitle class="text-lg font-semibold"
+						>{isEditingGroup ? 'Edit Group' : 'Add Group'}</SheetTitle
+					>
+				</SheetHeader>
+				<div class="flex-1 overflow-y-auto px-4 py-6">
+					<div class="space-y-4">
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Group Name</Label>
+							<Input
+								bind:value={groupForm.name}
+								placeholder="e.g. ENGINEERING"
+								class="mt-2 w-full rounded-xl border-input py-3"
+							/>
+						</div>
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Description</Label>
+							<Input
+								bind:value={groupForm.description}
+								placeholder="Short description"
+								class="mt-2 w-full rounded-xl border-input py-3"
+							/>
+						</div>
+						<div>
+							<Label class="text-xs font-bold tracking-wider uppercase">Group Color</Label>
+							<div class="mt-2">
+								<Color bind:hex={groupForm.color} />
+							</div>
+						</div>
+					</div>
+				</div>
+				<SheetFooter class="flex gap-3 px-4 pb-4">
+					<Button
+						class="w-full bg-secondary text-secondary-foreground hover:bg-secondary/80 md:w-auto"
+						onclick={() => (showGroupDialog = false)}>Cancel</Button
+					>
+					<Button class="w-full md:w-auto" onclick={saveGroup}
+						>{isEditingGroup ? 'Update Group' : 'Create Group'}</Button
+					>
+				</SheetFooter>
+			</SheetContent>
+		</Sheet>
+	{/if}
+</PageShell>
 
 <!-- Delete Confirmation Dialog -->
 <AlertDialog bind:open={showDeleteDialog}>

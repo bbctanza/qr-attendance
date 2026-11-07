@@ -1,144 +1,159 @@
 <script lang="ts">
-	import { Search, ScanLine, X } from '@lucide/svelte';
-	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
-	import { Input } from '$lib/components/ui/input';
-	import {
-		Card,
-		CardHeader,
-		CardContent,
-		CardTitle,
-		CardDescription
-	} from '$lib/components/ui/card';
+	import { siteConfig } from '$lib/config/site';
 	import { onMount } from 'svelte';
-	import { supabase } from '$lib/supabase';
-	import { page } from '$app/stores';
+	import { goto } from '$app/navigation';
+	import { Input } from '$lib/components/ui/input';
+	import { Card, CardHeader } from '$lib/components/ui/card';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { formatLocalTime } from '$lib/utils/time';
+	import { AlertTriangle, Calendar, ChevronLeft, Search } from '@lucide/svelte';
 
-	let allScans = $state<any[]>([]);
+	import ScanList from '$lib/components/attendance/scan-list.svelte';
+	import EmptyState from '$lib/components/common/empty-state.svelte';
+
+	import { attendanceApi, type RosterEntry } from '$lib/api/attendance';
+	import { showErrorToast } from '$lib/utils/errorHandler';
+
+	/**
+	 * Every scan for the session in progress.
+	 *
+	 * This page was always scoped to the ongoing event while the "Recent Scans" panel it
+	 * expands from was not - that panel listed the newest scans across all events, so the two
+	 * showed different things. The panel is scoped now, and the event name is stated in the
+	 * header here so the relationship is visible rather than assumed.
+	 */
+
 	let isLoading = $state(true);
+	let loadError = $state<string | null>(null);
+	let eventName = $state<string | null>(null);
+	let scans = $state<(RosterEntry & { scan_id: string })[]>([]);
 	let searchQuery = $state('');
-	let currentEventId = $state<string | null>(null);
 
-	onMount(async () => {
-		// Get current event ID
-		const { data: currentEvent } = await supabase
-			.from('events')
-			.select('event_id')
-			.eq('status', 'ongoing')
-			.limit(1)
-			.maybeSingle();
-
-		if (currentEvent) {
-			currentEventId = currentEvent.event_id;
-			await fetchAllScans(currentEvent.event_id);
-		}
-
-		isLoading = false;
-	});
-
-	async function fetchAllScans(eventId: string) {
-		const { data } = await supabase
-			.from('attendance_scans')
-			.select('*, members(*)')
-			.eq('event_id', eventId)
-			.order('scan_datetime', { ascending: false });
-
-		if (data) {
-			allScans = await Promise.all(
-				data.map(async (s) => ({
-					id: s.scan_id,
-					name: s.members ? `${s.members.first_name} ${s.members.last_name}` : 'Unknown Member',
-					role: s.members?.metadata?.role || 'Member',
-					time: await formatLocalTime(s.scan_datetime),
-					avatar: s.members
-						? `https://api.dicebear.com/7.x/initials/svg?seed=${s.members.first_name}%20${s.members.last_name}`
-						: 'https://api.dicebear.com/7.x/initials/svg?seed=U'
-				}))
-			);
+	async function load() {
+		loadError = null;
+		try {
+			const ongoing = await attendanceApi.getOngoingEvents();
+			const event = ongoing[0];
+			if (!event) {
+				eventName = null;
+				scans = [];
+				return;
+			}
+			eventName = event.event_name;
+			// No limit here - this is the "all" view, unlike the capped panel it expands from.
+			scans = await attendanceApi.getRecentScans(event.event_id, 1000);
+		} catch (error) {
+			loadError = error instanceof Error ? error.message : 'Could not load scans.';
+			showErrorToast(error, 'Scans unavailable');
 		}
 	}
 
-	let filteredScans = $derived(
-		allScans.filter(
+	onMount(() => {
+		load().finally(() => (isLoading = false));
+	});
+
+	let filtered = $derived.by(() => {
+		const q = searchQuery.trim().toLowerCase();
+		if (!q) return scans;
+		return scans.filter(
 			(scan) =>
-				scan.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-				scan.role.toLowerCase().includes(searchQuery.toLowerCase())
-		)
-	);
+				`${scan.first_name} ${scan.last_name}`.toLowerCase().includes(q) ||
+				scan.care_group.toLowerCase().includes(q)
+		);
+	});
 </script>
 
-{#if isLoading}
-	<div class="flex h-full flex-col gap-6 p-4 md:p-8">
-		<Skeleton class="h-11 w-full rounded-md" />
-		<div class="grid flex-1 gap-3 overflow-y-auto">
-			{#each Array(8) as _}
-				<div class="flex items-center justify-between rounded-lg border border-border/40 bg-card p-4 shadow-sm">
-					<div class="flex min-w-0 items-center gap-3">
-						<Skeleton class="h-12 w-12 rounded-full" />
-						<div class="space-y-2">
-							<Skeleton class="h-4 w-32" />
-							<Skeleton class="h-3 w-16" />
-						</div>
-					</div>
-					<div class="flex items-center gap-2">
-						<Skeleton class="h-4 w-16" />
-						<Skeleton class="h-2 w-2 rounded-full" />
-					</div>
-				</div>
-			{/each}
+<svelte:head>
+	<title>All Scans | {siteConfig.name}</title>
+</svelte:head>
+
+<div class="flex w-full flex-col gap-5 p-4 md:p-6 lg:p-8">
+	<div class="flex items-start gap-2 sm:gap-3">
+		<button
+			onclick={() => goto('/attendance')}
+			class="mt-0.5 shrink-0 rounded-lg p-2 transition hover:bg-muted"
+			aria-label="Back to attendance"
+		>
+			<ChevronLeft class="h-5 w-5" />
+		</button>
+		<div class="min-w-0">
+			<h1 class="text-xl font-bold md:text-2xl">All Scans</h1>
+			<p class="mt-1 truncate text-xs text-muted-foreground sm:text-sm">
+				{#if isLoading}
+					Loading…
+				{:else if eventName}
+					Every check-in for {eventName}
+				{:else}
+					No session in progress
+				{/if}
+			</p>
 		</div>
 	</div>
-{:else}
-	<div class="flex h-full flex-col gap-6 p-4 md:p-8">
-		<!-- Search Input -->
-		<div class="relative">
-			<Search
-				class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 transform text-muted-foreground"
-			/>
-			<Input
-				type="text"
-				placeholder="Search by name or role..."
-				class="h-11 pl-10"
-				bind:value={searchQuery}
-			/>
-		</div>
 
-		<!-- Scans List -->
-		<div class="grid flex-1 gap-3 overflow-y-auto">
-			{#if filteredScans && filteredScans.length > 0}
-				{#each filteredScans as scan (scan.id)}
-					<div
-						class="group flex items-center justify-between rounded-lg border border-border/40 bg-card p-4 shadow-sm transition-all hover:bg-muted/30 hover:shadow-md"
-					>
-						<div class="flex min-w-0 items-center gap-3">
-							<Avatar class="h-12 w-12 flex-shrink-0 rounded-full">
-								<AvatarImage src={scan.avatar} alt={scan.name} />
-								<AvatarFallback>{scan.name?.charAt(0) || '?'}</AvatarFallback>
-							</Avatar>
-							<div class="min-w-0">
-								<div class="truncate text-sm font-semibold sm:text-base">{scan.name}</div>
-								<div class="text-xs text-muted-foreground">{scan.role}</div>
-							</div>
+	{#if isLoading}
+		<Card>
+			<div class="space-y-2 p-4">
+				{#each ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as key (key)}
+					<div class="flex items-center gap-3 p-2">
+						<Skeleton class="h-9 w-9 rounded-full" />
+						<div class="flex-1 space-y-1.5">
+							<Skeleton class="h-3.5 w-40" />
+							<Skeleton class="h-3 w-24" />
 						</div>
-						<div
-							class="ml-2 flex flex-shrink-0 items-center gap-2 text-xs text-muted-foreground sm:text-sm"
-						>
-							<span class="font-medium">{scan.time}</span>
-							<span class="h-2 w-2 flex-shrink-0 rounded-full bg-green-500"></span>
-						</div>
+						<Skeleton class="h-3 w-12" />
 					</div>
 				{/each}
-			{:else}
-				<div
-					class="flex h-full flex-col items-center justify-center p-8 text-center text-muted-foreground"
-				>
-					<ScanLine class="mb-2 h-12 w-12 opacity-30" />
-					<p class="text-sm">
-						{searchQuery ? 'No matching check-ins found.' : 'No check-ins yet.'}
-					</p>
+			</div>
+		</Card>
+	{:else if loadError}
+		<EmptyState
+			icon={AlertTriangle}
+			tone="error"
+			title="Scans could not be loaded"
+			description={loadError}
+			onRetry={() => {
+				isLoading = true;
+				load().finally(() => (isLoading = false));
+			}}
+		/>
+	{:else if !eventName}
+		<EmptyState
+			icon={Calendar}
+			title="No live session"
+			description="This page lists check-ins for the event in progress. Start one from the Events page."
+			actionLabel="Go to Events"
+			onAction={() => goto('/events')}
+		/>
+	{:else}
+		<Card class="overflow-hidden">
+			<CardHeader class="gap-3 px-4 py-3">
+				<div class="relative">
+					<Search
+						class="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+					/>
+					<Input
+						type="search"
+						placeholder="Search by name or group..."
+						class="pl-10"
+						bind:value={searchQuery}
+					/>
 				</div>
-			{/if}
-		</div>
-	</div>
-{/if}
+				<p class="text-[11px] text-muted-foreground tabular-nums">
+					{#if searchQuery.trim()}
+						{filtered.length} of {scans.length} scans
+					{:else}
+						{scans.length} {scans.length === 1 ? 'scan' : 'scans'}
+					{/if}
+				</p>
+			</CardHeader>
+			<div class="border-t">
+				<ScanList
+					scans={filtered}
+					emptyTitle={searchQuery.trim() ? 'No matches' : 'No scans yet'}
+					emptyDescription={searchQuery.trim()
+						? 'Try a different name or group.'
+						: 'Check-ins appear here as they are scanned.'}
+				/>
+			</div>
+		</Card>
+	{/if}
+</div>

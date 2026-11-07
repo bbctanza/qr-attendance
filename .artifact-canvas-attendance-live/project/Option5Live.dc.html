@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>5 - with a live session</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); --success: oklch(0.6 0.15 142); }
+					.pr { display: flex; align-items: center; gap: 10px; padding: 8px 6px; }
+					.av { width: 28px; height: 28px; border-radius: 999px; background: var(--wash); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex: none; }
+				</style>
+			</helmet>
+
+			<div style="width: 1080px; box-sizing: border-box; background: #fff; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px">
+				<!-- Title row demotes to just the title + Scanner now that there's a live banner
+				     beneath it doing the status job. -->
+				<div style="display: flex; align-items: center; justify-content: space-between">
+					<div style="font-size: 28px; font-weight: 800; color: var(--ink)">Attendance</div>
+					<div style="height: 38px; padding: 0 18px; border-radius: 9px; background: var(--brand); color: #fff; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700">
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+						Scanner
+					</div>
+				</div>
+
+				<!-- The "entirely separate top section" promised in the idle board's note - it
+				     only exists when something is running. -->
+				<div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: stretch">
+					<div style="border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); padding: 22px 24px; display: flex; align-items: center; gap: 22px">
+						<svg width="72" height="72" viewBox="0 0 36 36">
+							<circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--wash)" stroke-width="3.5"/>
+							<circle cx="18" cy="18" r="15.5" fill="none" stroke="var(--brand)" stroke-width="3.5" stroke-dasharray="63 97" stroke-linecap="round" transform="rotate(-90 18 18)"/>
+						</svg>
+						<div>
+							<div style="display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; color: var(--brand)"><span style="width:7px;height:7px;border-radius:999px;background:var(--brand)"></span>LIVE · CHOIR PRACTICE</div>
+							<div style="margin-top: 4px; font-size: 26px; font-weight: 800; color: var(--ink)">65%</div>
+							<div style="margin-top: 2px; font-size: 12px; color: var(--muted)">26 / 40 checked in · Main Hall</div>
+						</div>
+					</div>
+					<div style="border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); overflow: hidden; display: flex; flex-direction: column">
+						<div style="padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 700; color: var(--ink)">Recent Scans</div>
+						<div style="padding: 4px 8px">
+							<div class="pr"><div class="av">MR</div><div style="flex:1; min-width:0; font-size:11.5px; font-weight:600; color:var(--ink)">Maria Reyes</div><span style="font-size:10px; color:var(--muted)">6:14</span></div>
+							<div class="pr"><div class="av">JD</div><div style="flex:1; min-width:0; font-size:11.5px; font-weight:600; color:var(--ink)">Juan Dela Cruz</div><span style="font-size:10px; color:var(--muted)">6:13</span></div>
+						</div>
+					</div>
+				</div>
+
+				<!-- Recent Sessions shrinks back down now that it's not the only content - still
+				     present, just no longer the hero it was when idle. -->
+				<div>
+					<div style="font-size: 14px; font-weight: 800; color: var(--ink); margin-bottom: 8px">Recent Sessions <span style="font-weight: 500; color: var(--muted); font-size: 11.5px">· View history</span></div>
+					<div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px">
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 12px; padding: 10px 12px">
+							<div style="font-size: 9.5px; color: var(--muted)">NOV 1, 2026</div>
+							<div style="margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--ink)">Choir practice</div>
+						</div>
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 12px; padding: 10px 12px">
+							<div style="font-size: 9.5px; color: var(--muted)">NOV 1, 2026</div>
+							<div style="margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--ink)">Church Choir Practice</div>
+						</div>
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 12px; padding: 10px 12px">
+							<div style="font-size: 9.5px; color: var(--muted)">NOV 1, 2026</div>
+							<div style="margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--ink)">Sunday Morning Wo...</div>
+						</div>
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 12px; padding: 10px 12px">
+							<div style="font-size: 9.5px; color: var(--muted)">OCT 25, 2026</div>
+							<div style="margin-top: 3px; font-size: 12px; font-weight: 700; color: var(--ink)">Church Choir Practice</div>
+						</div>
+					</div>
+				</div>
+
+				<p style="margin: 2px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+					<strong style="color: var(--ink)">Confirms the earlier warning.</strong> Live needs its own
+					ring+stats section above Recent Sessions, which then shrinks to a quiet row rather than
+					the hero it was when idle - two states with genuinely different page structure, the most
+					of any option here.
+				</p>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":680}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

@@ -1,10 +1,13 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
+	import SettingsTile from '$lib/components/settings-tile.svelte';
+	import { Card } from '$lib/components/ui/card';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { Badge } from '$lib/components/ui/badge';
 	import { Separator } from '$lib/components/ui/separator';
 	import { goto } from '$app/navigation';
 	import {
-		ChevronRight,
 		Clock,
 		Calendar,
 		Users,
@@ -85,18 +88,16 @@
 	}
 </script>
 
-{#if isLoading}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
+<svelte:head>
+	<title>Options | {siteConfig.name}</title>
+</svelte:head>
+
+<PageShell title="Options" description="Manage your profile and preferences" {isLoading}>
+	{#snippet skeleton()}
 		<!-- Header -->
-		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div class="space-y-2">
-				<Skeleton class="h-8 w-32" />
-				<Skeleton class="h-4 w-48" />
-			</div>
-		</div>
 
 		<!-- Profile Card -->
-		<div class="rounded-2xl border border-border/30 bg-card px-4 py-6 sm:px-6 sm:py-8">
+		<Card class="px-4 py-6 sm:px-6 sm:py-8">
 			<div class="flex flex-row items-center justify-between gap-4">
 				<div class="flex min-w-0 flex-1 items-center gap-4">
 					<Skeleton class="h-16 w-16 rounded-full sm:h-20 sm:w-20" />
@@ -107,7 +108,7 @@
 				</div>
 				<Skeleton class="h-8 w-8 rounded-md" />
 			</div>
-		</div>
+		</Card>
 
 		<!-- Sections Grid -->
 		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
@@ -131,240 +132,149 @@
 				</div>
 			{/each}
 		</div>
-	</div>
-{:else}
-	<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-		<!-- Header -->
-		<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-			<div>
-				<h1 class="text-2xl font-bold md:text-3xl">Settings</h1>
-				<p class="mt-1 text-sm text-muted-foreground md:text-base">
-					Manage your profile and preferences
-				</p>
-			</div>
-		</div>
+	{/snippet}
 
-		<!-- Profile Card -->
-		<div class="rounded-2xl border border-border/30 bg-card px-4 py-6 sm:px-6 sm:py-8">
-			<div class="flex flex-row items-center justify-between gap-4">
-				<div class="flex min-w-0 flex-1 items-center gap-4">
-					<Avatar class="h-16 w-16 shrink-0 sm:h-20 sm:w-20">
-						{#if user.avatar}
-							<AvatarImage src={user.avatar} alt={user.name} />
-						{:else}
-							<AvatarFallback
-								>{user.name
-									.split(' ')
-									.map((n) => n[0])
-									.join('')
-									.substring(0, 2)}</AvatarFallback
-							>
-						{/if}
-					</Avatar>
-					<div class="min-w-0 flex-1">
-						<div class="truncate text-lg font-bold sm:text-xl">{user.name}</div>
-						<Badge class="mt-2">{user.role}</Badge>
-					</div>
-				</div>
-				<button
-					class="self-start p-2 text-muted-foreground transition-colors hover:text-foreground sm:self-auto"
-					aria-label="Edit profile"
-					onclick={() => open('/settings/profile')}
-				>
-					<Pencil class="h-5 w-5" />
-				</button>
-			</div>
-		</div>
-
-		<!-- Sections Grid -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
-			<!-- Tracking & Data Section -->
-			<div>
-				<h2 class="mb-4 text-sm font-semibold tracking-widest text-muted-foreground/60 uppercase">
-					Tracking & Data
-				</h2>
-				<div class="space-y-3 sm:space-y-4">
-					<button
-						class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-						onclick={() => open('/attendance/history')}
-					>
-						<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-							<Clock class="h-5 w-5" />
-						</div>
-						<div class="min-w-0 flex-1 text-left">
-							<div class="text-sm font-bold sm:text-base">Attendance History</div>
-							<div class="truncate text-xs text-muted-foreground sm:text-sm">
-								Review past check-ins
-							</div>
-						</div>
-						<ChevronRight class="shrink-0 text-muted-foreground" />
-					</button>
-					<button
-						class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-						onclick={() => open('/analytics')}
-					>
-						<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-							<ChartNoAxesCombined class="h-5 w-5" />
-						</div>
-						<div class="min-w-0 flex-1 text-left">
-							<div class="text-sm font-bold sm:text-base">Analytics</div>
-							<div class="truncate text-xs text-muted-foreground sm:text-sm">
-								View attendance insights
-							</div>
-						</div>
-						<ChevronRight class="shrink-0 text-muted-foreground" />
-					</button>
-					{#if user.role === 'Admin' || user.role === 'Developer'}
-						<button
-							class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-							onclick={() => open('/settings/audit-logs')}
+	<!-- Profile Card -->
+	<Card class="px-4 py-6 sm:px-6 sm:py-8">
+		<div class="flex flex-row items-center justify-between gap-4">
+			<div class="flex min-w-0 flex-1 items-center gap-4">
+				<Avatar class="h-16 w-16 shrink-0 sm:h-20 sm:w-20">
+					{#if user.avatar}
+						<AvatarImage src={user.avatar} alt={user.name} />
+					{:else}
+						<AvatarFallback
+							>{user.name
+								.split(' ')
+								.map((n) => n[0])
+								.join('')
+								.substring(0, 2)}</AvatarFallback
 						>
-							<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-								<ShieldAlert class="h-5 w-5" />
-							</div>
-							<div class="min-w-0 flex-1 text-left">
-								<div class="text-sm font-bold sm:text-base">Audit Logs</div>
-								<div class="truncate text-xs text-muted-foreground sm:text-sm">
-									Track changes & data
-								</div>
-							</div>
-							<ChevronRight class="shrink-0 text-muted-foreground" />
-						</button>
 					{/if}
+				</Avatar>
+				<div class="min-w-0 flex-1">
+					<div class="truncate text-lg font-bold sm:text-xl">{user.name}</div>
+					<Badge class="mt-2">{user.role}</Badge>
 				</div>
 			</div>
-
-			<!-- Administration Section -->
-			<div>
-				<h2 class="mb-4 text-sm font-semibold tracking-widest text-muted-foreground/60 uppercase">
-					Administration
-				</h2>
-				<div class="space-y-3 sm:space-y-4">
-					<button
-						class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-						onclick={() => open('/events')}
-					>
-						<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-							<Calendar class="h-5 w-5" />
-						</div>
-						<div class="min-w-0 flex-1 text-left">
-							<div class="text-sm font-bold sm:text-base">Manage Events</div>
-							<div class="truncate text-xs text-muted-foreground sm:text-sm">
-								Create and edit events
-							</div>
-						</div>
-						<ChevronRight class="shrink-0 text-muted-foreground" />
-					</button>
-
-					<button
-						class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-						onclick={() => open('/groups')}
-					>
-						<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-							<Users class="h-5 w-5" />
-						</div>
-						<div class="min-w-0 flex-1 text-left">
-							<div class="text-sm font-bold sm:text-base">Manage Groups</div>
-							<div class="truncate text-xs text-muted-foreground sm:text-sm">Organize members</div>
-						</div>
-						<ChevronRight class="shrink-0 text-muted-foreground" />
-					</button>
-
-					{#if user.role === 'Admin' || user.role === 'Developer'}
-						<button
-							class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-							onclick={() => open('/settings/access')}
-						>
-							<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-								<UserPlus class="h-5 w-5" />
-							</div>
-							<div class="min-w-0 flex-1 text-left">
-								<div class="text-sm font-bold sm:text-base">Access Directory</div>
-								<div class="truncate text-xs text-muted-foreground">
-									Invites, roles & account access
-								</div>
-							</div>
-							<ChevronRight class="shrink-0 text-muted-foreground" />
-						</button>
-					{/if}
-				</div>
-			</div>
+			<button
+				class="self-start p-2 text-muted-foreground transition-colors hover:text-foreground sm:self-auto"
+				aria-label="Edit profile"
+				onclick={() => open('/settings/profile')}
+			>
+				<Pencil class="h-5 w-5" />
+			</button>
 		</div>
+	</Card>
 
-		<!-- System Section -->
+	<!-- Sections Grid -->
+	<div class="grid grid-cols-1 gap-6 lg:grid-cols-2 lg:gap-8">
+		<!-- Tracking & Data Section -->
 		<div>
 			<h2 class="mb-4 text-sm font-semibold tracking-widest text-muted-foreground/60 uppercase">
-				System
+				Tracking & Data
 			</h2>
 			<div class="space-y-3 sm:space-y-4">
-				<button
-					class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-					onclick={() => open('/settings/app')}
-				>
-					<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-						<Settings class="h-5 w-5" />
-					</div>
-					<div class="min-w-0 flex-1 text-left">
-						<div class="text-sm font-bold sm:text-base">App Settings</div>
-						<div class="truncate text-xs text-muted-foreground sm:text-sm">
-							Preferences & Notifications
-						</div>
-					</div>
-					<ChevronRight class="shrink-0 text-muted-foreground" />
-				</button>
-
-				{#if user.role === 'Developer'}
-					<button
-						class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-						onclick={() => open('/settings/dev')}
-					>
-						<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-							<Construction class="h-5 w-5" />
-						</div>
-						<div class="min-w-0 flex-1 text-left">
-							<div class="text-sm font-bold sm:text-base">Developer Tools</div>
-							<div class="truncate text-xs text-muted-foreground sm:text-sm">
-								Debug & test features
-							</div>
-						</div>
-						<ChevronRight class="shrink-0 text-muted-foreground" />
-					</button>
+				<SettingsTile
+					href="/attendance/history"
+					label="Attendance History"
+					description="Review past check-ins"
+					icon={Clock}
+				/>
+				<SettingsTile
+					href="/analytics"
+					label="Analytics"
+					description="View attendance insights"
+					icon={ChartNoAxesCombined}
+				/>
+				{#if user.role === 'Admin' || user.role === 'Developer'}
+					<SettingsTile
+						href="/settings/audit-logs"
+						label="Audit Logs"
+						description="Track changes & data"
+						icon={ShieldAlert}
+					/>
 				{/if}
-
-				<button
-					class="flex w-full items-center gap-4 rounded-2xl border border-border/20 bg-card/20 px-4 py-3 transition-all hover:border-border/40 hover:bg-card/30 sm:px-6"
-					onclick={() => (isAboutOpen = true)}
-				>
-					<div class="shrink-0 rounded-md bg-primary/10 p-3 text-primary">
-						<Info class="h-5 w-5" />
-					</div>
-					<div class="min-w-0 flex-1 text-left">
-						<div class="text-sm font-bold sm:text-base">About</div>
-						<div class="truncate text-xs text-muted-foreground sm:text-sm">
-							About this application
-						</div>
-					</div>
-					<ChevronRight class="shrink-0 text-muted-foreground" />
-				</button>
 			</div>
 		</div>
 
-		<!-- Footer -->
-		<Separator class="my-4" />
-		<div class="flex flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
-			<button
-				class="text-sm font-bold text-red-500 transition-colors hover:text-red-600 sm:text-base"
-				onclick={handleLogout}
-			>
-				<LogOut class="mr-2 inline h-4 w-4" />
-				Log Out
-			</button>
-			<div class="text-center text-xs text-muted-foreground sm:text-right">
-				QR Attendance System v{CURRENT_VERSION}
+		<!-- Administration Section -->
+		<div>
+			<h2 class="mb-4 text-sm font-semibold tracking-widest text-muted-foreground/60 uppercase">
+				Administration
+			</h2>
+			<div class="space-y-3 sm:space-y-4">
+				<SettingsTile
+					href="/events"
+					label="Manage Events"
+					description="Create and edit events"
+					icon={Calendar}
+				/>
+
+				<SettingsTile
+					href="/groups"
+					label="Manage Groups"
+					description="Organize members"
+					icon={Users}
+				/>
+
+				{#if user.role === 'Admin' || user.role === 'Developer'}
+					<SettingsTile
+						href="/settings/access"
+						label="Access Directory"
+						description="Invites, roles & account access"
+						icon={UserPlus}
+					/>
+				{/if}
 			</div>
 		</div>
 	</div>
-{/if}
+
+	<!-- System Section -->
+	<div>
+		<h2 class="mb-4 text-sm font-semibold tracking-widest text-muted-foreground/60 uppercase">
+			System
+		</h2>
+		<div class="space-y-3 sm:space-y-4">
+			<SettingsTile
+				href="/settings/app"
+				label="App Settings"
+				description="Preferences & Notifications"
+				icon={Settings}
+			/>
+
+			{#if user.role === 'Developer'}
+				<SettingsTile
+					href="/settings/dev"
+					label="Developer Tools"
+					description="Debug & test features"
+					icon={Construction}
+				/>
+			{/if}
+
+			<SettingsTile
+				onclick={() => (isAboutOpen = true)}
+				label="About"
+				description="About this application"
+				icon={Info}
+			/>
+		</div>
+	</div>
+
+	<!-- Footer -->
+	<Separator class="my-4" />
+	<div class="flex flex-col gap-4 pb-4 sm:flex-row sm:items-center sm:justify-between">
+		<button
+			class="text-sm font-bold text-red-500 transition-colors hover:text-red-600 sm:text-base"
+			onclick={handleLogout}
+		>
+			<LogOut class="mr-2 inline h-4 w-4" />
+			Log Out
+		</button>
+		<div class="text-center text-xs text-muted-foreground sm:text-right">
+			QR Attendance System v{CURRENT_VERSION}
+		</div>
+	</div>
+</PageShell>
 
 <!-- About Modal -->
 <AboutModal

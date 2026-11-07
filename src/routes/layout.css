@@ -220,3 +220,14 @@ body {
 .hide-mobile-nav nav[data-mobile-nav='true'] {
 	display: none !important;
 }
+
+/* A scroll container that scrolls without drawing a bar. Used by the filter chip row, where
+   a visible scrollbar under 32px chips is louder than the chips. The row still scrolls by
+   touch, wheel and keyboard, and a half-cut trailing chip is what signals it. */
+.no-scrollbar {
+	scrollbar-width: none;
+	-ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+	display: none;
+}

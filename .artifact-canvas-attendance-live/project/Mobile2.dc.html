@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>2 - mobile, idle</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); }
+				</style>
+			</helmet>
+
+			<div style="position: relative; width: 390px; height: 760px; box-sizing: border-box; background: #fff; overflow: hidden">
+				<div style="padding: 16px 16px 0; font-size: 22px; font-weight: 800; color: var(--ink)">Attendance</div>
+
+				<div style="padding: 14px 16px 0; display: flex; flex-direction: column; gap: 14px">
+					<div style="border-radius: 16px; background: linear-gradient(135deg, var(--brand), oklch(45% 0.16 142)); padding: 22px 18px; color: #fff">
+						<div style="font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.85">No live session</div>
+						<div style="margin-top: 4px; font-size: 16px; font-weight: 800">Ready to take attendance?</div>
+						<div style="margin-top: 10px; height: 40px; border-radius: 10px; background: #fff; color: var(--brand); display: flex; align-items: center; justify-content: center; gap: 7px; font-size: 13px; font-weight: 800">
+							<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+							Open Scanner
+						</div>
+					</div>
+
+					<div style="display: flex; align-items: center; justify-content: space-between">
+						<div style="font-size: 15px; font-weight: 800; color: var(--ink)">Recent Sessions</div>
+						<div style="font-size: 12px; font-weight: 700; color: var(--brand)">View history</div>
+					</div>
+					<div style="display: flex; flex-direction: column; gap: 10px">
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 14px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between">
+							<div><div style="font-size: 13px; font-weight: 700; color: var(--ink)">Choir practice</div><div style="font-size: 10.5px; color: var(--muted)">Nov 1 · 4% of 515</div></div>
+							<div style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 8px">22</div>
+						</div>
+					</div>
+				</div>
+
+				<div style="position: absolute; bottom: 0; left: 0; right: 0; height: 97px; background: oklch(1 0 0 / 0.88); border-top: 1px solid var(--line)"></div>
+				<div style="position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; border-radius: 999px; background: var(--brand); box-shadow: 0 0 0 4px var(--wash)"></div>
+				<div style="position: absolute; top: 230px; right: 14px; font-size: 9px; color: oklch(0.63 0.14 70); background: var(--wash); padding: 2px 5px; max-width: 150px; text-align: right; line-height: 1.4">Two scan CTAs now - this one, and the FAB below ↓</div>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":760}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

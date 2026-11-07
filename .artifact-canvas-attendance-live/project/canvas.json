@@ -1,0 +1,223 @@
+{
+  "v": 3,
+  "attachments": {},
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-11-07T23:00:00Z"
+  },
+  "title": "Attendance page - idle state options",
+  "launch": {
+    "view": "canvas"
+  },
+  "pages": [],
+  "boards": {
+    "Current.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1080,
+      "h": 760,
+      "title": "Current - two panels say the same thing"
+    },
+    "Option1.dc.html": {
+      "x": 1200,
+      "y": 0,
+      "w": 1080,
+      "h": 700,
+      "title": "1 - idle - one unified empty panel"
+    },
+    "Option2.dc.html": {
+      "x": 2400,
+      "y": 0,
+      "w": 1080,
+      "h": 700,
+      "title": "2 - idle - scanner-first hero"
+    },
+    "Option3.dc.html": {
+      "x": 3600,
+      "y": 0,
+      "w": 1080,
+      "h": 620,
+      "title": "3 - idle - slim strip, sessions as a feed"
+    },
+    "Option4.dc.html": {
+      "x": 4800,
+      "y": 0,
+      "w": 1080,
+      "h": 700,
+      "title": "4 - idle - keep the sidebar, trim both panels"
+    },
+    "Option5.dc.html": {
+      "x": 6000,
+      "y": 0,
+      "w": 1080,
+      "h": 640,
+      "title": "5 - idle - quiet idle state, sessions promoted"
+    },
+    "Option1Live.dc.html": {
+      "x": 1200,
+      "y": 900,
+      "w": 1080,
+      "h": 620,
+      "title": "1 - live session"
+    },
+    "Option2Live.dc.html": {
+      "x": 2400,
+      "y": 900,
+      "w": 1080,
+      "h": 540,
+      "title": "2 - live session"
+    },
+    "Option3Live.dc.html": {
+      "x": 3600,
+      "y": 900,
+      "w": 1080,
+      "h": 620,
+      "title": "3 - live session"
+    },
+    "Option4Live.dc.html": {
+      "x": 4800,
+      "y": 900,
+      "w": 1080,
+      "h": 620,
+      "title": "4 - live session"
+    },
+    "Option5Live.dc.html": {
+      "x": 6000,
+      "y": 900,
+      "w": 1080,
+      "h": 680,
+      "title": "5 - live session"
+    },
+    "Mobile1.dc.html": {
+      "x": 1200,
+      "y": 1700,
+      "w": 390,
+      "h": 760,
+      "title": "1 - mobile, idle"
+    },
+    "Mobile2.dc.html": {
+      "x": 1650,
+      "y": 1700,
+      "w": 390,
+      "h": 760,
+      "title": "2 - mobile, idle"
+    },
+    "Mobile3.dc.html": {
+      "x": 2100,
+      "y": 1700,
+      "w": 390,
+      "h": 760,
+      "title": "3 - mobile, first pass (felt flat)"
+    },
+    "Mobile4.dc.html": {
+      "x": 2550,
+      "y": 1700,
+      "w": 390,
+      "h": 760,
+      "title": "4 - mobile, idle"
+    },
+    "Mobile5.dc.html": {
+      "x": 3000,
+      "y": 1700,
+      "w": 390,
+      "h": 760,
+      "title": "5 - mobile, idle"
+    },
+    "Mobile3b.dc.html": {
+      "x": 2550,
+      "y": 2480,
+      "w": 390,
+      "h": 760,
+      "title": "3 - mobile, revised"
+    }
+  },
+  "order": [
+    "Current.dc.html",
+    "Option1.dc.html",
+    "Option2.dc.html",
+    "Option3.dc.html",
+    "Option4.dc.html",
+    "Option5.dc.html",
+    "Option1Live.dc.html",
+    "Option2Live.dc.html",
+    "Option3Live.dc.html",
+    "Option4Live.dc.html",
+    "Option5Live.dc.html",
+    "Mobile1.dc.html",
+    "Mobile2.dc.html",
+    "Mobile3.dc.html",
+    "Mobile3b.dc.html",
+    "Mobile4.dc.html",
+    "Mobile5.dc.html"
+  ],
+  "noteOrder": [
+    "title",
+    "howto",
+    "critique",
+    "recommendation",
+    "historyDiff",
+    "liveRow",
+    "mobileNote",
+    "mobile3Revision"
+  ],
+  "notes": {
+    "title": {
+      "x": 0,
+      "y": -160,
+      "w": 240,
+      "text": "Attendance - five ways to handle idle, each at idle / live / mobile",
+      "kind": "title1",
+      "maxW": 2200
+    },
+    "howto": {
+      "x": 0,
+      "y": -80,
+      "w": 1100,
+      "fill": "gray",
+      "text": "Row 1: idle, desktop - the question you asked first. Row 2: the same five options once a session goes live - how much each one's top section has to change shape between the two states. Row 3: idle at 390px, where most of the five already converge to one column."
+    },
+    "critique": {
+      "x": 0,
+      "y": 780,
+      "w": 1080,
+      "fill": "gray",
+      "text": "WHAT'S ACTUALLY WRONG TODAY\n\nTwo dashed panels in a row both say 'nothing is happening' - different shapes, same message, for most of the screen's height. Open Scanner, the one thing worth doing right now, sits at the bottom of the second panel. Recent Sessions - the only real content when idle - is pushed below the fold entirely on a shorter screen."
+    },
+    "recommendation": {
+      "x": 6000,
+      "y": 780,
+      "w": 1080,
+      "fill": "gray",
+      "text": "A LEAN TOWARD 3\n\nOption 3 fixes the actual complaint with the least risk: Open Scanner becomes always-reachable in the title bar (same pattern Access already uses for Invite), the empty state drops to one honest line, and Recent Sessions - today's only real content - gets a proper list instead of a card grid, so it reads fast and won't wrap awkwardly past four items.\n\n1 is the safe middle ground if you want to keep the card-grid sessions as they are. 5 is worth it only if you're willing to let the live state's top section look meaningfully different from the idle one."
+    },
+    "historyDiff": {
+      "x": 3600,
+      "y": -300,
+      "w": 1080,
+      "fill": "blue",
+      "text": "HOW 3 STAYS DIFFERENT FROM /attendance/history\n\nThe Recent Sessions preview here is capped (4 of N, 'View history' out) and has none of History's controls - no month navigation, no present/absent toggle, no per-event roster, no export. It's a preview that links out, not a second copy of the browser. That relationship already exists in the app today (every session card links to History); Option 3 only changes its shape from cards to rows, nothing about its scope."
+    },
+    "liveRow": {
+      "x": 0,
+      "y": 780,
+      "w": 1080,
+      "fill": "gray",
+      "text": "HOW MUCH EACH ONE CHANGES BETWEEN IDLE AND LIVE\n\n1 and 4 - no change at all. The idle redesign only touched the empty panels; live was already real content and is untouched.\n\n3 - the title-bar Scanner stays, just drops the word 'Open'. The slim strip becomes a live banner at the same height. Two-column layout returns because there's now two things worth splitting.\n\n2 - the gradient hero's COPY has to change ('Open Scanner' -> 'Keep Scanning', demoted to secondary) on top of its content. That's state-aware copy, not just state-aware data - the real cost of this option.\n\n5 - needs an entirely new top section that exists only when live, and Recent Sessions has to shrink back down once it's no longer the only content. The most structural change of the five, confirming the risk flagged on its idle board."
+    },
+    "mobileNote": {
+      "x": 1200,
+      "y": 2480,
+      "w": 2200,
+      "fill": "orange",
+      "text": "A MOBILE-SPECIFIC CALL WORTH MAKING EXPLICIT\n\nThe bottom nav already has a QR scan FAB on every page, including this one - mobile always has a persistent way to the scanner that desktop does not. So a page-level 'Open Scanner' button is pulling real weight on desktop but is a second way to do what the FAB already does on a phone (see Mobile2's callout - two scan CTAs stacked one above the other).\n\nMobile3 and Mobile4 handle this differently: 3 drops the page-level button on mobile entirely and leans on the FAB; 4 keeps it, reasoning that it's still a shorter reach than scrolling to the bottom nav. Worth deciding once, since it applies to whichever option wins - not a per-option choice."
+    },
+    "mobile3Revision": {
+      "x": 2100,
+      "y": 2480,
+      "w": 840,
+      "fill": "green",
+      "text": "WHY THE FIRST PASS FELT COPY-PASTED\n\nDropping the page-level Scanner button (reasoning the bottom-nav FAB already covers it) left the screen with nothing to actually DO - a thin status line, then a plain list. That reads as inert on a phone, not considered: it's the desktop grid's content, shrunk to one column, with the one interactive element removed.\n\nThe revision gives mobile its own reason to exist rather than just shrinking: the status gets a real card with a tappable icon and action, a new THIS MONTH strip pulls the Rate/Events/Average figures already computed for History into a glanceable trio (a teaser, same relationship as Recent Sessions has to History - not a duplicate dashboard), and every row - sessions and the closing button - is sized as an actual thumb target instead of a dense desktop row read at a smaller size."
+    }
+  },
+  "designSystems": []
+}

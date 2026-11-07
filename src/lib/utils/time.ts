@@ -27,11 +27,31 @@ export function ensureUTC(dateString: string): string {
 	return dateString;
 }
 
+export const DEFAULT_TIMEZONE = 'Asia/Manila';
+
+/**
+ * The configured timezone, read synchronously from the settings store.
+ *
+ * Exported because getUserTimezone() below is module-private and async, which left callers
+ * outside this file with no legitimate way to ask what timezone the system is set to - the
+ * analytics page simply hardcoded 'Asia/Manila' with a comment saying "Enforce GMT+8".
+ * Store-only by design: no database fallback, so it never puts a round trip on a render path.
+ */
+export function getConfiguredTimezone(): string {
+	try {
+		const settings = get(systemSettings);
+		if (settings?.timezone) return settings.timezone;
+	} catch {
+		// Store unavailable; the default stands.
+	}
+	return DEFAULT_TIMEZONE;
+}
+
 /**
  * Get the user's timezone, with fallback to database or default
  */
 async function getUserTimezone(): Promise<string> {
-	const defaultTimezone = 'Asia/Manila';
+	const defaultTimezone = DEFAULT_TIMEZONE;
 
 	try {
 		const settings = get(systemSettings);
@@ -133,13 +153,7 @@ export function formatTimeSync(date: Date): string {
 	const use12HourFormat =
 		typeof localStorage !== 'undefined' && localStorage.getItem('time_format') === '12h';
 
-	let timezone = 'Asia/Manila';
-	try {
-		const settings = get(systemSettings);
-		if (settings?.timezone) timezone = settings.timezone;
-	} catch {
-		// Store unavailable; the default stands.
-	}
+	const timezone = getConfiguredTimezone();
 
 	try {
 		return new Intl.DateTimeFormat('en-US', {
@@ -269,4 +283,20 @@ export async function formatTimeRange(startDateTime: string, endDateTime: string
 	const startTime = await formatLocalTime(startDateTime);
 	const endTime = await formatLocalTime(endDateTime);
 	return `${startTime} - ${endTime}`;
+}
+
+/**
+ * Parse a date-only column (`events.event_date`, a DATE) as a local calendar date.
+ *
+ * `new Date('2026-11-01')` is specified to parse as UTC midnight, so west of UTC it reads
+ * back as 31 October - which silently files an event under the previous day, and at a month
+ * boundary under the previous month. The app defaults to Asia/Manila, which is ahead of UTC
+ * and hides this, but the bug is real anywhere behind it.
+ *
+ * Takes the Y/M/D at face value and builds a local date from the parts.
+ */
+export function parseEventDate(dateString: string): Date {
+	const [year, month, day] = dateString.slice(0, 10).split('-').map(Number);
+	if (!year || !month || !day) return new Date(dateString);
+	return new Date(year, month - 1, day);
 }

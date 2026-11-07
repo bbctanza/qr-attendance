@@ -18,7 +18,11 @@
 <nav
 	data-mobile-nav="true"
 	class={cn(
-		'fixed right-0 bottom-0 left-0 z-50 border-t border-border/10 bg-background/80 px-4 pt-2 pb-6 backdrop-blur-xl md:hidden',
+		// An upward shadow plus a firmer border - the bar previously had neither, just a
+		// 10%-opacity hairline, which read as a translucent smear painted onto the content
+		// rather than a surface sitting above it. The scan button already casts shadow-lg
+		// below; this gives the bar the same elevation language.
+		'fixed right-0 bottom-0 left-0 z-50 border-t border-border/40 bg-background/80 px-4 pt-2 pb-6 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.25)] backdrop-blur-xl md:hidden',
 		className
 	)}
 >

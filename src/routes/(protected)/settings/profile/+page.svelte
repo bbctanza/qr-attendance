@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
 	import { Button } from '$lib/components/ui/button';
 	import {
 		Card,
@@ -12,7 +14,7 @@
 	import { Badge } from '$lib/components/ui/badge';
 	import { Switch } from '$lib/components/ui/switch';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
-	import { ChevronLeft, Lock, Shield, Smartphone, Eye, EyeOff, Trash2 } from '@lucide/svelte';
+	import { Lock, Smartphone, Eye, EyeOff } from '@lucide/svelte';
 	import { goto } from '$app/navigation';
 	import { toast } from 'svelte-sonner';
 	import { supabase } from '$lib/supabase';
@@ -390,266 +392,91 @@
 	}
 </script>
 
-{#if isLoading}
-	<!-- Mobile View Skeleton -->
-	<div class="flex min-h-screen flex-col bg-background pb-20 md:hidden">
-		<!-- Header -->
-		<div class="sticky top-0 z-10 hidden border-b border-border/10 bg-background sm:flex">
-			<div class="flex w-full items-center justify-between gap-3 px-4 py-4">
-				<div class="flex min-w-0 flex-1 items-center gap-3">
-					<Skeleton class="h-9 w-9 rounded-lg" />
-					<div class="space-y-1">
-						<Skeleton class="h-6 w-20" />
-						<Skeleton class="h-3 w-24" />
-					</div>
-				</div>
+<svelte:head>
+	<title>Profile | {siteConfig.name}</title>
+</svelte:head>
+
+<PageShell
+	title="Profile"
+	description="Manage your account and security"
+	backTo="/settings"
+	{isLoading}
+>
+	{#snippet actions()}
+		{#if hasUnsavedChanges}
+			<Badge variant="outline" class="border-yellow-200 bg-yellow-50 text-yellow-900">Unsaved</Badge
+			>
+			<Button size="sm" onclick={handleSave} disabled={isSaving}>
+				{isSaving ? 'Saving...' : 'Save changes'}
+			</Button>
+			<Button size="sm" variant="outline" onclick={handleCancel} disabled={isSaving}>Cancel</Button>
+		{/if}
+	{/snippet}
+
+	{#snippet skeleton()}
+		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+			<div class="space-y-6 lg:col-span-2">
+				<Card>
+					<CardHeader>
+						<Skeleton class="h-5 w-40" />
+						<Skeleton class="mt-2 h-3 w-56" />
+					</CardHeader>
+					<CardContent class="space-y-6">
+						<div class="flex items-center gap-4 sm:gap-6">
+							<Skeleton class="h-20 w-20 rounded-full sm:h-24 sm:w-24" />
+							<Skeleton class="h-9 w-32" />
+						</div>
+						<div class="grid gap-4 sm:grid-cols-2">
+							<Skeleton class="h-16" />
+							<Skeleton class="h-16" />
+						</div>
+					</CardContent>
+				</Card>
+				<Card>
+					<CardHeader>
+						<Skeleton class="h-5 w-44" />
+						<Skeleton class="mt-2 h-3 w-60" />
+					</CardHeader>
+					<CardContent class="space-y-4">
+						<Skeleton class="h-16" />
+						<div class="grid gap-4 sm:grid-cols-2">
+							<Skeleton class="h-16" />
+							<Skeleton class="h-16" />
+						</div>
+					</CardContent>
+				</Card>
 			</div>
-		</div>
-
-		<!-- Content -->
-		<div class="flex-1 space-y-6 px-4 py-6">
-			<!-- Basic Information -->
-			<Card>
-				<CardHeader class="pb-3">
-					<Skeleton class="h-5 w-32" />
-					<Skeleton class="h-3 w-40" />
-				</CardHeader>
-				<CardContent class="space-y-6">
-					<div class="flex items-center gap-4">
-						<Skeleton class="h-20 w-20 rounded-full" />
-						<Skeleton class="h-9 w-32" />
-					</div>
-					<div class="space-y-4">
-						<div class="space-y-2">
-							<Skeleton class="h-4 w-20" />
-							<Skeleton class="h-10 w-full" />
-						</div>
-						<div class="space-y-2">
-							<Skeleton class="h-4 w-12" />
-							<Skeleton class="h-10 w-full" />
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-
-			<!-- Password & Security -->
-			<Card>
-				<CardHeader class="pb-3">
-					<div class="flex items-center gap-2">
-						<Skeleton class="h-5 w-5 rounded-full" />
-						<div class="space-y-1">
-							<Skeleton class="h-5 w-40" />
-							<Skeleton class="h-3 w-48" />
-						</div>
-					</div>
-				</CardHeader>
-				<CardContent class="space-y-4">
-					<div class="space-y-3 border-b border-border/20 pb-4">
-						<Skeleton class="mb-2 h-4 w-32" />
-						{#each Array(3) as _}
-							<div class="space-y-2">
-								<Skeleton class="h-3 w-24" />
-								<Skeleton class="h-10 w-full" />
-							</div>
-						{/each}
-					</div>
-					<div class="flex items-center justify-between">
-						<div class="space-y-1">
-							<Skeleton class="h-4 w-40" />
-							<Skeleton class="h-3 w-48" />
-						</div>
-						<Skeleton class="h-6 w-11 rounded-full" />
-					</div>
-				</CardContent>
-			</Card>
-
-			<!-- Active Sessions -->
-			<Card>
-				<CardHeader class="pb-3">
-					<div class="flex items-center gap-2">
-						<Skeleton class="h-5 w-5 rounded-full" />
-						<div class="space-y-1">
-							<Skeleton class="h-5 w-32" />
-							<Skeleton class="h-3 w-20" />
-						</div>
-					</div>
+			<Card class="h-fit">
+				<CardHeader>
+					<Skeleton class="h-5 w-36" />
 				</CardHeader>
 				<CardContent class="space-y-3">
-					{#each Array(2) as _}
-						<div class="flex items-start justify-between rounded-lg bg-card/50 p-3">
-							<div class="space-y-2">
-								<Skeleton class="h-4 w-24" />
-								<Skeleton class="h-3 w-16" />
-								<Skeleton class="h-3 w-32" />
-							</div>
-						</div>
+					{#each ['a', 'b', 'c'] as key (key)}
+						<Skeleton class="h-16 rounded-lg" />
 					{/each}
 				</CardContent>
 			</Card>
 		</div>
-	</div>
+	{/snippet}
 
-	<!-- Desktop View Skeleton -->
-	<div class="hidden w-full flex-col gap-6 p-4 md:flex md:p-6 lg:p-8">
-		<!-- Header -->
-		<div class="flex items-center justify-between">
-			<div class="space-y-2">
-				<Skeleton class="h-9 w-32" />
-				<Skeleton class="h-4 w-48" />
-			</div>
-			<Skeleton class="h-10 w-24 rounded-md" />
-		</div>
-
-		<!-- Content Grid -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-			<div class="space-y-6 lg:col-span-2">
-				<!-- Basic Information -->
-				<Card>
-					<CardHeader>
-						<Skeleton class="h-6 w-40" />
-						<Skeleton class="h-4 w-48" />
-					</CardHeader>
-					<CardContent class="space-y-6">
-						<div class="flex items-center gap-6">
-							<Skeleton class="h-24 w-24 rounded-full" />
-							<Skeleton class="h-10 w-32" />
-						</div>
-						<div class="grid grid-cols-2 gap-4">
-							<div class="space-y-2">
-								<Skeleton class="h-4 w-20" />
-								<Skeleton class="h-10 w-full" />
-							</div>
-							<div class="space-y-2">
-								<Skeleton class="h-4 w-12" />
-								<Skeleton class="h-10 w-full" />
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				<!-- Password & Security -->
-				<Card>
-					<CardHeader>
-						<div class="flex items-center gap-2">
-							<Skeleton class="h-5 w-5 rounded-full" />
-							<div class="space-y-2">
-								<Skeleton class="h-6 w-48" />
-								<Skeleton class="h-4 w-64" />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent class="space-y-6">
-						<div class="space-y-4 border-b border-border/20 pb-6">
-							<Skeleton class="mb-2 h-5 w-32" />
-							<div class="grid grid-cols-1 gap-4">
-								<div class="space-y-2">
-									<Skeleton class="h-4 w-32" />
-									<Skeleton class="h-10 w-full" />
-								</div>
-								<div class="grid grid-cols-2 gap-4">
-									<div class="space-y-2">
-										<Skeleton class="h-4 w-24" />
-										<Skeleton class="h-10 w-full" />
-									</div>
-									<div class="space-y-2">
-										<Skeleton class="h-4 w-28" />
-										<Skeleton class="h-10 w-full" />
-									</div>
-								</div>
-							</div>
-						</div>
-						<div class="flex items-center justify-between">
-							<div class="space-y-2">
-								<Skeleton class="h-4 w-48" />
-								<Skeleton class="h-4 w-64" />
-							</div>
-							<Skeleton class="h-6 w-11 rounded-full" />
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-
-			<!-- Right Column: Sessions -->
-			<div>
-				<Card>
-					<CardHeader>
-						<div class="flex items-center gap-2">
-							<Skeleton class="h-5 w-5 rounded-full" />
-							<div class="space-y-2">
-								<Skeleton class="h-6 w-32" />
-								<Skeleton class="h-3 w-20" />
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent class="space-y-3">
-						{#each Array(3) as _}
-							<div class="rounded-lg border border-border/20 bg-card/50 p-3">
-								<div class="space-y-2">
-									<div class="flex gap-2">
-										<Skeleton class="h-4 w-24" />
-										<Skeleton class="h-4 w-12" />
-									</div>
-									<Skeleton class="h-3 w-16" />
-									<Skeleton class="h-3 w-24" />
-									<Skeleton class="h-3 w-32" />
-								</div>
-							</div>
-						{/each}
-					</CardContent>
-				</Card>
-			</div>
-		</div>
-	</div>
-{:else}
-	<!-- Mobile View -->
-	<div class="flex min-h-screen flex-col bg-background pb-20 md:hidden">
-		<!-- Header -->
-		<div class="sticky top-0 z-10 hidden border-b border-border/10 bg-background sm:flex">
-			<div class="flex w-full items-center justify-between gap-3 px-4 py-4">
-				<div class="flex min-w-0 flex-1 items-center gap-3">
-					<button
-						onclick={() => goto('/settings')}
-						class="shrink-0 rounded-lg p-2 transition hover:bg-muted"
-					>
-						<ChevronLeft class="h-5 w-5" />
-					</button>
-					<div class="min-w-0 flex-1">
-						<h1 class="text-xl font-bold">Profile</h1>
-						<p class="text-xs text-muted-foreground">Manage your account</p>
-					</div>
-				</div>
-				{#if hasUnsavedChanges}
-					<div class="flex items-center gap-2">
-						<Badge variant="outline" class="border-yellow-200 bg-yellow-50 text-yellow-900"
-							>Unsaved</Badge
-						>
-						<Button size="sm" onclick={handleSave} disabled={isSaving}>
-							{isSaving ? 'Saving...' : 'Save'}
-						</Button>
-						<Button size="sm" variant="outline" onclick={handleCancel} disabled={isSaving}>
-							Cancel
-						</Button>
-					</div>
-				{/if}
-			</div>
-		</div>
-
-		<!-- Content -->
-		<div class="flex-1 space-y-6 px-4 py-6">
+	<!-- Content Grid -->
+	<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+		<!-- Left Column: Basic Info -->
+		<div class="space-y-6 lg:col-span-2">
 			<!-- Basic Information -->
 			<Card>
-				<CardHeader class="pb-3">
-					<CardTitle class="text-base">Basic Information</CardTitle>
-					<CardDescription class="text-xs">Update your profile details</CardDescription>
+				<CardHeader>
+					<CardTitle>Basic Information</CardTitle>
+					<CardDescription>Update your profile details</CardDescription>
 				</CardHeader>
 				<CardContent class="space-y-6">
 					<!-- Avatar Section -->
-					<div class="flex items-center gap-4">
-						<Avatar class="h-20 w-20">
+					<div class="flex items-center gap-4 sm:gap-6">
+						<Avatar class="h-20 w-20 sm:h-24 sm:w-24">
 							{#if profile.avatar}
 								<AvatarImage src={ensureAvatarDownloadParam(profile.avatar)} alt={profile.name} />
 							{/if}
-							<AvatarFallback class="text-lg"
+							<AvatarFallback class="text-xl"
 								>{(profile.name || 'U').charAt(0).toUpperCase()}</AvatarFallback
 							>
 						</Avatar>
@@ -657,10 +484,10 @@
 					</div>
 
 					<!-- Form Fields -->
-					<div class="space-y-4">
+					<div class="grid gap-4 sm:grid-cols-2">
 						<div>
-							<Label for="name" class="text-sm font-medium">Full Name</Label>
-							<Input id="name" bind:value={profile.name} placeholder="Your name" class="mt-2" />
+							<Label for="fullName" class="text-sm font-medium">Full Name</Label>
+							<Input id="fullName" bind:value={profile.name} placeholder="Your name" class="mt-2" />
 						</div>
 						<div>
 							<Label for="email" class="text-sm font-medium">Email</Label>
@@ -679,101 +506,107 @@
 
 			<!-- Password & Security -->
 			<Card>
-				<CardHeader class="pb-3">
+				<CardHeader>
 					<div class="flex items-center gap-2">
 						<Lock class="h-5 w-5 text-primary" />
 						<div>
-							<CardTitle class="text-base">Password & Security</CardTitle>
-							<CardDescription class="text-xs"
-								>Manage your password and authentication</CardDescription
-							>
+							<CardTitle>Password & Security</CardTitle>
+							<CardDescription>Manage your password and authentication</CardDescription>
 						</div>
 					</div>
 				</CardHeader>
-				<CardContent class="space-y-4">
-					<!-- Change Password Section -->
-					<div class="space-y-3 border-b border-border/20 pb-4">
-						<h3 class="text-sm font-semibold">Change Password</h3>
-						<div>
-							<Label class="text-xs font-medium">Current Password</Label>
-							<div class="relative mt-2">
-								<Input
-									type={passwordForm.showCurrent ? 'text' : 'password'}
-									bind:value={passwordForm.currentPassword}
-									placeholder="Enter current password"
-								/>
-								<button
-									onclick={() => (passwordForm.showCurrent = !passwordForm.showCurrent)}
-									class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-								>
-									{#if passwordForm.showCurrent}
-										<EyeOff class="h-4 w-4" />
-									{:else}
-										<Eye class="h-4 w-4" />
-									{/if}
-								</button>
+				<CardContent class="space-y-6">
+					<!-- Change Password -->
+					<div class="space-y-4 border-b border-border/20 pb-6">
+						<h3 class="font-semibold">Change Password</h3>
+						<div class="grid grid-cols-1 gap-4">
+							<div>
+								<Label class="text-sm font-medium">Current Password</Label>
+								<div class="relative mt-2">
+									<Input
+										type={passwordForm.showCurrent ? 'text' : 'password'}
+										bind:value={passwordForm.currentPassword}
+										placeholder="Enter current password"
+									/>
+									<button
+										onclick={() => (passwordForm.showCurrent = !passwordForm.showCurrent)}
+										class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+									>
+										{#if passwordForm.showCurrent}
+											<EyeOff class="h-4 w-4" />
+										{:else}
+											<Eye class="h-4 w-4" />
+										{/if}
+									</button>
+								</div>
 							</div>
-						</div>
-						<div>
-							<Label class="text-xs font-medium">New Password</Label>
-							<div class="relative mt-2">
-								<Input
-									type={passwordForm.showNew ? 'text' : 'password'}
-									bind:value={passwordForm.newPassword}
-									placeholder="Enter new password"
-								/>
-								<button
-									onclick={() => (passwordForm.showNew = !passwordForm.showNew)}
-									class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-								>
-									{#if passwordForm.showNew}
-										<EyeOff class="h-4 w-4" />
-									{:else}
-										<Eye class="h-4 w-4" />
-									{/if}
-								</button>
-							</div>
-						</div>
-						<div>
-							<Label class="text-xs font-medium">Confirm Password</Label>
-							<div class="relative mt-2">
-								<Input
-									type={passwordForm.showConfirm ? 'text' : 'password'}
-									bind:value={passwordForm.confirmPassword}
-									placeholder="Confirm new password"
-								/>
-								<button
-									onclick={() => (passwordForm.showConfirm = !passwordForm.showConfirm)}
-									class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-								>
-									{#if passwordForm.showConfirm}
-										<EyeOff class="h-4 w-4" />
-									{:else}
-										<Eye class="h-4 w-4" />
-									{/if}
-								</button>
+							<div class="grid gap-4 sm:grid-cols-2">
+								<div>
+									<Label class="text-sm font-medium">New Password</Label>
+									<div class="relative mt-2">
+										<Input
+											type={passwordForm.showNew ? 'text' : 'password'}
+											bind:value={passwordForm.newPassword}
+											placeholder="Enter new password"
+										/>
+										<button
+											onclick={() => (passwordForm.showNew = !passwordForm.showNew)}
+											class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+										>
+											{#if passwordForm.showNew}
+												<EyeOff class="h-4 w-4" />
+											{:else}
+												<Eye class="h-4 w-4" />
+											{/if}
+										</button>
+									</div>
+								</div>
+								<div>
+									<Label class="text-sm font-medium">Confirm Password</Label>
+									<div class="relative mt-2">
+										<Input
+											type={passwordForm.showConfirm ? 'text' : 'password'}
+											bind:value={passwordForm.confirmPassword}
+											placeholder="Confirm new password"
+										/>
+										<button
+											onclick={() => (passwordForm.showConfirm = !passwordForm.showConfirm)}
+											class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+										>
+											{#if passwordForm.showConfirm}
+												<EyeOff class="h-4 w-4" />
+											{:else}
+												<Eye class="h-4 w-4" />
+											{/if}
+										</button>
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
 
-					<!-- 2FA Section -->
+					<!-- 2FA -->
 					<div class="flex items-center justify-between">
 						<div>
 							<Label class="text-sm font-medium">Two-Factor Authentication</Label>
-							<p class="mt-1 text-xs text-muted-foreground">Add an extra layer of security</p>
+							<p class="mt-1 text-sm text-muted-foreground">
+								Add an extra layer of security to your account
+							</p>
 						</div>
 						<Switch bind:checked={twoFaEnabled} onchange={handleToggle2FA} />
 					</div>
 				</CardContent>
 			</Card>
+		</div>
 
-			<!-- Active Sessions -->
+		<!-- Right Column: Sessions -->
+		<div>
 			<Card>
-				<CardHeader class="pb-3">
+				<CardHeader>
 					<div class="flex items-center gap-2">
 						<Smartphone class="h-5 w-5 text-primary" />
 						<div>
-							<CardTitle class="text-base">Active Sessions</CardTitle>
+							<CardTitle>Active Sessions</CardTitle>
 							<CardDescription class="text-xs"
 								>{activeSessions.length} device{activeSessions.length !== 1
 									? 's'
@@ -794,209 +627,8 @@
 				</CardContent>
 			</Card>
 		</div>
-	</div>
-
-	<!-- Desktop View -->
-	<div class="hidden w-full flex-col gap-6 p-4 md:flex md:p-6 lg:p-8">
-		<!-- Header -->
-		<div class="flex items-center justify-between">
-			<div>
-				<h1 class="text-3xl font-bold">Profile</h1>
-				<p class="mt-1 text-muted-foreground">Manage your account and security</p>
-			</div>
-			<div class="flex items-center gap-2">
-				{#if hasUnsavedChanges}
-					<Badge variant="outline" class="border-yellow-200 bg-yellow-50 text-yellow-900"
-						>Unsaved</Badge
-					>
-					<Button onclick={handleSave} disabled={isSaving}>
-						{isSaving ? 'Saving...' : 'Save Changes'}
-					</Button>
-					<Button variant="outline" onclick={handleCancel} disabled={isSaving}>Cancel</Button>
-				{/if}
-				<Button variant="outline" onclick={() => goto('/settings')}>
-					<ChevronLeft class="mr-2 h-4 w-4" />
-					Back
-				</Button>
-			</div>
-		</div>
-
-		<!-- Content Grid -->
-		<div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-			<!-- Left Column: Basic Info -->
-			<div class="space-y-6 lg:col-span-2">
-				<!-- Basic Information -->
-				<Card>
-					<CardHeader>
-						<CardTitle>Basic Information</CardTitle>
-						<CardDescription>Update your profile details</CardDescription>
-					</CardHeader>
-					<CardContent class="space-y-6">
-						<!-- Avatar Section -->
-						<div class="flex items-center gap-6">
-							<Avatar class="h-24 w-24">
-								{#if profile.avatar}
-									<AvatarImage src={ensureAvatarDownloadParam(profile.avatar)} alt={profile.name} />
-								{/if}
-								<AvatarFallback class="text-xl"
-									>{(profile.name || 'U').charAt(0).toUpperCase()}</AvatarFallback
-								>
-							</Avatar>
-							<Button variant="outline" onclick={handleChangeAvatar}>Change Avatar</Button>
-						</div>
-
-						<!-- Form Fields -->
-						<div class="grid grid-cols-2 gap-4">
-							<div>
-								<Label for="fullName" class="text-sm font-medium">Full Name</Label>
-								<Input
-									id="fullName"
-									bind:value={profile.name}
-									placeholder="Your name"
-									class="mt-2"
-								/>
-							</div>
-							<div>
-								<Label for="email" class="text-sm font-medium">Email</Label>
-								<Input
-									id="email"
-									bind:value={profile.email}
-									type="email"
-									placeholder="your@email.com"
-									class="mt-2"
-									disabled
-								/>
-							</div>
-						</div>
-					</CardContent>
-				</Card>
-
-				<!-- Password & Security -->
-				<Card>
-					<CardHeader>
-						<div class="flex items-center gap-2">
-							<Lock class="h-5 w-5 text-primary" />
-							<div>
-								<CardTitle>Password & Security</CardTitle>
-								<CardDescription>Manage your password and authentication</CardDescription>
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent class="space-y-6">
-						<!-- Change Password -->
-						<div class="space-y-4 border-b border-border/20 pb-6">
-							<h3 class="font-semibold">Change Password</h3>
-							<div class="grid grid-cols-1 gap-4">
-								<div>
-									<Label class="text-sm font-medium">Current Password</Label>
-									<div class="relative mt-2">
-										<Input
-											type={passwordForm.showCurrent ? 'text' : 'password'}
-											bind:value={passwordForm.currentPassword}
-											placeholder="Enter current password"
-										/>
-										<button
-											onclick={() => (passwordForm.showCurrent = !passwordForm.showCurrent)}
-											class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-										>
-											{#if passwordForm.showCurrent}
-												<EyeOff class="h-4 w-4" />
-											{:else}
-												<Eye class="h-4 w-4" />
-											{/if}
-										</button>
-									</div>
-								</div>
-								<div class="grid grid-cols-2 gap-4">
-									<div>
-										<Label class="text-sm font-medium">New Password</Label>
-										<div class="relative mt-2">
-											<Input
-												type={passwordForm.showNew ? 'text' : 'password'}
-												bind:value={passwordForm.newPassword}
-												placeholder="Enter new password"
-											/>
-											<button
-												onclick={() => (passwordForm.showNew = !passwordForm.showNew)}
-												class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-											>
-												{#if passwordForm.showNew}
-													<EyeOff class="h-4 w-4" />
-												{:else}
-													<Eye class="h-4 w-4" />
-												{/if}
-											</button>
-										</div>
-									</div>
-									<div>
-										<Label class="text-sm font-medium">Confirm Password</Label>
-										<div class="relative mt-2">
-											<Input
-												type={passwordForm.showConfirm ? 'text' : 'password'}
-												bind:value={passwordForm.confirmPassword}
-												placeholder="Confirm new password"
-											/>
-											<button
-												onclick={() => (passwordForm.showConfirm = !passwordForm.showConfirm)}
-												class="absolute top-1/2 right-3 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-											>
-												{#if passwordForm.showConfirm}
-													<EyeOff class="h-4 w-4" />
-												{:else}
-													<Eye class="h-4 w-4" />
-												{/if}
-											</button>
-										</div>
-									</div>
-								</div>
-							</div>
-						</div>
-
-						<!-- 2FA -->
-						<div class="flex items-center justify-between">
-							<div>
-								<Label class="text-sm font-medium">Two-Factor Authentication</Label>
-								<p class="mt-1 text-sm text-muted-foreground">
-									Add an extra layer of security to your account
-								</p>
-							</div>
-							<Switch bind:checked={twoFaEnabled} onchange={handleToggle2FA} />
-						</div>
-					</CardContent>
-				</Card>
-			</div>
-
-			<!-- Right Column: Sessions -->
-			<div>
-				<Card>
-					<CardHeader>
-						<div class="flex items-center gap-2">
-							<Smartphone class="h-5 w-5 text-primary" />
-							<div>
-								<CardTitle>Active Sessions</CardTitle>
-								<CardDescription class="text-xs"
-									>{activeSessions.length} device{activeSessions.length !== 1
-										? 's'
-										: ''}</CardDescription
-								>
-							</div>
-						</div>
-					</CardHeader>
-					<CardContent>
-						<ActiveSessionsList
-							sessions={activeSessions}
-							isLoading={isLoadingSessions}
-							pendingId={pendingSessionId}
-							{isRevokingAll}
-							onRevoke={requestRevoke}
-							onRevokeAll={() => (showRevokeAllDialog = true)}
-						/>
-					</CardContent>
-				</Card>
-			</div>
-		</div>
-	</div>
-{/if}
+	</div></PageShell
+>
 
 <!-- Revoke a single device -->
 <AlertDialog bind:open={showRevokeDialog}>

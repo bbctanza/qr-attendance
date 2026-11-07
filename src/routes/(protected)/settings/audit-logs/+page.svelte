@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { siteConfig } from '$lib/config/site';
+	import PageShell from '$lib/components/page-shell.svelte';
+	import { DataTable, type Column } from '$lib/components/data-table';
 	import { onMount } from 'svelte';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
@@ -16,34 +19,11 @@
 		Item: SelectItem,
 		Trigger: SelectTrigger
 	};
-	import {
-		Table,
-		TableBody,
-		TableCell,
-		TableHead,
-		TableHeader,
-		TableRow
-	} from '$lib/components/ui/table';
 	import { Card, CardContent, CardHeader, CardTitle } from '$lib/components/ui/card';
 	import { Badge } from '$lib/components/ui/badge';
 	import * as Dialog from '$lib/components/ui/dialog';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
-	import {
-		AlertCircle,
-		ArrowDown,
-		ArrowUp,
-		ArrowUpDown,
-		Calendar,
-		ChevronLeft,
-		ChevronRight,
-		Download,
-		FilterX,
-		RefreshCw,
-		Search,
-		Undo2,
-		Eye,
-		X
-	} from 'lucide-svelte';
+	import { Download, FilterX, RefreshCw, Search, Undo2, Eye } from 'lucide-svelte';
 	import { getAllAuditLogs, logAuditChange } from '$lib/utils/auditLogger';
 	import type { AuditLogRecord } from '$lib/utils/auditLogger';
 	import { devTools } from '$lib/stores/dev';
@@ -273,27 +253,7 @@
 		});
 	});
 
-	const totalPages = $derived(Math.max(1, Math.ceil(filteredLogs.length / pageSize)));
-
-	// Reset page index when filters change
-	$effect(() => {
-		void filterEntity;
-		void filterAction;
-		void filterUser;
-		void searchText;
-		void dateFrom;
-		void dateTo;
-		void sortColumn;
-		void sortDirection;
-		currentPage = 1;
-	});
-
-	// Derived paginated logs
-	const paginatedLogs = $derived.by(() => {
-		const start = (currentPage - 1) * pageSize;
-		const end = start + pageSize;
-		return filteredLogs.slice(start, end);
-	});
+	// Page count, slicing and the reset-on-filter-change rule all live in DataTable now.
 
 	async function loadLogs() {
 		isLoading = true;
@@ -532,26 +492,89 @@
 	}
 </script>
 
-<div class="flex w-full flex-col gap-6 p-4 md:p-6 lg:p-8">
-	<!-- Page Header -->
-	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-		<div>
-			<h1 class="text-3xl font-bold tracking-tight">Audit Logs</h1>
-			<p class="mt-1 text-sm text-muted-foreground">
-				Track all system changes, who made them, and when
-			</p>
-		</div>
-		<div class="flex flex-wrap gap-2">
-			<Button onclick={loadLogs} variant="outline" size="sm" class="h-9">
-				<RefreshCw class="mr-2 h-4 w-4" />
-				Refresh
+<svelte:head>
+	<title>Audit Logs | {siteConfig.name}</title>
+</svelte:head>
+
+{#snippet timestampCell(log: AuditLogRecord)}
+	<span class="font-mono text-xs">{formatDate(log.created_at)}</span>
+{/snippet}
+
+{#snippet entityCell(log: AuditLogRecord)}
+	<Badge variant="outline" class="text-xs font-medium">{log.entity_type}</Badge>
+	<div class="mt-1 font-mono text-[11px] text-muted-foreground">{log.entity_id}</div>
+{/snippet}
+
+{#snippet actionCell(log: AuditLogRecord)}
+	<Badge class={getActionColor(log.action)}>{log.action}</Badge>
+{/snippet}
+
+{#snippet userCell(log: AuditLogRecord)}
+	<div class="text-xs font-medium">{log.user_email}</div>
+	<div class="text-[11px] text-muted-foreground">{log.user_role}</div>
+{/snippet}
+
+{#snippet detailsCell(log: AuditLogRecord)}
+	<span class="text-xs">
+		{#if log.reason}
+			{log.reason}
+		{:else if log.tags?.length}
+			{log.tags.join(', ')}
+		{:else}
+			—
+		{/if}
+	</span>
+{/snippet}
+
+{#snippet rowActions(log: AuditLogRecord)}
+	<div class="flex items-center justify-end gap-1">
+		<Button
+			variant="ghost"
+			size="sm"
+			class="h-8 w-8 p-0"
+			onclick={() => toggleDetailView(log)}
+			aria-label="View details for this entry"
+		>
+			<Eye class="h-4 w-4 text-muted-foreground hover:text-foreground" />
+		</Button>
+		{#if log.action !== 'restore'}
+			<Button
+				variant="ghost"
+				size="sm"
+				class="h-8 w-8 p-0"
+				onclick={() => openRestoreDialog(log)}
+				aria-label="Undo this change"
+				title={canUndo
+					? 'Undo this change'
+					: restrictUndoToAdmin
+						? 'Undo restricted to admin only'
+						: requireUndoApproval
+							? 'Undo approval required'
+							: 'Cannot undo'}
+			>
+				<Undo2
+					class={`h-4 w-4 ${!canUndo ? 'opacity-50' : 'text-muted-foreground hover:text-foreground'}`}
+				/>
 			</Button>
-			<Button onclick={exportLogs} variant="outline" size="sm" class="h-9">
-				<Download class="mr-2 h-4 w-4" />
-				Export CSV
-			</Button>
-		</div>
+		{/if}
 	</div>
+{/snippet}
+
+<PageShell
+	title="Audit Logs"
+	description="Track all system changes, who made them, and when"
+	backTo="/settings"
+>
+	{#snippet actions()}
+		<Button onclick={loadLogs} variant="outline" size="sm" class="h-9">
+			<RefreshCw class="mr-2 h-4 w-4" />
+			Refresh
+		</Button>
+		<Button onclick={exportLogs} variant="outline" size="sm" class="h-9">
+			<Download class="mr-2 h-4 w-4" />
+			Export CSV
+		</Button>
+	{/snippet}
 
 	<!-- System Summary Cards -->
 	<div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -704,247 +727,40 @@
 		{/if}
 	</div>
 
-	<!-- Table Container -->
-	<div class="overflow-hidden rounded-xl border bg-card text-card-foreground shadow-xs">
-		{#if isLoading}
-			<div class="flex items-center justify-center py-16">
-				<div class="text-center">
-					<RefreshCw class="mx-auto mb-2 h-8 w-8 animate-spin text-primary" />
-					<p class="text-sm text-muted-foreground">Loading audit logs...</p>
-				</div>
-			</div>
-		{:else if filteredLogs.length === 0}
-			<div class="py-16 text-center">
-				<AlertCircle class="mx-auto mb-2 h-8 w-8 text-muted-foreground/60" />
-				<p class="text-sm font-medium text-foreground">No audit logs found</p>
-				<p class="mt-1 text-xs text-muted-foreground">
-					Try clearing or adjusting your search filters
-				</p>
-			</div>
-		{:else}
-			<div class="overflow-x-auto">
-				<Table class="w-full">
-					<TableHeader>
-						<TableRow class="bg-muted/40 hover:bg-muted/40">
-							<TableHead class="px-4 py-3.5 sm:px-6">
-								<Button
-									variant="ghost"
-									size="sm"
-									class="-ml-3 h-8 text-xs font-semibold hover:bg-transparent"
-									onclick={() => handleSort('created_at')}
-								>
-									Timestamp
-									{#if sortColumn === 'created_at'}
-										{#if sortDirection === 'asc'}
-											<ArrowUp class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{:else}
-											<ArrowDown class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{/if}
-									{:else}
-										<ArrowUpDown class="ml-1.5 h-3.5 w-3.5 opacity-40" />
-									{/if}
-								</Button>
-							</TableHead>
-							<TableHead class="px-4 py-3.5 sm:px-6">
-								<Button
-									variant="ghost"
-									size="sm"
-									class="-ml-3 h-8 text-xs font-semibold hover:bg-transparent"
-									onclick={() => handleSort('entity_type')}
-								>
-									Entity
-									{#if sortColumn === 'entity_type'}
-										{#if sortDirection === 'asc'}
-											<ArrowUp class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{:else}
-											<ArrowDown class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{/if}
-									{:else}
-										<ArrowUpDown class="ml-1.5 h-3.5 w-3.5 opacity-40" />
-									{/if}
-								</Button>
-							</TableHead>
-							<TableHead class="px-4 py-3.5 sm:px-6">
-								<Button
-									variant="ghost"
-									size="sm"
-									class="-ml-3 h-8 text-xs font-semibold hover:bg-transparent"
-									onclick={() => handleSort('action')}
-								>
-									Action
-									{#if sortColumn === 'action'}
-										{#if sortDirection === 'asc'}
-											<ArrowUp class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{:else}
-											<ArrowDown class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{/if}
-									{:else}
-										<ArrowUpDown class="ml-1.5 h-3.5 w-3.5 opacity-40" />
-									{/if}
-								</Button>
-							</TableHead>
-							<TableHead class="px-4 py-3.5 sm:px-6">
-								<Button
-									variant="ghost"
-									size="sm"
-									class="-ml-3 h-8 text-xs font-semibold hover:bg-transparent"
-									onclick={() => handleSort('user_email')}
-								>
-									User
-									{#if sortColumn === 'user_email'}
-										{#if sortDirection === 'asc'}
-											<ArrowUp class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{:else}
-											<ArrowDown class="ml-1.5 h-3.5 w-3.5 text-primary" />
-										{/if}
-									{:else}
-										<ArrowUpDown class="ml-1.5 h-3.5 w-3.5 opacity-40" />
-									{/if}
-								</Button>
-							</TableHead>
-							<TableHead class="px-4 py-3.5 text-xs font-semibold sm:px-6">Details</TableHead>
-							<TableHead class="px-4 py-3.5 text-right text-xs font-semibold sm:px-6"
-								>Actions</TableHead
-							>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{#each paginatedLogs as log (log.id)}
-							<TableRow class="transition-colors hover:bg-muted/50">
-								<TableCell class="px-4 py-3.5 font-mono text-xs sm:px-6">
-									{formatDate(log.created_at)}
-								</TableCell>
-								<TableCell class="px-4 py-3.5 sm:px-6">
-									<Badge variant="outline" class="text-xs font-medium">{log.entity_type}</Badge>
-									<div class="mt-1 font-mono text-[11px] text-muted-foreground">
-										{log.entity_id}
-									</div>
-								</TableCell>
-								<TableCell class="px-4 py-3.5 sm:px-6">
-									<Badge class={getActionColor(log.action)}>
-										{log.action}
-									</Badge>
-								</TableCell>
-								<TableCell class="px-4 py-3.5 text-xs sm:px-6">
-									<div class="font-medium">{log.user_email}</div>
-									<div class="text-[11px] text-muted-foreground">{log.user_role}</div>
-								</TableCell>
-								<TableCell class="max-w-xs truncate px-4 py-3.5 text-xs sm:px-6">
-									{#if log.reason}
-										{log.reason}
-									{:else if log.tags?.length}
-										{log.tags.join(', ')}
-									{:else}
-										—
-									{/if}
-								</TableCell>
-								<TableCell class="px-4 py-3.5 text-right sm:px-6">
-									<div class="flex items-center justify-end gap-1">
-										<Button
-											variant="ghost"
-											size="sm"
-											class="h-8 w-8 p-0"
-											onclick={() => toggleDetailView(log)}
-											title="View log details"
-										>
-											<Eye class="h-4 w-4 text-muted-foreground hover:text-foreground" />
-										</Button>
-										{#if log.action !== 'restore'}
-											<Button
-												variant="ghost"
-												size="sm"
-												class="h-8 w-8 p-0"
-												onclick={() => openRestoreDialog(log)}
-												title={canUndo
-													? 'Undo this change'
-													: restrictUndoToAdmin
-														? 'Undo restricted to admin only'
-														: requireUndoApproval
-															? 'Undo approval required'
-															: 'Cannot undo'}
-											>
-												<Undo2
-													class={`h-4 w-4 ${!canUndo ? 'opacity-50' : 'text-muted-foreground hover:text-foreground'}`}
-												/>
-											</Button>
-										{/if}
-									</div>
-								</TableCell>
-							</TableRow>
-						{/each}
-					</TableBody>
-				</Table>
-			</div>
-		{/if}
-
-		<!-- Desktop & Mobile Pagination Controls -->
-		{#if filteredLogs.length > 0}
-			<div
-				class="flex flex-col items-center justify-between gap-4 border-t bg-card p-4 shadow-xs sm:flex-row sm:px-6 sm:py-4"
-			>
-				<div class="flex items-center gap-4 text-xs text-muted-foreground">
-					<span>
-						Showing <strong
-							>{Math.min((currentPage - 1) * pageSize + 1, filteredLogs.length)}</strong
-						>
-						to{' '}
-						<strong>{Math.min(currentPage * pageSize, filteredLogs.length)}</strong> of{' '}
-						<strong>{filteredLogs.length}</strong> entries
-					</span>
-					<div class="flex items-center gap-1.5">
-						<span>Per page:</span>
-						<Select.Root
-							type="single"
-							value={String(pageSize)}
-							onValueChange={(value) => {
-								pageSize = Number(value);
-								currentPage = 1;
-							}}
-						>
-							<Select.Trigger
-								size="sm"
-								class="h-8 w-[4.5rem] px-2.5 text-xs"
-								aria-label="Rows per page"
-							>
-								{pageSize}
-							</Select.Trigger>
-							<Select.Content>
-								{#each [10, 25, 50, 100] as size (size)}
-									<Select.Item value={String(size)} label={String(size)}>{size}</Select.Item>
-								{/each}
-							</Select.Content>
-						</Select.Root>
-					</div>
-				</div>
-
-				<div class="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={currentPage === 1}
-						onclick={() => (currentPage = Math.max(1, currentPage - 1))}
-						class="h-8 gap-1 px-3 text-xs"
-					>
-						<ChevronLeft class="h-3.5 w-3.5" />
-						Previous
-					</Button>
-					<span class="px-2 text-xs font-medium text-muted-foreground">
-						Page {currentPage} of {totalPages}
-					</span>
-					<Button
-						variant="outline"
-						size="sm"
-						disabled={currentPage >= totalPages}
-						onclick={() => (currentPage = Math.min(totalPages, currentPage + 1))}
-						class="h-8 gap-1 px-3 text-xs"
-					>
-						Next
-						<ChevronRight class="h-3.5 w-3.5" />
-					</Button>
-				</div>
-			</div>
-		{/if}
-	</div>
+	<!--
+		One DataTable instead of a hand-rolled table plus its own skeleton, empty state and
+		pagination. The six columns used to render at 400px inside a horizontal scroller with
+		no mobile alternative at all; below `md` each row is now a card.
+	-->
+	<DataTable
+		columns={[
+			{
+				key: 'created_at',
+				header: 'Timestamp',
+				cell: timestampCell,
+				sortable: true,
+				nowrap: true,
+				as: 'title'
+			},
+			{ key: 'entity_type', header: 'Entity', cell: entityCell, sortable: true, as: 'subtitle' },
+			{ key: 'action', header: 'Action', cell: actionCell, sortable: true },
+			{ key: 'user_email', header: 'User', cell: userCell, sortable: true },
+			{ key: 'details', header: 'Details', cell: detailsCell },
+			{ key: 'actions', header: 'Actions', cell: rowActions, align: 'right', as: 'actions' }
+		] satisfies Column<AuditLogRecord>[]}
+		rows={filteredLogs}
+		rowKey={(log) => log.id}
+		{isLoading}
+		bind:page={currentPage}
+		bind:pageSize
+		noun="entries"
+		caption="Audit log entries"
+		emptyTitle="No audit logs found"
+		emptyDescription="Try clearing or adjusting your search filters."
+		sortKey={sortColumn}
+		{sortDirection}
+		onSort={(key) => handleSort(key as SortColumn)}
+	/>
 
 	<!-- Detail Modal -->
 	<Dialog.Root bind:open={showDetailView}>
@@ -955,19 +771,15 @@
 			<Dialog.Content
 				class="pointer-events-auto fixed top-[50%] left-[50%] z-50 grid max-h-[90vh] w-[95vw] max-w-2xl translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-xl border bg-card p-4 shadow-lg duration-200 sm:p-6"
 			>
-				<div class="relative">
-					<Dialog.Close
-						class="absolute top-0 right-0 p-1 opacity-70 transition-opacity hover:opacity-100"
-					>
-						<X class="h-5 w-5 text-muted-foreground" />
-					</Dialog.Close>
-					<Dialog.Header>
-						<Dialog.Title class="mr-8 text-lg font-semibold">Change Details</Dialog.Title>
-						<Dialog.Description class="mt-1 text-sm text-muted-foreground">
-							{selectedLog?.entity_type} #{selectedLog?.entity_id} - {selectedLog?.action}
-						</Dialog.Description>
-					</Dialog.Header>
-				</div>
+				<!-- The corner close button is now the Dialog.Content primitive's own, so this no
+				     longer hand-rolls one - mr-8 on the title stays, since the primitive's X still
+				     occupies that corner. -->
+				<Dialog.Header>
+					<Dialog.Title class="mr-8 text-lg font-semibold">Change Details</Dialog.Title>
+					<Dialog.Description class="mt-1 text-sm text-muted-foreground">
+						{selectedLog?.entity_type} #{selectedLog?.entity_id} - {selectedLog?.action}
+					</Dialog.Description>
+				</Dialog.Header>
 
 				{#if selectedLog}
 					<div class="space-y-4">
@@ -1047,4 +859,4 @@
 			</AlertDialog.Footer>
 		</AlertDialog.Content>
 	</AlertDialog.Root>
-</div>
+</PageShell>

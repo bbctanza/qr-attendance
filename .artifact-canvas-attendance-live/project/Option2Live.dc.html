@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>2 - with a live session</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); --success: oklch(0.6 0.15 142); }
+					.pr { display: flex; align-items: center; gap: 10px; padding: 8px 6px; }
+					.av { width: 30px; height: 30px; border-radius: 999px; background: var(--wash); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: none; }
+				</style>
+			</helmet>
+
+			<div style="width: 1080px; box-sizing: border-box; background: #fff; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px">
+				<div style="font-size: 28px; font-weight: 800; color: var(--ink)">Attendance</div>
+
+				<!-- The gradient hero becomes the live number, not a CTA - same treatment, the
+				     content underneath it changes completely. -->
+				<div style="border-radius: 18px; background: linear-gradient(135deg, var(--brand), oklch(45% 0.16 142)); padding: 28px 36px; display: flex; align-items: center; justify-content: space-between; gap: 24px; color: #fff">
+					<div style="display: flex; align-items: center; gap: 20px">
+						<svg width="76" height="76" viewBox="0 0 36 36">
+							<circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="3.5"/>
+							<circle cx="18" cy="18" r="15.5" fill="none" stroke="#fff" stroke-width="3.5" stroke-dasharray="63 97" stroke-linecap="round" transform="rotate(-90 18 18)"/>
+						</svg>
+						<div>
+							<div style="display: flex; align-items: center; gap: 6px; font-size: 10px; font-weight: 800; letter-spacing: 0.08em; opacity: 0.9"><span style="width:7px;height:7px;border-radius:999px;background:#fff"></span>LIVE - CHOIR PRACTICE</div>
+							<div style="margin-top: 4px; font-size: 30px; font-weight: 800">65% <span style="font-size: 15px; font-weight: 500; opacity: 0.85">· 26 / 40</span></div>
+						</div>
+					</div>
+					<div style="flex: none; height: 46px; padding: 0 20px; border-radius: 10px; background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.3); color: #fff; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700">
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+						Keep Scanning
+					</div>
+				</div>
+
+				<div style="border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); display: flex; flex-direction: column; overflow: hidden; max-width: 420px">
+					<div style="padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--ink)">Recent Scans</div>
+					<div style="padding: 6px 10px">
+						<div class="pr"><div class="av">MR</div><div style="flex:1; min-width:0"><div style="font-size:12.5px; font-weight:600; color:var(--ink)">Maria Reyes</div></div><span style="font-size:10.5px; color:var(--muted)">6:14 PM</span></div>
+						<div class="pr"><div class="av">JD</div><div style="flex:1; min-width:0"><div style="font-size:12.5px; font-weight:600; color:var(--ink)">Juan Dela Cruz</div></div><span style="font-size:10.5px; color:var(--muted)">6:13 PM</span></div>
+					</div>
+				</div>
+
+				<p style="margin: 2px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+					<strong style="color: var(--ink)">The risk, shown.</strong> The button changes from "Open
+					Scanner" to "Keep Scanning" and demotes to secondary once you're already in a session -
+					so the hero's copy, not just its content, has to be state-aware. That's one more thing
+					to keep in sync as the two states diverge, which is why this was flagged as the riskiest
+					of the five.
+				</p>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":540}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

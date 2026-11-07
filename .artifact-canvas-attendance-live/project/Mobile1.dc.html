@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>1 - mobile, idle</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); }
+				</style>
+			</helmet>
+
+			<div style="position: relative; width: 390px; height: 760px; box-sizing: border-box; background: #fff; overflow: hidden">
+				<div style="padding: 16px 16px 0; font-size: 22px; font-weight: 800; color: var(--ink)">Attendance</div>
+
+				<div style="padding: 14px 16px 0; display: flex; flex-direction: column; gap: 14px">
+					<div style="border: 1.5px dashed var(--line); border-radius: 14px; background: var(--wash); padding: 24px 18px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 6px">
+						<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+						<div style="font-size: 13.5px; font-weight: 700; color: var(--ink)">No live session right now</div>
+						<div style="font-size: 11.5px; color: var(--muted); line-height: 1.5">Schedule one, or open the scanner if you're ready.</div>
+						<div style="margin-top: 8px; display: flex; gap: 8px">
+							<div style="height: 34px; padding: 0 14px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; font-size: 12px; font-weight: 600; color: var(--ink); background: #fff">Go to Events</div>
+							<div style="height: 34px; padding: 0 14px; border-radius: 8px; background: var(--brand); color: #fff; display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700">
+								<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+								Scan
+							</div>
+						</div>
+					</div>
+
+					<div style="display: flex; align-items: center; justify-content: space-between">
+						<div style="font-size: 15px; font-weight: 800; color: var(--ink)">Recent Sessions</div>
+						<div style="font-size: 12px; font-weight: 700; color: var(--brand)">View history</div>
+					</div>
+					<div style="display: flex; flex-direction: column; gap: 10px">
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 14px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between">
+							<div><div style="font-size: 13px; font-weight: 700; color: var(--ink)">Choir practice</div><div style="font-size: 10.5px; color: var(--muted)">Nov 1 · 4% of 515</div></div>
+							<div style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 8px">22</div>
+						</div>
+						<div style="border: 1px solid oklch(84.651% 0.01125 256.831 / 0.4); border-radius: 14px; padding: 13px 14px; display: flex; align-items: center; justify-content: space-between">
+							<div><div style="font-size: 13px; font-weight: 700; color: var(--ink)">Church Choir Practice</div><div style="font-size: 10.5px; color: var(--muted)">Nov 1 · Headcount only</div></div>
+							<div style="font-size: 10px; font-weight: 700; color: var(--ink); background: var(--wash); border-radius: 999px; padding: 2px 8px">4</div>
+						</div>
+					</div>
+				</div>
+
+				<div style="position: absolute; bottom: 0; left: 0; right: 0; height: 97px; background: oklch(1 0 0 / 0.88); border-top: 1px solid var(--line)"></div>
+				<div style="position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; border-radius: 999px; background: var(--brand); box-shadow: 0 0 0 4px var(--wash)"></div>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":760}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

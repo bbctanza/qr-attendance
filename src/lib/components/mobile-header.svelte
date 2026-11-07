@@ -10,14 +10,25 @@
 
 	interface Props {
 		title?: string;
+		/**
+		 * Parent route, when this page has one. Supplied by the layout from the breadcrumb
+		 * trail, so no page has to declare it.
+		 */
+		backTo?: string | null;
 	}
 
-	let { title = 'Overview' } = $props();
+	let { title = 'Overview', backTo = null }: Props = $props();
 
 	const sidebar = useSidebar();
 
-	// Check if we are on the notifications page
-	let isNotificationsPage = $derived($page.url.pathname === '/notifications');
+	/**
+	 * A child page gets a back arrow where a top-level page gets the menu.
+	 *
+	 * Previously only /notifications did this, as a hard-coded special case, so every other
+	 * detail page had to hand-roll its own back button inside the page body - which is how
+	 * they ended up inconsistent with each other and absent on Audit Logs.
+	 */
+	let showBack = $derived(Boolean(backTo));
 
 	let userProfile = $state({
 		name: '',
@@ -61,27 +72,30 @@
 	class="sticky top-0 z-40 flex items-center justify-between border-b border-border/40 bg-background px-6 py-4 md:hidden"
 >
 	<div class="flex items-center gap-4">
-		{#if isNotificationsPage}
-			<button
-				class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/50 text-foreground transition-transform active:scale-95"
-				onclick={() => history.back()}
+		{#if showBack}
+			<!-- An explicit destination rather than history.back(), so arriving by deep link or
+			     refresh still goes somewhere sensible instead of leaving the app. -->
+			<a
+				href={backTo}
+				aria-label="Back"
+				class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/50 text-foreground transition-transform duration-150 active:scale-95 motion-reduce:transition-none"
 			>
 				<ArrowLeft class="h-5 w-5" />
-			</button>
-			<h1 class="text-xl font-bold tracking-tight">Notifications</h1>
+			</a>
 		{:else}
 			<button
-				class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/50 text-foreground transition-transform active:scale-95"
+				aria-label="Open menu"
+				class="flex h-10 w-10 items-center justify-center rounded-full bg-secondary/50 text-foreground transition-transform duration-150 active:scale-95 motion-reduce:transition-none"
 				onclick={() => sidebar.toggle()}
 			>
 				<Menu class="h-5 w-5" />
 			</button>
-			<h1 class="text-xl font-bold tracking-tight">{title}</h1>
 		{/if}
+		<h1 class="truncate text-xl font-bold tracking-tight">{title}</h1>
 	</div>
 
 	<div class="flex items-center gap-3">
-		{#if !isNotificationsPage}
+		{#if $page.url.pathname !== '/notifications'}
 			<a
 				href="/notifications"
 				class="relative flex h-10 w-10 items-center justify-center rounded-full bg-secondary/50 text-foreground transition-transform active:scale-95"

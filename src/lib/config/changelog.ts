@@ -9,9 +9,33 @@ export interface ChangelogEntry {
 	items: string[];
 }
 
-export const CURRENT_VERSION = '2.6.0';
+export const CURRENT_VERSION = '2.7.0';
 
 export const changelog: ChangelogEntry[] = [
+	{
+		version: '2.7.0',
+		date: 'November 6, 2026',
+		title: 'Attendance & History Rework',
+		items: [
+			// Live attendance
+			'Attendance Is Actually Live - The live session said "Live Updates" behind a pulsing dot but only ever loaded its numbers once, so the checked-in count stayed frozen at whatever it was when you opened the page. It now updates as people are scanned, and refreshes itself when you come back to the tab.',
+			'Fixed: Recent Scans Showed Other Events - The live scan list showed the newest scans from every event, so a session could list check-ins that belonged to a different one. It is now limited to the session you are looking at.',
+			'More Than One Live Event - If two events overlap, both now appear and you can switch between them. Previously only one was shown and the rest were silently hidden.',
+			'Errors Say So - A failed load used to look exactly like a quiet Sunday: the page showed "No Live Session" whether nothing was on or the connection had dropped. Failures are now reported, with a retry.',
+
+			// History
+			'Fixed: Attendance Rate Could Exceed 100% - The percentage counted everyone who attended, but compared them only against events that recorded absences. Events set to headcount-only are now kept out of the rate entirely and reported separately.',
+			'History Opens Quickly - It used to load every event ever recorded, with two lookups each, and then throw away everything outside the month you were viewing. It now loads one month at a time and fetches an attendance list only when you open that event.',
+			'Fixed: Recent Session Links Did Nothing - Clicking a session on the Attendance page sent you to History but did not open it. It now jumps to the right month and expands that event.',
+			'Long Rosters Are Paged - Events with hundreds of members no longer render every row at once.',
+			'Fixed: Export Error Told You to Install Software - A failed PDF export asked you to run a developer command for a component that was already installed. Exports now report what actually went wrong.',
+			'Export and Empty-List Messages Use Notifications - These were browser alert boxes that blocked the page until dismissed.',
+
+			// Throughout
+			'Member Names No Longer Sent to an Outside Service - Attendance lists built profile pictures by sending the first and last name of each member to a third-party image site. They now show initials generated on your own device.',
+			'One Layout Instead of Two - The phone and desktop versions of the Attendance page were written separately, so the same card existed twice and the copies had already drifted apart.'
+		]
+	},
 	{
 		version: '2.6.0',
 		date: 'November 6, 2026',

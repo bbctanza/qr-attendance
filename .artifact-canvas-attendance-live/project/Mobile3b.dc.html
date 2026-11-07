@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>3 - mobile, revised</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); }
+				</style>
+			</helmet>
+
+			<div style="position: relative; width: 390px; height: 760px; box-sizing: border-box; background: #fff; overflow: hidden">
+				<div style="padding: 16px 16px 0; font-size: 22px; font-weight: 800; color: var(--ink)">Attendance</div>
+
+				<div style="padding: 14px 16px 0; display: flex; flex-direction: column; gap: 16px">
+					<!-- Idle status, with real weight: a soft-tinted card, an icon, and a button
+					     sized for a thumb - not a one-line grey strip. The strip read as an
+					     afterthought precisely because it had no presence of its own. -->
+					<div style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; background: var(--wash); border: 1px solid var(--line)">
+						<div style="flex: none; width: 36px; height: 36px; border-radius: 10px; background: #fff; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.05)">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.8"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+						</div>
+						<div style="flex: 1; min-width: 0">
+							<div style="font-size: 13.5px; font-weight: 700; color: var(--ink)">No live session</div>
+							<div style="font-size: 11.5px; color: var(--muted)">Tap the scan button below to start one.</div>
+						</div>
+						<div style="flex: none; height: 32px; padding: 0 13px; border-radius: 8px; background: #fff; border: 1px solid var(--line); display: flex; align-items: center; font-size: 11.5px; font-weight: 700; color: var(--ink)">Events</div>
+					</div>
+
+					<!-- A reason to open this page even when idle: this month's numbers, at a
+					     glance - pulled from the same real figures History already computes.
+					     Three compact tiles, not the full KpiCard - this is a teaser, not a copy
+					     of History's own dashboard. -->
+					<div>
+						<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px">
+							<span style="font-size: 11px; font-weight: 700; letter-spacing: 0.06em; color: var(--muted); text-transform: uppercase">This Month</span>
+							<span style="font-size: 11.5px; font-weight: 700; color: var(--brand)">Full history →</span>
+						</div>
+						<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px">
+							<div style="border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; text-align: center">
+								<div style="font-size: 17px; font-weight: 800; color: var(--brand)">87%</div>
+								<div style="margin-top: 1px; font-size: 9.5px; color: var(--muted)">Rate</div>
+							</div>
+							<div style="border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; text-align: center">
+								<div style="font-size: 17px; font-weight: 800; color: var(--ink)">12</div>
+								<div style="margin-top: 1px; font-size: 9.5px; color: var(--muted)">Events</div>
+							</div>
+							<div style="border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; text-align: center">
+								<div style="font-size: 17px; font-weight: 800; color: var(--ink)">34</div>
+								<div style="margin-top: 1px; font-size: 9.5px; color: var(--muted)">Avg.</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- Recent Sessions: taller rows, a visible chevron - a thumb target, not a
+					     dense desktop row shrunk down. -->
+					<div>
+						<div style="font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 8px">Recent Sessions</div>
+						<div style="border: 1px solid var(--line); border-radius: 14px; overflow: hidden">
+							<div style="display: flex; align-items: center; gap: 12px; padding: 14px; border-bottom: 1px solid var(--line)">
+								<div style="width: 3px; align-self: stretch; border-radius: 2px; background: var(--brand)"></div>
+								<div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 700; color: var(--ink)">Choir practice</div><div style="margin-top: 1px; font-size: 11.5px; color: var(--muted)">Nov 1 · 4% of 515</div></div>
+								<div style="font-size: 15px; font-weight: 800; color: var(--ink)">22</div>
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+							</div>
+							<div style="display: flex; align-items: center; gap: 12px; padding: 14px">
+								<div style="width: 3px; align-self: stretch; border-radius: 2px; background: var(--line)"></div>
+								<div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 700; color: var(--ink)">Church Choir Practice</div><div style="margin-top: 1px; font-size: 11.5px; color: var(--muted)">Nov 1 · Headcount only</div></div>
+								<div style="font-size: 15px; font-weight: 800; color: var(--ink)">4</div>
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2"><path d="M9 6l6 6-6 6"/></svg>
+							</div>
+						</div>
+					</div>
+
+					<!-- A real button, not a text link, closing out the screen with one more
+					     comfortable tap target rather than trailing off on a caption. -->
+					<div style="height: 44px; border-radius: 10px; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: var(--ink)">View Full History</div>
+				</div>
+
+				<div style="position: absolute; bottom: 0; left: 0; right: 0; height: 97px; background: oklch(1 0 0 / 0.88); border-top: 1px solid var(--line)"></div>
+				<div style="position: absolute; bottom: 56px; left: 50%; transform: translateX(-50%); width: 64px; height: 64px; border-radius: 999px; background: var(--brand); box-shadow: 0 0 0 4px var(--wash)"></div>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":760}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

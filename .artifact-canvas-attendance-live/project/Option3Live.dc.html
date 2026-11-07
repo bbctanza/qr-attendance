@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>3 - with a live session</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+				<style>
+					body { margin: 0; font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695); --muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831); --brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896); --success: oklch(0.6 0.15 142); }
+					.pr { display: flex; align-items: center; gap: 10px; padding: 8px 6px; }
+					.av { width: 30px; height: 30px; border-radius: 999px; background: var(--wash); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; flex: none; }
+					.row { display: flex; align-items: center; gap: 14px; padding: 13px 16px; border-bottom: 1px solid var(--line); }
+					.row:last-child { border-bottom: 0; }
+				</style>
+			</helmet>
+
+			<div style="width: 1080px; box-sizing: border-box; background: #fff; padding: 24px 28px; display: flex; flex-direction: column; gap: 20px">
+				<!-- Title bar keeps its one job (Open Scanner always reachable) even when live -
+				     it just doesn't need to say "Open" any more, it already is. -->
+				<div style="display: flex; align-items: center; justify-content: space-between">
+					<div style="font-size: 28px; font-weight: 800; color: var(--ink)">Attendance</div>
+					<div style="height: 40px; padding: 0 18px; border-radius: 10px; background: var(--brand); color: #fff; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700">
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+						Scanner
+					</div>
+				</div>
+
+				<!-- The slim strip becomes a live banner, same height class - status is always
+				     one row tall here, idle or live. -->
+				<div style="display: flex; align-items: center; gap: 16px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 12px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04)">
+					<span style="width: 8px; height: 8px; border-radius: 999px; background: var(--brand)"></span>
+					<div style="font-size: 13px; font-weight: 700; color: var(--ink)">Choir Practice is live</div>
+					<div style="font-size: 12px; color: var(--muted)">Main Hall</div>
+					<div style="margin-left: auto; font-size: 18px; font-weight: 800; color: var(--brand)">65%</div>
+					<div style="font-size: 12px; color: var(--muted)">26 / 40 checked in</div>
+				</div>
+
+				<div style="display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start">
+					<div>
+						<div style="font-size: 15px; font-weight: 800; color: var(--ink); margin-bottom: 8px">Recent Sessions <span style="font-weight: 500; color: var(--muted); font-size: 12px">(4 of 18 · View history)</span></div>
+						<div style="border: 1px solid var(--line); border-radius: 14px; overflow: hidden">
+							<div class="row"><div style="width:3px;align-self:stretch;border-radius:2px;background:var(--brand)"></div><div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">Choir practice</div><div style="font-size:11px;color:var(--muted)">Nov 1, 2026 · 4% of 515</div></div><div style="font-size:15px;font-weight:800;color:var(--ink)">22</div></div>
+							<div class="row"><div style="width:3px;align-self:stretch;border-radius:2px;background:var(--line)"></div><div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">Church Choir Practice</div><div style="font-size:11px;color:var(--muted)">Nov 1, 2026 · Headcount only</div></div><div style="font-size:15px;font-weight:800;color:var(--ink)">4</div></div>
+							<div class="row"><div style="width:3px;align-self:stretch;border-radius:2px;background:var(--brand)"></div><div style="min-width:0;flex:1"><div style="font-size:13px;font-weight:700;color:var(--ink)">Sunday Morning Worship</div><div style="font-size:11px;color:var(--muted)">Nov 1, 2026 · 15% of 515</div></div><div style="font-size:15px;font-weight:800;color:var(--ink)">78</div></div>
+						</div>
+					</div>
+
+					<div style="border: 1px solid var(--line); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.04); overflow: hidden">
+						<div style="padding: 13px 16px; border-bottom: 1px solid var(--line); font-size: 13px; font-weight: 700; color: var(--ink)">Recent Scans</div>
+						<div style="padding: 6px 10px">
+							<div class="pr"><div class="av">MR</div><div style="flex:1; min-width:0"><div style="font-size:12.5px; font-weight:600; color:var(--ink)">Maria Reyes</div></div><span style="font-size:10.5px; color:var(--muted)">6:14 PM</span></div>
+							<div class="pr"><div class="av">JD</div><div style="flex:1; min-width:0"><div style="font-size:12.5px; font-weight:600; color:var(--ink)">Juan Dela Cruz</div></div><span style="font-size:10.5px; color:var(--muted)">6:13 PM</span></div>
+							<div class="pr"><div class="av">AL</div><div style="flex:1; min-width:0"><div style="font-size:12.5px; font-weight:600; color:var(--ink)">Ana Lopez</div></div><span style="font-size:10.5px; color:var(--muted)">6:11 PM</span></div>
+						</div>
+					</div>
+				</div>
+
+				<p style="margin: 2px 0 0; font-size: 11.5px; color: var(--muted); line-height: 1.6">
+					The two-column split comes back once there's content worth splitting - Recent Sessions
+					(capped, linked out to full History) on the left, Recent Scans on the right. Scanner
+					never left the title bar; it just drops the word "Open" since you're already there.
+				</p>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1080,"height":620}}'>
+			class Component extends DCLogic { renderVals() { return {}; } }
+		</script>
+	</body>
+</html>

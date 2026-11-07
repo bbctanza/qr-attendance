@@ -1,6 +1,17 @@
 import { supabase } from '$lib/supabase';
 import type { AttendanceEvent, EventType, EventStatus } from '$lib/types';
 
+/**
+ * SQLSTATE the overlap triggers raise (exclusion_violation). Both the events trigger and
+ * the event_types trigger use it, so one check covers a clashing date and a clashing
+ * weekly schedule alike.
+ */
+export const OVERLAP_ERROR_CODE = '23P01';
+
+export function isOverlapError(error: unknown): boolean {
+	return (error as { code?: string } | null)?.code === OVERLAP_ERROR_CODE;
+}
+
 export const eventsApi = {
 	/**
 	 * Get all active event types for a specific day of the week.
@@ -26,6 +37,34 @@ export const eventsApi = {
 
 		if (error) throw error;
 		return data as AttendanceEvent[];
+	},
+
+	/**
+	 * The first active event clashing with this window, or null.
+	 *
+	 * The database refuses overlapping events outright, but finding the clash before
+	 * submitting lets the form say which event is in the way while the times are still on
+	 * screen, instead of surfacing a failed write afterwards. The trigger remains the thing
+	 * that actually enforces it - this is only the courtesy check.
+	 */
+	async findConflict(startIso: string, endIso: string, excludeEventId?: number) {
+		let query = supabase
+			.from('events')
+			.select('event_id, event_name, start_datetime, end_datetime')
+			.in('status', ['upcoming', 'ongoing'])
+			// Half-open, matching the trigger: touching boundaries are not a clash.
+			.lt('start_datetime', endIso)
+			.gt('end_datetime', startIso)
+			.order('start_datetime', { ascending: true })
+			.limit(1);
+
+		if (excludeEventId !== undefined) {
+			query = query.neq('event_id', excludeEventId);
+		}
+
+		const { data, error } = await query;
+		if (error) throw error;
+		return data?.[0] ?? null;
 	},
 
 	/**

@@ -286,6 +286,17 @@ CREATE INDEX idx_events_status ON events(status);
 CREATE INDEX idx_events_date_status ON events(event_date, status);
 CREATE INDEX idx_events_ongoing ON events(status) WHERE status = 'ongoing';
 
+-- Every attendance query filters on event_id alone. The UNIQUE (member_id, event_id)
+-- constraints on the two history tables lead with member_id, so they cannot serve it.
+CREATE INDEX idx_attendance_present_event_id ON attendance_present (event_id);
+CREATE INDEX idx_attendance_absent_event_id ON attendance_absent (event_id);
+CREATE INDEX idx_attendance_scans_event_id ON attendance_scans (event_id);
+CREATE INDEX idx_attendance_scans_event_time ON attendance_scans (event_id, scan_datetime DESC);
+CREATE INDEX idx_attendance_present_scan_datetime ON attendance_present (scan_datetime DESC);
+
+-- Supports per-group aggregation in get_group_attendance_summary().
+CREATE INDEX idx_members_group_id ON members (group_id);
+
 -- Table: attendance_scans (Temporary holding for real-time scanning)
 CREATE TABLE attendance_scans (
     scan_id TEXT PRIMARY KEY,
@@ -386,6 +397,213 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Function A2: Attendance summary for a date range (one row per completed event)
+--
+-- Without this both attendance pages counted in client loops: the history page fetched every
+-- completed event ever, then issued two roster queries per event, and discarded nearly all of
+-- it to render a single month.
+-- SECURITY DEFINER so the authorization check happens once here instead of as an RLS
+-- predicate re-evaluated against every attendance row scanned. get_user_role() is
+-- SECURITY DEFINER with a SET clause, so it can never be inlined and each call pays a
+-- GUC save/restore; letting the policies call it per row cost 26 seconds and 1.6 million
+-- buffer hits to return 35 rows. The check below reproduces those policies exactly - they
+-- grant history SELECT to developer, admin, staff and guest alike, i.e. any signed-in user
+-- with a profile - and the function returns only per-event counts, never identities.
+CREATE OR REPLACE FUNCTION get_attendance_summary(p_from DATE, p_to DATE)
+RETURNS TABLE (
+    event_id BIGINT,
+    event_name VARCHAR(255),
+    event_date DATE,
+    start_datetime TIMESTAMP,
+    end_datetime TIMESTAMP,
+    records_absents BOOLEAN,
+    present_count INTEGER,
+    absent_count INTEGER
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    -- Evaluated once for the whole statement, rather than once per attendance row.
+    WITH caller AS (
+        SELECT get_user_role() AS caller_role
+    ),
+    scoped AS (
+        SELECT
+            e.event_id,
+            e.event_name,
+            e.event_date,
+            e.start_datetime,
+            e.end_datetime,
+            -- Same expression as process_event_attendance(), so the page's idea of whether
+            -- an event tracks absences cannot drift from the processor that wrote the rows.
+            COALESCE((e.metadata->>'record_absents')::BOOLEAN, true) AS records_absents
+        FROM events e
+        WHERE (SELECT caller_role FROM caller) IS NOT NULL
+          AND e.status = 'completed'
+          AND e.event_date >= p_from
+          AND e.event_date <= p_to
+    )
+    SELECT
+        s.event_id,
+        s.event_name,
+        s.event_date,
+        s.start_datetime,
+        s.end_datetime,
+        s.records_absents,
+        -- Index lookups on this one event now that no policy predicate rides along.
+        (SELECT COUNT(*) FROM attendance_present ap WHERE ap.event_id = s.event_id)::INTEGER,
+        (SELECT COUNT(*) FROM attendance_absent aa WHERE aa.event_id = s.event_id)::INTEGER
+    FROM scoped s
+    ORDER BY s.event_date DESC, s.end_datetime DESC;
+$$;
+
+REVOKE ALL ON FUNCTION get_attendance_summary(DATE, DATE) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_attendance_summary(DATE, DATE) TO authenticated;
+
+-- Function A3: Per-group attendance for the analytics page
+--
+-- Same shape as get_attendance_summary above: SECURITY DEFINER with one authorization check
+-- evaluated in a CTE, rather than letting the RLS policies re-check get_user_role() against
+-- every scanned row. Internal columns are gid/cnt because the RETURNS TABLE output names are
+-- in scope inside the body and an unqualified reference to one would be ambiguous.
+CREATE OR REPLACE FUNCTION get_group_attendance_summary(
+    p_from DATE,
+    p_to DATE,
+    p_event_id BIGINT DEFAULT NULL
+)
+RETURNS TABLE (
+    group_id INTEGER,
+    group_name TEXT,
+    member_count INTEGER,
+    present_count INTEGER,
+    -- Number of completed events in scope. present_count counts a member once per event they
+    -- attended, so a rate needs members * event_count as its denominator, not members alone.
+    event_count INTEGER
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    WITH caller AS (
+        -- Evaluated once for the whole statement.
+        SELECT get_user_role() AS caller_role
+    ),
+    authorized AS (
+        SELECT (SELECT caller_role FROM caller) IS NOT NULL AS ok
+    ),
+    scoped_events AS (
+        -- A single event when asked for one, otherwise every completed event in range.
+        SELECT e.event_id AS eid
+        FROM events e
+        WHERE (SELECT ok FROM authorized)
+          AND e.status = 'completed'
+          AND (
+              (p_event_id IS NOT NULL AND e.event_id = p_event_id)
+              OR
+              (p_event_id IS NULL AND e.event_date >= p_from AND e.event_date <= p_to)
+          )
+    ),
+    members_per_group AS (
+        SELECT m.group_id AS gid, COUNT(*) AS cnt
+        FROM members m
+        WHERE (SELECT ok FROM authorized)
+        GROUP BY m.group_id
+    ),
+    present_per_group AS (
+        SELECT m.group_id AS gid, COUNT(*) AS cnt
+        FROM attendance_present ap
+        JOIN scoped_events se ON se.eid = ap.event_id
+        JOIN members m ON m.member_id = ap.member_id
+        WHERE (SELECT ok FROM authorized)
+        GROUP BY m.group_id
+    )
+    SELECT
+        g.group_id,
+        COALESCE(NULLIF(g.name, ''), g.group_code)::TEXT,
+        COALESCE(mg.cnt, 0)::INTEGER,
+        COALESCE(pg.cnt, 0)::INTEGER,
+        (SELECT COUNT(*) FROM scoped_events)::INTEGER
+    FROM groups g
+    LEFT JOIN members_per_group mg ON mg.gid = g.group_id
+    LEFT JOIN present_per_group pg ON pg.gid = g.group_id
+    WHERE (SELECT ok FROM authorized)
+
+    UNION ALL
+
+    -- Members belonging to no group would otherwise be invisible in a chart that claims to
+    -- cover the congregation. Only emitted when such members exist.
+    SELECT
+        NULL::INTEGER,
+        'No group'::TEXT,
+        COALESCE((SELECT cnt FROM members_per_group WHERE gid IS NULL), 0)::INTEGER,
+        COALESCE((SELECT cnt FROM present_per_group WHERE gid IS NULL), 0)::INTEGER,
+        (SELECT COUNT(*) FROM scoped_events)::INTEGER
+    WHERE (SELECT ok FROM authorized)
+      AND EXISTS (SELECT 1 FROM members_per_group WHERE gid IS NULL)
+
+    ORDER BY 2;
+$$;
+
+REVOKE ALL ON FUNCTION get_group_attendance_summary(DATE, DATE, BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_group_attendance_summary(DATE, DATE, BIGINT) TO authenticated;
+
+-- Function A4: Check-ins grouped by minute of day, for the analytics histogram
+--
+-- An aggregate rather than letting the client select raw scan_datetime rows: that was a
+-- direct table read, which goes through RLS - the path measured at 26 seconds in migration
+-- 009 - and shipped thousands of rows so the browser could count them. Timezone conversion
+-- belongs here too, since scan_datetime is a naive TIMESTAMP holding UTC.
+CREATE OR REPLACE FUNCTION get_check_in_distribution(
+    p_from DATE,
+    p_to DATE,
+    p_timezone TEXT DEFAULT 'UTC',
+    p_event_id BIGINT DEFAULT NULL
+)
+RETURNS TABLE (
+    hour INTEGER,
+    minute INTEGER,
+    check_ins INTEGER
+)
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
+    WITH caller AS (
+        SELECT get_user_role() AS caller_role
+    ),
+    authorized AS (
+        SELECT (SELECT caller_role FROM caller) IS NOT NULL AS ok
+    ),
+    scoped AS (
+        SELECT
+            -- Naive UTC -> timestamptz -> naive local wall clock.
+            (ap.scan_datetime AT TIME ZONE 'UTC') AT TIME ZONE p_timezone AS local_ts
+        FROM attendance_present ap
+        JOIN events e ON e.event_id = ap.event_id
+        WHERE (SELECT ok FROM authorized)
+          AND e.status = 'completed'
+          AND (
+              (p_event_id IS NOT NULL AND e.event_id = p_event_id)
+              OR
+              (p_event_id IS NULL AND e.event_date >= p_from AND e.event_date <= p_to)
+          )
+    )
+    SELECT
+        EXTRACT(HOUR FROM s.local_ts)::INTEGER,
+        EXTRACT(MINUTE FROM s.local_ts)::INTEGER,
+        COUNT(*)::INTEGER
+    FROM scoped s
+    GROUP BY 1, 2
+    ORDER BY 1, 2;
+$$;
+
+REVOKE ALL ON FUNCTION get_check_in_distribution(DATE, DATE, TEXT, BIGINT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION get_check_in_distribution(DATE, DATE, TEXT, BIGINT) TO authenticated;
+
 -- Function B: Auto Update Statuses (Supports Mock Time)
 CREATE OR REPLACE FUNCTION update_event_statuses(p_now TIMESTAMP DEFAULT NOW())
 RETURNS void AS $$
@@ -457,57 +675,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Function C: Generate Recursive Events
-CREATE OR REPLACE FUNCTION generate_recurring_events(
-    start_date DATE,
-    end_date DATE
-)
-RETURNS INTEGER AS $$
-DECLARE
-    current_d DATE;
-    dow INTEGER;
-    et RECORD;
-    events_created INTEGER := 0;
-    event_start TIMESTAMP;
-    event_end TIMESTAMP;
-BEGIN
-    current_d := start_date;
-
-    WHILE current_d <= end_date LOOP
-        dow := EXTRACT(DOW FROM current_d);
-
-        FOR et IN SELECT * FROM event_types WHERE is_active = TRUE AND day_of_week = dow LOOP
-            event_start := current_d + et.start_time;
-            event_end := current_d + et.end_time;
-            
-            -- Handle overnight events
-            IF et.end_time < et.start_time THEN
-                event_end := event_end + INTERVAL '1 day';
-            END IF;
-
-            -- Prevent duplicates
-            IF NOT EXISTS (
-                SELECT 1 FROM events 
-                WHERE event_type_id = et.event_type_id 
-                AND event_date = current_d
-            ) THEN
-                INSERT INTO events (
-                    event_type_id, event_name, event_date, 
-                    start_datetime, end_datetime, 
-                    status, is_custom, is_recurring, description, metadata
-                ) VALUES (
-                    et.event_type_id, et.name, current_d,
-                    event_start, event_end,
-                    'upcoming', FALSE, TRUE, 'Automatically generated from recurring schedule', et.metadata
-                );
-                events_created := events_created + 1;
-            END IF;
-        END LOOP;
-        current_d := current_d + 1;
-    END LOOP;
-
-    RETURN events_created;
-END;
-$$ LANGUAGE plpgsql;
+-- Defined with the overlap guards further down: it has to skip instances that would
+-- collide, so it belongs next to the rule it respects.
 
 -- Function D: Developer Tools - Clear History
 CREATE OR REPLACE FUNCTION clear_attendance_history(passcode TEXT DEFAULT NULL)
@@ -550,61 +719,225 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Function F: Prevent Simultaneous Non-Recurring Events
-CREATE OR REPLACE FUNCTION check_simultaneous_events()
+-- Function F: Prevent overlapping events
+--
+-- One symmetric rule at each layer. The previous version only checked when the incoming
+-- event was non-recurring, so recurring-vs-recurring collisions were never caught - and its
+-- recurring branch silently DELETED overlapping non-recurring events rather than refusing
+-- the write. A guard rail must never destroy the thing it is guarding.
+
+-- ---------------------------------------------------------------------------
+-- 1. events: no two active events may overlap
+-- ---------------------------------------------------------------------------
+
+CREATE OR REPLACE FUNCTION check_event_overlap()
 RETURNS TRIGGER AS $$
 DECLARE
-    conflict_count INTEGER;
-    recurring_count INTEGER;
+    conflict RECORD;
 BEGIN
-    -- Check if this is a non-recurring event
-    IF NEW.is_recurring = FALSE THEN
-        -- Check if any recurring event overlaps
-        SELECT COUNT(*) INTO recurring_count
-        FROM events
-        WHERE event_id != NEW.event_id
-        AND is_recurring = TRUE
-        AND status IN ('upcoming', 'ongoing')
-        AND (
-            (NEW.start_datetime < end_datetime AND NEW.end_datetime > start_datetime)
-        );
+    -- IS NOT DISTINCT FROM rather than =, so a NULL on either side compares as equal
+    -- instead of yielding NULL and falling through to the check.
+    IF TG_OP = 'UPDATE'
+       AND NEW.start_datetime IS NOT DISTINCT FROM OLD.start_datetime
+       AND NEW.end_datetime   IS NOT DISTINCT FROM OLD.end_datetime
+       AND NEW.status         IS NOT DISTINCT FROM OLD.status
+    THEN
+        -- Nothing that bears on overlap changed. Let cascades, renames and metadata edits
+        -- through untouched.
+        RETURN NEW;
+    END IF;
 
-        IF recurring_count > 0 THEN
-            RAISE EXCEPTION 'Cannot create non-recurring event during recurring event time';
-        END IF;
+    IF NEW.end_datetime <= NEW.start_datetime THEN
+        RAISE EXCEPTION 'Event must end after it starts (got % to %)',
+            NEW.start_datetime, NEW.end_datetime
+            USING ERRCODE = '22007',
+                  HINT = 'Check the start and end times.';
+    END IF;
 
-        -- Check if any other non-recurring event overlaps
-        SELECT COUNT(*) INTO conflict_count
-        FROM events
-        WHERE event_id != NEW.event_id
-        AND is_recurring = FALSE
-        AND status IN ('upcoming', 'ongoing')
-        AND (
-            (NEW.start_datetime < end_datetime AND NEW.end_datetime > start_datetime)
-        );
+    -- Only active events compete for the scanner's attention. Completed events are history
+    -- and must stay editable even where they already overlap.
+    IF NEW.status NOT IN ('upcoming', 'ongoing') THEN
+        RETURN NEW;
+    END IF;
 
-        IF conflict_count > 0 THEN
-            RAISE EXCEPTION 'Only one non-recurring event can be active at a time';
-        END IF;
-    ELSE
-        -- For recurring events, check if any non-recurring overlaps
-        DELETE FROM events
-        WHERE is_recurring = FALSE
-        AND status IN ('upcoming', 'ongoing')
-        AND (
-            (NEW.start_datetime < end_datetime AND NEW.end_datetime > start_datetime)
-        );
+    SELECT e.event_id, e.event_name, e.start_datetime, e.end_datetime
+      INTO conflict
+    FROM events e
+    WHERE e.event_id IS DISTINCT FROM NEW.event_id
+      AND e.status IN ('upcoming', 'ongoing')
+      -- Half-open comparison: one event ending exactly as another begins is not an overlap.
+      AND NEW.start_datetime < e.end_datetime
+      AND NEW.end_datetime > e.start_datetime
+    ORDER BY e.start_datetime
+    LIMIT 1;
+
+    IF FOUND THEN
+        RAISE EXCEPTION 'This event overlaps "%" (% to %)',
+            conflict.event_name,
+            to_char(conflict.start_datetime, 'Mon DD HH24:MI'),
+            to_char(conflict.end_datetime, 'Mon DD HH24:MI')
+            USING ERRCODE = '23P01',
+                  HINT = 'Two events cannot run at the same time. Move one of them first.';
     END IF;
 
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_check_simultaneous_events ON events;
-CREATE TRIGGER trigger_check_simultaneous_events
-BEFORE INSERT OR UPDATE ON events
-FOR EACH ROW
-EXECUTE FUNCTION check_simultaneous_events();
+CREATE TRIGGER trigger_check_event_overlap
+    BEFORE INSERT OR UPDATE ON events
+    FOR EACH ROW EXECUTE FUNCTION check_event_overlap();
+
+-- ---------------------------------------------------------------------------
+-- 2. event_types: no two active templates may overlap on the weekly clock
+-- ---------------------------------------------------------------------------
+
+-- A template occupies a span on a 7-day, 10080-minute clock. Expressing it as ranges is
+-- what makes an overnight schedule comparable to a daytime one: a Sunday 23:30-03:00 slot
+-- genuinely occupies late Sunday AND early Monday, and must collide with a Monday 02:00
+-- template. Returns two ranges when the span wraps past the end of the week.
+CREATE OR REPLACE FUNCTION event_type_week_ranges(p_dow INTEGER, p_start TIME, p_end TIME)
+RETURNS SETOF int4range
+LANGUAGE sql
+IMMUTABLE
+AS $$
+    WITH bounds AS (
+        SELECT
+            p_dow * 1440 + (EXTRACT(EPOCH FROM p_start) / 60)::INT AS s,
+            p_dow * 1440 + (EXTRACT(EPOCH FROM p_end) / 60)::INT
+                -- end <= start means the schedule runs past midnight into the next day.
+                + CASE WHEN p_end <= p_start THEN 1440 ELSE 0 END AS e
+    )
+    SELECT int4range(s, LEAST(e, 10080)) FROM bounds
+    UNION ALL
+    SELECT int4range(0, e - 10080) FROM bounds WHERE e > 10080;
+$$;
+
+CREATE OR REPLACE FUNCTION check_event_type_overlap()
+RETURNS TRIGGER AS $$
+DECLARE
+    conflict RECORD;
+BEGIN
+    IF TG_OP = 'UPDATE'
+       AND NEW.day_of_week IS NOT DISTINCT FROM OLD.day_of_week
+       AND NEW.start_time  IS NOT DISTINCT FROM OLD.start_time
+       AND NEW.end_time    IS NOT DISTINCT FROM OLD.end_time
+       AND NEW.is_active   IS NOT DISTINCT FROM OLD.is_active
+    THEN
+        RETURN NEW;
+    END IF;
+
+    -- Deactivated templates generate nothing, so they cannot collide with anything.
+    IF NEW.is_active IS NOT TRUE THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT et.event_type_id, et.name, et.day_of_week, et.start_time, et.end_time
+      INTO conflict
+    FROM event_types et
+    WHERE et.event_type_id IS DISTINCT FROM NEW.event_type_id
+      AND et.is_active IS TRUE
+      AND EXISTS (
+          SELECT 1
+          FROM event_type_week_ranges(NEW.day_of_week, NEW.start_time, NEW.end_time) AS nr,
+               event_type_week_ranges(et.day_of_week, et.start_time, et.end_time) AS er
+          WHERE nr && er
+      )
+    LIMIT 1;
+
+    IF FOUND THEN
+        RAISE EXCEPTION 'This schedule overlaps "%" (% %-%)',
+            conflict.name,
+            to_char(DATE '2024-01-07' + conflict.day_of_week, 'Dy'),
+            to_char(conflict.start_time, 'HH24:MI'),
+            to_char(conflict.end_time, 'HH24:MI')
+            USING ERRCODE = '23P01',
+                  HINT = 'Two recurring schedules cannot run at the same time. Change the time, the day, or deactivate the other schedule.';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trigger_check_event_type_overlap ON event_types;
+CREATE TRIGGER trigger_check_event_type_overlap
+    BEFORE INSERT OR UPDATE ON event_types
+    FOR EACH ROW EXECUTE FUNCTION check_event_type_overlap();
+
+-- ---------------------------------------------------------------------------
+-- 3. generate_recurring_events(): skip collisions instead of failing the run
+-- ---------------------------------------------------------------------------
+
+-- The trigger above would otherwise abort the whole generation run on the first collision,
+-- which would stop the nightly job producing any events at all. Skipping the colliding
+-- instance and carrying on keeps one bad schedule from taking down the calendar.
+CREATE OR REPLACE FUNCTION generate_recurring_events(start_date DATE, end_date DATE)
+RETURNS INTEGER AS $$
+DECLARE
+    current_d       DATE;
+    dow             INTEGER;
+    et              RECORD;
+    events_created  INTEGER := 0;
+    events_skipped  INTEGER := 0;
+    event_start     TIMESTAMP;
+    event_end       TIMESTAMP;
+BEGIN
+    current_d := start_date;
+
+    WHILE current_d <= end_date LOOP
+        dow := EXTRACT(DOW FROM current_d);
+
+        FOR et IN SELECT * FROM event_types WHERE is_active = TRUE AND day_of_week = dow LOOP
+            event_start := current_d + et.start_time;
+            event_end := current_d + et.end_time;
+
+            IF et.end_time <= et.start_time THEN
+                event_end := event_end + INTERVAL '1 day';
+            END IF;
+
+            -- Already generated for this template and date.
+            IF EXISTS (
+                SELECT 1 FROM events
+                WHERE event_type_id = et.event_type_id AND event_date = current_d
+            ) THEN
+                CONTINUE;
+            END IF;
+
+            -- Would collide with something already on the calendar.
+            IF EXISTS (
+                SELECT 1 FROM events x
+                WHERE x.status IN ('upcoming', 'ongoing')
+                  AND event_start < x.end_datetime
+                  AND event_end > x.start_datetime
+            ) THEN
+                events_skipped := events_skipped + 1;
+                CONTINUE;
+            END IF;
+
+            INSERT INTO events (
+                event_type_id, event_name, event_date,
+                start_datetime, end_datetime,
+                status, is_custom, is_recurring, description, metadata
+            ) VALUES (
+                et.event_type_id, et.name, current_d,
+                event_start, event_end,
+                'upcoming', FALSE, TRUE,
+                'Automatically generated from recurring schedule', et.metadata
+            );
+            events_created := events_created + 1;
+        END LOOP;
+
+        current_d := current_d + 1;
+    END LOOP;
+
+    IF events_skipped > 0 THEN
+        RAISE NOTICE '% recurring event(s) skipped because they would overlap an existing event', events_skipped;
+    END IF;
+
+    RETURN events_created;
+END;
+$$ LANGUAGE plpgsql;
+
 
 
 -- ============================================
@@ -625,10 +958,18 @@ ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_sessions ENABLE ROW LEVEL SECURITY;
 
 -- Helper Function
+-- STABLE is load-bearing, not decoration. Without it this defaults to VOLATILE, and every
+-- RLS policy below that calls it re-executes the lookup once PER ROW SCANNED - which was
+-- enough to hit the statement timeout on any aggregate over the attendance history.
 CREATE OR REPLACE FUNCTION get_user_role()
-RETURNS user_role AS $$
+RETURNS user_role
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $$
     SELECT role FROM profiles WHERE id = auth.uid();
-$$ LANGUAGE sql SECURITY DEFINER SET search_path = public;
+$$;
 
 -- is_admin(): the authorization predicate, in one place. SECURITY DEFINER so policies on
 -- profiles can call it without recursing through profiles' own RLS.
@@ -710,6 +1051,20 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
     WHEN undefined_object THEN
         RAISE NOTICE 'supabase_realtime publication not found; enable Realtime for user_sessions in the dashboard';
+END $$;
+
+-- Publish attendance_scans so the live session view updates as people check in, rather than
+-- showing whatever the count was when the page loaded.
+-- REPLICA IDENTITY FULL so DELETE payloads carry event_id, which is what the client filters on.
+ALTER TABLE attendance_scans REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE attendance_scans;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN
+        RAISE NOTICE 'supabase_realtime publication not found; enable Realtime for attendance_scans in the dashboard';
 END $$;
 
 -- 7. STORAGE POLICIES
