@@ -20,6 +20,7 @@
 	import { onMount } from 'svelte';
 	import { loadSettings, systemSettings } from '$lib/stores/settings';
 	import { devTools } from '$lib/stores/dev';
+	import { kioskMode } from '$lib/stores/kiosk';
 	import { supabase } from '$lib/supabase';
 	import { goto } from '$app/navigation';
 	import { touchSession } from '$lib/utils/sessions';
@@ -49,6 +50,7 @@
 
 		(async () => {
 			devTools.init();
+			kioskMode.init();
 
 			// Run settings and session checks in parallel
 			const [_, authRes] = await Promise.all([loadSettings(), supabase.auth.getSession()]);
@@ -110,8 +112,20 @@
 			!$page.url.pathname.startsWith('/welcome') &&
 			!$page.url.pathname.startsWith('/check-in/') &&
 			!$page.url.pathname.startsWith('/display/') &&
+			// A kiosk device has no one to navigate it - sidebar, breadcrumb and bottom nav
+			// would just be more surface area for whoever's standing at it to tap into.
+			!$kioskMode.enabled &&
 			browser
 	);
+
+	// Kiosk boots straight into the scanner, every time - a page reload (the normal way a
+	// kiosk laptop recovers from being left on overnight) must land back on /scan, not
+	// wherever the tab happened to be when it last closed.
+	$effect(() => {
+		if ($kioskMode.enabled && browser && $page.url.pathname !== '/scan') {
+			goto('/scan', { replaceState: true });
+		}
+	});
 
 	// Force light mode for check-in and display routes
 	$effect(() => {

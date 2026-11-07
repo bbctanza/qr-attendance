@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Kiosk - exit, elevation required</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link
+					href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+					rel="stylesheet"
+				/>
+				<style>
+					body {
+						margin: 0;
+						font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695);
+						--muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831);
+						--brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896);
+					}
+				</style>
+			</helmet>
+
+			<div
+				style="position: relative; width: 1366px; height: 768px; box-sizing: border-box; background: linear-gradient(180deg, #fff 0%, var(--wash) 100%); display: flex; align-items: center; justify-content: center; overflow: hidden"
+			>
+				<!-- The kiosk screen, dimmed behind the dialog - same countdown as Countdown.dc.html,
+				     just backgrounded, so it is clear this is a dialog ON the kiosk, not a
+				     different screen. -->
+				<div style="position: absolute; inset: 0; opacity: 0.25; filter: blur(1px); pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center">
+					<div style="font-size: 44px; font-weight: 800; color: var(--ink)">Sunday Morning Worship</div>
+					<div style="margin-top: 32px; font-size: 56px; font-weight: 900; color: var(--brand)">02:17:35</div>
+				</div>
+				<div style="position: absolute; inset: 0; background: oklch(0.129 0.042 264.695 / 0.35)"></div>
+
+				<!-- The real dialog: AlertDialog.Content as it already renders, corner X included
+				     (the primitive fix from earlier this session), nothing kiosk-specific about
+				     its chrome - this reuses the exact elevation flow Access already has. -->
+				<div style="position: relative; width: 420px; background: #fff; border-radius: 14px; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,0.25); padding: 28px">
+					<button
+						type="button"
+						style="position: absolute; top: 16px; right: 16px; width: 26px; height: 26px; border: none; background: transparent; color: var(--muted); border-radius: 6px; display: flex; align-items: center; justify-content: center"
+					>
+						<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+					</button>
+
+					<div style="width: 44px; height: 44px; border-radius: 12px; background: var(--wash); display: flex; align-items: center; justify-content: center">
+						<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--ink)" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+					</div>
+					<div style="margin-top: 16px; font-size: 17px; font-weight: 800; color: var(--ink)">Exit kiosk mode?</div>
+					<div style="margin-top: 6px; font-size: 13px; color: var(--muted); line-height: 1.5">
+						Confirm the account password to leave kiosk mode and return to normal navigation
+						on this device.
+					</div>
+
+					<div style="margin-top: 18px">
+						<label style="font-size: 12px; font-weight: 600; color: var(--ink)">Password</label>
+						<div style="margin-top: 6px; height: 40px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; padding: 0 12px; color: var(--muted); font-size: 13px">
+							••••••••••••
+						</div>
+					</div>
+
+					<div style="margin-top: 20px; display: flex; gap: 10px">
+						<div style="flex: 1; height: 38px; border: 1px solid var(--line); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; color: var(--ink)">Cancel</div>
+						<div style="flex: 1; height: 38px; border-radius: 8px; background: var(--brand); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff">Exit Kiosk Mode</div>
+					</div>
+				</div>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1366,"height":768}}'>
+			class Component extends DCLogic {
+				renderVals() {
+					return {};
+				}
+			}
+		</script>
+	</body>
+</html>

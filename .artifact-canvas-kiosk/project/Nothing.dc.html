@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Kiosk - nothing scheduled</title>
+		<script src="./support.js"></script>
+	</head>
+	<body>
+		<x-dc>
+			<helmet>
+				<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+				<link
+					href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
+					rel="stylesheet"
+				/>
+				<style>
+					body {
+						margin: 0;
+						font-family: Inter, system-ui, sans-serif;
+						--ink: oklch(0.129 0.042 264.695);
+						--muted: oklch(0.554 0.046 257.417);
+						--line: oklch(84.651% 0.01125 256.831);
+						--brand: oklch(51.096% 0.17385 142.511);
+						--wash: oklch(0.968 0.007 247.896);
+					}
+					@keyframes pulse {
+						0%,
+						100% {
+							opacity: 1;
+						}
+						50% {
+							opacity: 0.35;
+						}
+					}
+					.dot {
+						animation: pulse 2s ease-in-out infinite;
+					}
+					.num {
+						font-variant-numeric: tabular-nums;
+					}
+				</style>
+			</helmet>
+
+			<div
+				style="position: relative; width: 1366px; height: 768px; box-sizing: border-box; background: linear-gradient(180deg, #fff 0%, var(--wash) 100%); display: flex; flex-direction: column; align-items: center; justify-content: center; overflow: hidden"
+			>
+				<div
+					style="position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: space-between; padding: 28px 40px"
+				>
+					<div style="display: flex; align-items: center; gap: 10px">
+						<div
+							style="width: 34px; height: 34px; border-radius: 9px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px"
+						>
+							QR
+						</div>
+						<div>
+							<div style="font-size: 13px; font-weight: 700; color: var(--ink)">
+								Bible Baptist Church Tanza
+							</div>
+							<div style="font-size: 11px; color: var(--muted)">Attendance kiosk</div>
+						</div>
+					</div>
+
+					<div style="display: flex; align-items: center; gap: 22px">
+						<div style="display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted)">
+							<span class="dot" style="width: 7px; height: 7px; border-radius: 999px; background: var(--brand)"></span>
+							Listening for the next event
+						</div>
+						<div class="num" style="font-size: 15px; font-weight: 700; color: var(--ink)">6:42 PM</div>
+					</div>
+				</div>
+
+				<!-- No countdown to show, so no empty tiles pretending otherwise - this is a
+				     genuinely different message, not the same screen with zeroes in it. -->
+				<div style="text-align: center; max-width: 620px">
+					<div
+						style="width: 72px; height: 72px; margin: 0 auto; border-radius: 20px; background: #fff; border: 1px solid var(--line); display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.04)"
+					>
+						<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="1.5"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+					</div>
+					<div style="margin-top: 24px; font-size: 32px; font-weight: 800; color: var(--ink)">
+						Nothing scheduled right now
+					</div>
+					<div style="margin-top: 10px; font-size: 15px; color: var(--muted); line-height: 1.6">
+						The kiosk keeps watching - as soon as an event is scheduled and its start time
+						arrives, this screen updates on its own.
+					</div>
+				</div>
+
+				<button
+					type="button"
+					style="position: absolute; bottom: 24px; right: 28px; display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 8px; border: none; background: transparent; color: var(--muted); font-size: 11.5px; cursor: pointer"
+				>
+					<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18"/></svg>
+					Exit kiosk
+				</button>
+			</div>
+		</x-dc>
+
+		<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1366,"height":768}}'>
+			class Component extends DCLogic {
+				renderVals() {
+					return {};
+				}
+			}
+		</script>
+	</body>
+</html>

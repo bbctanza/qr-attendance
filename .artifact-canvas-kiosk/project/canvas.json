@@ -1,0 +1,36 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-11-08T00:00:00Z" },
+  "title": "Kiosk mode standby screen",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Countdown.dc.html": { "x": 0, "y": 0, "w": 1366, "h": 768, "title": "Counting down to the next event" },
+    "Nothing.dc.html": { "x": 1500, "y": 0, "w": 1366, "h": 768, "title": "Nothing scheduled" },
+    "Exit.dc.html": { "x": 3000, "y": 0, "w": 1366, "h": 768, "title": "Exit - elevation required" }
+  },
+  "order": ["Countdown.dc.html", "Nothing.dc.html", "Exit.dc.html"],
+  "notes": {
+    "title": {
+      "x": 0, "y": -160, "w": 240, "kind": "title1", "maxW": 2200,
+      "text": "Kiosk mode - the standby screen"
+    },
+    "howto": {
+      "x": 0, "y": -80, "w": 1200, "fill": "gray",
+      "text": "Laptop-landscape (1366x768), not a phone layout - this runs on the deployed laptop, chrome-free (sidebar/nav already hidden by showSidebar). Three states: counting down to a scheduled event, nothing scheduled at all, and the exit dialog. The real scanner UI already exists and isn't redesigned here - this screen only covers the moment before it."
+    },
+    "design": {
+      "x": 0, "y": 820, "w": 1366, "fill": "gray",
+      "text": "WHY IT LOOKS LIKE THIS\n\nFour big tiles for the countdown, not a sentence of text - readable from across the room, which a kiosk needs to be. Each unit is labelled (HOURS/MINUTES/SECONDS) so the numbers are never ambiguous at a glance.\n\nThe top bar is the only chrome this screen has - org name + a pulsing 'Listening' dot + a live clock, so a passerby can tell at a glance the system is alive and not frozen, without any navigation inviting them to tap around.\n\nExit kiosk is a quiet corner link, not a button - it should never be the most visually prominent thing on the screen. It opens the real AlertDialog.Content (corner X included, same primitive fixed earlier this session) requiring the account password - no shortcut around that."
+    },
+    "nothingNote": {
+      "x": 1500, "y": 820, "w": 1366, "fill": "blue",
+      "text": "Deliberately a different message, not the countdown screen with zeroes in it - 'Nothing scheduled right now' plus a line confirming the kiosk is still watching and will update on its own. A countdown showing 00:00:00 would read as broken; this reads as calm and correct."
+    },
+    "exitNote": {
+      "x": 3000, "y": 820, "w": 1366, "fill": "orange",
+      "text": "The kiosk screen dims behind the dialog rather than navigating away first - makes clear this is a confirmation ON the kiosk, not a different screen or a route change. Cancel returns straight to the live countdown/scanner with nothing changed."
+    }
+  },
+  "designSystems": []
+}

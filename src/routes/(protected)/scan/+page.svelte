@@ -78,8 +78,12 @@
 	};
 	import { systemSettings } from '$lib/stores/settings';
 	import UsbScannerGuide from '$lib/components/usb-scanner-guide.svelte';
-	import { formatLocalTime, formatTimeRange, formatTimeSync } from '$lib/utils/time';
+	import { ensureUTC, formatLocalTime, formatTimeRange, formatTimeSync } from '$lib/utils/time';
 	import { getErrorMessage, getErrorTitle } from '$lib/utils';
+	import { kioskMode } from '$lib/stores/kiosk';
+	import { ensureElevated } from '$lib/stores/elevation';
+	import ElevationDialog from '$lib/components/elevation-dialog.svelte';
+	import { LogOut, Calendar } from '@lucide/svelte';
 
 	// Tooltip state
 	let sidebar: any;
@@ -110,6 +114,88 @@
 	let isScanning = $state(false); // Controls camera UI visibility
 	let activeEvent = $state<AttendanceEvent | null>(null);
 	let isLoading = $state(true);
+
+	// -----------------------------------------------------------------------
+	// Kiosk standby
+	//
+	// Shown only when kiosk mode is on AND nothing is currently ongoing - the moment the
+	// existing 30s loadActiveEvent() poll (below) finds an ongoing event, activeEvent stops
+	// being null and this whole section simply stops rendering; the real scanner underneath
+	// was there the entire time, never rebuilt or re-mounted for the transition.
+	// -----------------------------------------------------------------------
+
+	/** The event the standby screen counts down to - null once nothing is upcoming either. */
+	let nextEvent = $state<AttendanceEvent | null>(null);
+
+	/** Ticks every second so the countdown and clock move without re-querying the database. */
+	let kioskNow = $state(new Date());
+
+	let kioskCountdown = $derived.by(() => {
+		if (!nextEvent) return null;
+		// Database timestamps have no timezone marker but represent UTC - ensureUTC is what
+		// every other correct reading of start_datetime in this app already goes through
+		// (formatLocalTime does this internally). Skipping it here read a 7:30 AM local
+		// event as 11:30 PM - Manila is UTC+8, so the raw string parsed as local time instead
+		// of UTC lands 8 hours off, in the direction that pushes morning into the previous
+		// night.
+		const ms = new Date(ensureUTC(nextEvent.start_datetime)).getTime() - kioskNow.getTime();
+		if (ms <= 0) return null;
+		const totalSeconds = Math.floor(ms / 1000);
+		return {
+			hours: Math.floor(totalSeconds / 3600),
+			minutes: Math.floor((totalSeconds % 3600) / 60),
+			seconds: totalSeconds % 60
+		};
+	});
+
+	/** nextEvent exists but its start time has already passed - distinct from "nothing
+	 *  scheduled" (nextEvent is null) and distinct from an active countdown. A frozen
+	 *  00:00:00 reads as broken, the same reasoning that already ruled out showing it for
+	 *  "nothing scheduled". This also covers an event stuck on `upcoming` past its start
+	 *  time (the automation engine's status job hasn't caught up yet) - the same case, not
+	 *  a different one, from what this screen can tell. */
+	let kioskEventOverdue = $derived(nextEvent !== null && kioskCountdown === null);
+
+	const pad2 = (n: number) => String(n).padStart(2, '0');
+
+	// Once an overdue event is first observed, re-check for it going ongoing sooner than the
+	// routine 30s poll would - a kiosk sitting at "should be live by now" for up to 30
+	// extra seconds is the exact moment someone glances over expecting it to have started.
+	let overdueRecheckedFor: string | number | null = null;
+	$effect(() => {
+		if (kioskEventOverdue && nextEvent && overdueRecheckedFor !== nextEvent.event_id) {
+			overdueRecheckedFor = nextEvent.event_id;
+			void loadActiveEvent(true);
+		}
+	});
+
+	/** Mirrors loadActiveEvent's own ongoing-vs-none logic rather than sharing state with it:
+	 *  the two queries ask different questions (is anything running vs what's coming next) and
+	 *  failure in one should not take down the other - the same reasoning the live /attendance
+	 *  page already applies between its live session and its Recent Sessions list. */
+	async function loadNextEvent() {
+		try {
+			const upcoming = await attendanceApi.getUpcomingEvents();
+			nextEvent = upcoming[0] ?? null;
+		} catch (e) {
+			console.error('Failed to load next event for kiosk standby:', e);
+			// Left as whatever it last was - a stale countdown is a better kiosk-screen failure
+			// mode than one that silently reverts to "nothing scheduled" on a network blip.
+		}
+	}
+
+	/** Gated by elevation, same as every other sensitive action - the kiosk screen is meant
+	 *  to be touched by anyone at the table, so leaving it must cost a password. */
+	async function exitKioskMode() {
+		const granted = await ensureElevated({
+			title: 'Exit kiosk mode?',
+			description:
+				"Confirm the account password to leave kiosk mode and return to normal navigation on this device."
+		});
+		if (!granted) return;
+		kioskMode.setEnabled(false);
+		toast.success('Kiosk mode off');
+	}
 
 	// Camera State
 	let scanner: Html5Qrcode | null = null;
@@ -216,8 +302,18 @@
 
 		// Poll for event updates every 30 seconds
 		const interval = setInterval(() => loadActiveEvent(true), 30000);
+
+		// Kiosk standby: the next-event query only needs the same 30s cadence as everything
+		// else, but the countdown itself has to move every second without a round trip, so
+		// it ticks a local clock instead.
+		loadNextEvent();
+		const nextEventInterval = setInterval(loadNextEvent, 30000);
+		const clockInterval = setInterval(() => (kioskNow = new Date()), 1000);
+
 		return () => {
 			clearInterval(interval);
+			clearInterval(nextEventInterval);
+			clearInterval(clockInterval);
 			stopUsbScanner?.();
 			// Drops any pending scans and clears the result-hold timer.
 			scanQueue.destroy();
@@ -1756,6 +1852,153 @@
 		{rejection}
 		onDismiss={dismissOverlay}
 	/>
+{/if}
+
+{#if $kioskMode.enabled}
+	{#if !activeEvent}
+		<!--
+			Kiosk standby. Only while nothing is ongoing - the moment loadActiveEvent's 30s
+			poll (above) finds an event, activeEvent stops being null and this whole block
+			stops rendering on its own; the real scanner underneath was mounted the entire
+			time and needs no transition of its own to take over.
+
+			z-[200]: above the fullscreen scanner's z-[100] and the guide tooltip, so if
+			somehow both are true at once this still wins - standby should never be hidden
+			behind a stale fullscreen scanner view.
+		-->
+		<div
+			class="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-background to-muted"
+		>
+			<div class="absolute inset-x-0 top-0 flex items-center justify-between px-10 py-7">
+				<div class="flex items-center gap-2.5">
+					<div
+						class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-primary text-[14px] font-extrabold text-primary-foreground"
+					>
+						QR
+					</div>
+					<div>
+						<div class="text-[13px] font-bold">{$systemSettings.siteName || siteConfig.name}</div>
+						<div class="text-[11px] text-muted-foreground">Attendance kiosk</div>
+					</div>
+				</div>
+				<div class="flex items-center gap-5">
+					<div class="flex items-center gap-1.5 text-xs text-muted-foreground">
+						<span class="h-[7px] w-[7px] animate-pulse rounded-full bg-primary"></span>
+						Listening for the next event
+					</div>
+					<div class="text-sm font-bold tabular-nums">{formatTimeSync(kioskNow)}</div>
+				</div>
+			</div>
+
+			{#if nextEvent && kioskCountdown}
+				<div class="max-w-[820px] text-center">
+					<div class="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
+						Up next
+					</div>
+					<div class="mt-2.5 text-5xl font-extrabold tracking-tight text-foreground">
+						{nextEvent.event_name}
+					</div>
+					<div class="mt-2 text-lg text-muted-foreground">
+						{formatTimeSync(new Date(ensureUTC(nextEvent.start_datetime)))}
+					</div>
+
+					<div class="mt-12 flex items-center justify-center gap-4">
+						<div class="min-w-[108px]">
+							<div class="text-6xl font-black text-primary tabular-nums">
+								{pad2(kioskCountdown.hours)}
+							</div>
+							<div
+								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
+							>
+								Hours
+							</div>
+						</div>
+						<div class="-mt-4 text-4xl font-light text-border">:</div>
+						<div class="min-w-[108px]">
+							<div class="text-6xl font-black text-primary tabular-nums">
+								{pad2(kioskCountdown.minutes)}
+							</div>
+							<div
+								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
+							>
+								Minutes
+							</div>
+						</div>
+						<div class="-mt-4 text-4xl font-light text-border">:</div>
+						<div class="min-w-[108px]">
+							<div class="text-6xl font-black text-primary tabular-nums">
+								{pad2(kioskCountdown.seconds)}
+							</div>
+							<div
+								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
+							>
+								Seconds
+							</div>
+						</div>
+					</div>
+
+					<div class="mt-9 text-sm text-muted-foreground">
+						Scanning opens automatically the moment the event goes live - nothing to tap.
+					</div>
+				</div>
+			{:else if nextEvent && kioskEventOverdue}
+				<!-- The countdown's third state, not its last tick: 00:00:00 would sit there
+				     forever if the event's status hasn't flipped to ongoing yet, and reads as
+				     the kiosk having frozen rather than as "any second now." -->
+				<div class="max-w-[620px] text-center">
+					<div class="flex items-center justify-center gap-2.5">
+						<span class="h-2.5 w-2.5 animate-pulse rounded-full bg-primary"></span>
+						<span class="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+							Starting now
+						</span>
+					</div>
+					<div class="mt-3 text-5xl font-extrabold tracking-tight text-foreground">
+						{nextEvent.event_name}
+					</div>
+					<div class="mt-3 text-sm text-muted-foreground">
+						Waiting on the scanner to pick it up - this takes a moment, not a tap.
+					</div>
+				</div>
+			{:else}
+				<!-- Genuinely different copy, not the countdown with zeroes in it - a 00:00:00
+				     reads as broken, not as "nothing is scheduled." -->
+				<div class="max-w-[620px] text-center">
+					<div
+						class="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border bg-card shadow-xs"
+					>
+						<Calendar class="h-8 w-8 text-muted-foreground" />
+					</div>
+					<div class="mt-6 text-[32px] font-extrabold">Nothing scheduled right now</div>
+					<div class="mt-2.5 text-[15px] leading-relaxed text-muted-foreground">
+						The kiosk keeps watching - as soon as an event is scheduled and its start time
+						arrives, this screen updates on its own.
+					</div>
+				</div>
+			{/if}
+
+			<button
+				type="button"
+				class="absolute right-7 bottom-6 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+				onclick={exitKioskMode}
+			>
+				<LogOut class="h-3.5 w-3.5" />
+				Exit kiosk
+			</button>
+		</div>
+	{:else}
+		<!-- Scanning is live: the real UI renders underneath, untouched. Only the exit
+		     affordance persists on top of it, same corner, same gate. -->
+		<button
+			type="button"
+			class="fixed right-7 bottom-6 z-[200] flex items-center gap-1.5 rounded-lg bg-background/80 px-3 py-1.5 text-[11.5px] text-muted-foreground shadow-xs backdrop-blur transition-colors hover:text-foreground"
+			onclick={exitKioskMode}
+		>
+			<LogOut class="h-3.5 w-3.5" />
+			Exit kiosk
+		</button>
+	{/if}
+
+	<ElevationDialog />
 {/if}
 
 <style>

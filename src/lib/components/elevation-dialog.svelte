@@ -3,13 +3,12 @@
 	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { ShieldCheck, Eye, EyeOff, Loader2, AlertCircle } from '@lucide/svelte';
-	import { Turnstile } from 'svelte-turnstile';
-	import { PUBLIC_TURNSTILE_SITE_KEY } from '$env/static/public';
 	import { accessApi } from '$lib/api/access';
-	import { elevationPromptOpen, settleElevationPrompt } from '$lib/stores/elevation';
+	import { elevationPromptOpen, elevationReason, settleElevationPrompt } from '$lib/stores/elevation';
 
 	/**
-	 * The one place a password is asked for while managing access.
+	 * The one place a password is asked for while confirming something sensitive - access
+	 * changes, leaving kiosk mode, and whatever else calls ensureElevated() next.
 	 *
 	 * Confirming here mints a ten-minute elevation, so an admin working through a batch of
 	 * changes types their password once rather than once per change.
@@ -20,20 +19,18 @@
 	 * trap, and the underlying one sets pointer-events:none on <body>, which is why this
 	 * overlay re-enables them explicitly. Escape and the backdrop both cancel.
 	 *
-	 * The CAPTCHA is opportunistic - attached when the widget resolves, omitted when it
-	 * does not. Supabase only requires one if the project enforces CAPTCHA on password
-	 * grants, and a widget that fails to load must not block administering the system.
+	 * No CAPTCHA here (removed - it was shipping with Cloudflare's published TEST site key,
+	 * which has no verification value and shows its own "For testing only" banner). If the
+	 * Supabase project has CAPTCHA enforcement turned on for password grants, this form will
+	 * start failing server-side rather than silently - that setting, not this component, is
+	 * where that trade-off actually gets made.
 	 */
 
 	let password = $state('');
 	let showPassword = $state(false);
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
-	let captchaToken = $state<string | undefined>(undefined);
-	let resetCaptcha = $state<(() => void) | undefined>(undefined);
 	let passwordInput = $state<HTMLInputElement | null>(null);
-
-	const captchaEnabled = !!PUBLIC_TURNSTILE_SITE_KEY;
 
 	// Focus the field whenever the prompt opens, so confirming is pure typing.
 	$effect(() => {
@@ -45,8 +42,6 @@
 		showPassword = false;
 		errorMessage = '';
 		isSubmitting = false;
-		captchaToken = undefined;
-		resetCaptcha?.();
 	}
 
 	async function confirm() {
@@ -55,15 +50,12 @@
 		errorMessage = '';
 
 		try {
-			await accessApi.verifyIdentity(password, captchaToken);
+			await accessApi.verifyIdentity(password);
 			reset();
 			settleElevationPrompt(true);
 		} catch (e) {
 			errorMessage = e instanceof Error ? e.message : 'Could not confirm your identity.';
 			password = '';
-			// Turnstile tokens are single-use; retrying with a spent one fails for the wrong reason.
-			captchaToken = undefined;
-			resetCaptcha?.();
 			passwordInput?.focus();
 		} finally {
 			isSubmitting = false;
@@ -89,9 +81,13 @@
 <svelte:window on:keydown={onKeydown} />
 
 {#if $elevationPromptOpen}
-	<!-- Above bits-ui's z-50 so it layers over whichever confirmation triggered it. -->
+	<!-- Above bits-ui's z-50 so it layers over whichever confirmation triggered it, and above
+	     the kiosk standby screen's z-[200] (/scan) - this is meant to be the topmost thing on
+	     screen no matter what asked for it, not just topmost among ordinary dialogs. It was
+	     z-[60] until the kiosk's "Exit kiosk" button opened this from behind an opaque
+	     full-screen overlay: the prompt was firing correctly, just invisible and unreachable. -->
 	<div
-		class="pointer-events-auto fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+		class="pointer-events-auto fixed inset-0 z-[300] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
 		role="presentation"
 		onclick={(e) => {
 			if (e.target === e.currentTarget) cancel();
@@ -109,10 +105,9 @@
 					<ShieldCheck class="h-5 w-5" />
 				</div>
 				<div class="space-y-1">
-					<h2 id="elevation-title" class="text-base font-bold">Confirm it's you</h2>
+					<h2 id="elevation-title" class="text-base font-bold">{$elevationReason.title}</h2>
 					<p id="elevation-description" class="text-xs leading-relaxed text-muted-foreground">
-						Changing who has access needs your password. You'll stay confirmed for 10 minutes, so
-						you can make several changes without re-entering it.
+						{$elevationReason.description}
 					</p>
 				</div>
 			</div>
@@ -161,17 +156,6 @@
 						</button>
 					</div>
 				</div>
-
-				{#if captchaEnabled}
-					<div class="flex justify-center">
-						<Turnstile
-							siteKey={PUBLIC_TURNSTILE_SITE_KEY}
-							bind:reset={resetCaptcha}
-							on:turnstile-callback={(e) => (captchaToken = e.detail.token)}
-							on:turnstile-expired={() => (captchaToken = undefined)}
-						/>
-					</div>
-				{/if}
 
 				<div class="flex justify-end gap-2 pt-1">
 					<Button type="button" variant="outline" onclick={cancel} disabled={isSubmitting}>

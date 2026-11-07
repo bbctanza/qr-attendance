@@ -29,8 +29,12 @@
 		Save,
 		QrCode,
 		Globe,
-		ScanLine
+		ScanLine,
+		Monitor
 	} from '@lucide/svelte';
+	import { kioskMode } from '$lib/stores/kiosk';
+	import { ensureElevated } from '$lib/stores/elevation';
+	import ElevationDialog from '$lib/components/elevation-dialog.svelte';
 	import { toast } from 'svelte-sonner';
 	import { mode } from 'mode-watcher';
 	import { systemSettings, loadSettings } from '$lib/stores/settings';
@@ -43,6 +47,32 @@
 
 	// Check if user is a guest
 	const isGuest = $derived(userRole === 'guest');
+	// Kiosk mode changes what the device this browser is running on does on every boot -
+	// restricted the same way Access Directory and Audit Logs are.
+	const canToggleKiosk = $derived(userRole === 'admin' || userRole === 'developer');
+
+	/** Both directions are gated: turning it ON commits a device to kiosk behaviour on its
+	 *  next boot, and turning it OFF is already gated on /scan itself - this is the second
+	 *  place that boundary has to hold, since App Settings is reachable without ever having
+	 *  been on the kiosk screen at all. */
+	async function toggleKioskMode(enabled: boolean) {
+		// Only the OFF direction is password-gated. Turning it on already requires being
+		// logged in as Admin/Developer to see this card at all (canToggleKiosk, above) - a
+		// second password prompt right after that is friction standing in for security it
+		// isn't adding. Turning it off is the direction that matters: the kiosk screen is
+		// meant to be touched by anyone at the table, which is the whole reason /scan's own
+		// "Exit kiosk" control asks for it there.
+		if (!enabled) {
+			const granted = await ensureElevated({
+				title: 'Turn off kiosk mode?',
+				description:
+					'Confirm the account password to stop this device running as a kiosk. It will keep normal navigation from the next page load.'
+			});
+			if (!granted) return;
+		}
+		kioskMode.setEnabled(enabled);
+		toast.success(enabled ? 'Kiosk mode will start on next load' : 'Kiosk mode off');
+	}
 
 	const LANGUAGE_LABELS: Record<string, string> = {
 		en: 'English',
@@ -799,6 +829,53 @@
 			</Card>
 		</div>
 
+		<!-- Kiosk Mode Section -->
+		<div class:opacity-50={!canToggleKiosk} class:pointer-events-none={!canToggleKiosk}>
+			<Card class="lg:col-span-1">
+				<CardHeader class="pb-3">
+					<div class="flex items-center gap-2">
+						<Monitor class="h-5 w-5 shrink-0 text-primary" />
+						<CardTitle class="text-base sm:text-lg">Kiosk Mode</CardTitle>
+						{#if !canToggleKiosk}
+							<span
+								class="ml-auto rounded bg-red-50 px-2 py-1 text-xs font-medium text-red-600 dark:bg-red-950/50 dark:text-red-400"
+								>Restricted</span
+							>
+						{/if}
+					</div>
+				</CardHeader>
+				<CardContent class="space-y-3 sm:space-y-4">
+					<div class="flex items-start justify-between gap-3 sm:items-center">
+						<div class="min-w-0 flex-1">
+							<Label class="text-sm font-medium sm:text-base">Run as kiosk on this device</Label>
+							<p class="mt-1 text-xs text-muted-foreground sm:text-sm">
+								Boots straight into the scanner, hides all navigation, and shows a countdown
+								to the next event when nothing is live. Persists across restarts - meant for a
+								laptop permanently stationed at check-in, not your own browser.
+							</p>
+						</div>
+						<Switch
+							checked={$kioskMode.enabled}
+							onCheckedChange={toggleKioskMode}
+							class="shrink-0"
+							disabled={!canToggleKiosk}
+						/>
+					</div>
+					{#if $kioskMode.enabled}
+						<p
+							class="rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+						>
+							Active on this device. It takes effect on the next load of the app - reload or
+							restart the browser to enter kiosk mode now. To leave it, use the "Exit kiosk"
+							link on the scan screen - that step needs the account password even though this
+							switch does not, since whoever is standing at the kiosk is not necessarily who
+							turned it on.
+						</p>
+					{/if}
+				</CardContent>
+			</Card>
+		</div>
+
 		<!-- Data Section -->
 		<Card class="lg:col-span-1">
 			<CardHeader class="pb-3">
@@ -1299,3 +1376,5 @@
 		</Button>
 	</div>
 {/if}
+
+<ElevationDialog />
