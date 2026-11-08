@@ -1246,7 +1246,8 @@
 	<div
 		bind:this={scannerContainer}
 		class={isFullscreen
-			? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
+			? // See the desktop container for why this isn't unconditionally bg-black.
+				`fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible ${isScanning ? 'bg-black' : 'bg-background'}`
 			: 'relative flex min-h-0 flex-1 flex-col justify-center overflow-hidden rounded-2xl border-2 border-dashed border-border/40'}
 	>
 		{#if usbMode && !isScanning}
@@ -1609,7 +1610,12 @@
 		<div
 			bind:this={scannerContainerDesktop}
 			class={isFullscreen
-				? 'fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible bg-black'
+				? // bg-black only while the camera feed itself is filling this - it's the feed's
+					// backdrop, not a page background. The USB guide and "Ready to Scan" idle state
+					// use normal theme-token text/cards (not styled for literal black), so forcing
+					// black behind them here made kiosk's resting state unreadable - the camera is
+					// off far more of the time than it's on.
+					`fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-visible ${isScanning ? 'bg-black' : 'bg-background'}`
 				: `relative flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-2xl border-2 border-dashed border-(--stat-success)/20 bg-card/5 ${isScanning ? 'border-0 p-0' : 'p-16'}`}
 		>
 			{#if isScanning}
