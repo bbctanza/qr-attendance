@@ -298,12 +298,19 @@ CREATE INDEX idx_attendance_present_scan_datetime ON attendance_present (scan_da
 CREATE INDEX idx_members_group_id ON members (group_id);
 
 -- Table: attendance_scans (Temporary holding for real-time scanning)
+--
+-- UNIQUE (member_id, event_id): scan_member_transaction's own duplicate check is a
+-- SELECT-then-INSERT, which two near-simultaneous scans of the same member (a camera and a
+-- USB scanner both reading the same code, or simply the same QR presented twice in quick
+-- succession) can both pass before either has inserted. This constraint is what actually makes
+-- a second insert impossible - the function's check just gives it a clean error message.
 CREATE TABLE attendance_scans (
     scan_id TEXT PRIMARY KEY,
     member_id TEXT REFERENCES members(member_id) ON DELETE CASCADE,
     scan_datetime TIMESTAMP NOT NULL,
     event_id BIGINT REFERENCES events(event_id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT NOW()
+    created_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT attendance_scans_member_event_unique UNIQUE (member_id, event_id)
 );
 
 -- Table: attendance_present (Historical record of attendance)
@@ -1065,6 +1072,19 @@ EXCEPTION
     WHEN duplicate_object THEN NULL;
     WHEN undefined_object THEN
         RAISE NOTICE 'supabase_realtime publication not found; enable Realtime for attendance_scans in the dashboard';
+END $$;
+
+-- Publish events so the scan page (and kiosk standby on it) notices a new, started, or ended
+-- event immediately instead of waiting out its own 30s poll.
+ALTER TABLE events REPLICA IDENTITY FULL;
+
+DO $$
+BEGIN
+    ALTER PUBLICATION supabase_realtime ADD TABLE events;
+EXCEPTION
+    WHEN duplicate_object THEN NULL;
+    WHEN undefined_object THEN
+        RAISE NOTICE 'supabase_realtime publication not found; enable Realtime for events in the dashboard';
 END $$;
 
 -- 7. STORAGE POLICIES

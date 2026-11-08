@@ -300,7 +300,9 @@
 		document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 		window.addEventListener('keydown', handleEscape);
 
-		// Poll for event updates every 30 seconds
+		// Poll for event updates every 30 seconds - kept as a fallback even with the realtime
+		// subscription below (see subscribeToEvents), the same belt-and-suspenders the
+		// attendance page already uses for its own channel.
 		const interval = setInterval(() => loadActiveEvent(true), 30000);
 
 		// Kiosk standby: the next-event query only needs the same 30s cadence as everything
@@ -310,10 +312,20 @@
 		const nextEventInterval = setInterval(loadNextEvent, 30000);
 		const clockInterval = setInterval(() => (kioskNow = new Date()), 1000);
 
+		// Any insert/update/delete on events - a sudden new one created, one starting, one
+		// ending - reacts immediately instead of waiting out the rest of the 30s poll. That
+		// matters most for an unattended kiosk: it shouldn't sit in standby for half a minute
+		// after an event actually starts.
+		const unsubscribeEvents = attendanceApi.subscribeToEvents(() => {
+			loadActiveEvent(true);
+			loadNextEvent();
+		});
+
 		return () => {
 			clearInterval(interval);
 			clearInterval(nextEventInterval);
 			clearInterval(clockInterval);
+			unsubscribeEvents();
 			stopUsbScanner?.();
 			// Drops any pending scans and clears the result-hold timer.
 			scanQueue.destroy();
@@ -340,11 +352,18 @@
 		}
 	}
 
+	// Single source of truth for isFullscreen, in both directions - not just the explicit
+	// "Fullscreen" button's own container.requestFullscreen() call, but enterKioskView's
+	// document.documentElement.requestFullscreen() too. Without this, kiosk mode entered the
+	// browser's real fullscreen (chrome gone) while the scanner/USB-guide UI stayed in its
+	// small bordered card: nothing here ever flipped isFullscreen on, only off, so the
+	// fixed-inset-0 full-bleed layout those views switch on never activated.
 	function handleFullscreenChange() {
-		if (!document.fullscreenElement && !(document as any).webkitFullscreenElement) {
-			isFullscreen = false;
-			if (!exitingFullscreenOnPurpose) endScanSession();
-		}
+		const inFullscreen = !!(
+			document.fullscreenElement || (document as any).webkitFullscreenElement
+		);
+		isFullscreen = inFullscreen;
+		if (!inFullscreen && !exitingFullscreenOnPurpose) endScanSession();
 	}
 
 	// In fullscreen the browser uses Esc to exit (handled above); this covers Esc outside fullscreen
@@ -417,6 +436,12 @@
 					recentScans = [];
 					batchList = [];
 					activeEvent = null;
+					// Without this the camera (or USB listener) kept running pointed at an
+					// event that no longer exists - every scan silently fell into
+					// processScan's "No active event found to scan into" branch instead of
+					// the page visibly returning to standby/no-event state.
+					if (isScanning) void stopCameraFeed();
+					usbMode = false;
 				}
 			}
 		} catch (e) {
@@ -1572,7 +1597,9 @@
 
 <!-- Desktop View -->
 <div
-	class="relative hidden h-[calc(100vh-100px)] w-full grid-rows-[minmax(0,1fr)] p-6 transition-[grid-template-columns,column-gap] duration-200 ease-out motion-reduce:transition-none md:grid lg:p-8 {isPanelCollapsed
+	class="relative hidden w-full grid-rows-[minmax(0,1fr)] p-6 transition-[grid-template-columns,column-gap] duration-200 ease-out motion-reduce:transition-none md:grid lg:p-8 {$kioskMode.enabled
+		? 'h-screen'
+		: 'h-[calc(100vh-100px)]'} {isPanelCollapsed
 		? 'grid-cols-[minmax(0,1fr)_minmax(0,0fr)] gap-x-0'
 		: 'grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-x-6'}"
 >
@@ -1978,7 +2005,7 @@
 
 			<button
 				type="button"
-				class="absolute right-7 bottom-6 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11.5px] text-muted-foreground transition-colors hover:text-foreground"
+				class="absolute right-7 bottom-6 flex items-center gap-1.5 rounded-lg bg-background/80 px-3 py-1.5 text-[11.5px] text-muted-foreground shadow-xs backdrop-blur transition-colors hover:text-foreground"
 				onclick={exitKioskMode}
 			>
 				<LogOut class="h-3.5 w-3.5" />

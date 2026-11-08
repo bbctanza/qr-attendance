@@ -417,5 +417,38 @@ export const attendanceApi = {
 		return () => {
 			void supabase.removeChannel(channel);
 		};
+	},
+
+	/**
+	 * Watch the events table for any change and call back.
+	 *
+	 * Unfiltered (no single event to key off yet) - a new event being created, one starting,
+	 * or one ending are all "events changed", and the scan page's own 30s poll already knows
+	 * what to do with any of them via refreshEventStatuses + getOngoingEvents. This just makes
+	 * that reaction near-instant instead of waiting out the rest of the poll interval, which
+	 * matters most for a kiosk sitting unattended: a sudden new event should take it out of
+	 * standby immediately, not up to 30s late.
+	 *
+	 * Returns a disposer. Realtime needs `events` in the supabase_realtime publication
+	 * (migration 014); without it the channel simply never fires, which is why callers also
+	 * keep their poll as a fallback.
+	 */
+	subscribeToEvents(onChange: () => void): () => void {
+		const channel = supabase
+			.channel('events-watch')
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'events'
+				},
+				() => onChange()
+			)
+			.subscribe();
+
+		return () => {
+			void supabase.removeChannel(channel);
+		};
 	}
 };

@@ -33,7 +33,7 @@
 	} from '$lib/api/attendance';
 	import { supabase } from '$lib/supabase';
 	import { showErrorToast, showWarningToast } from '$lib/utils/errorHandler';
-	import { formatTimeSync, parseEventDate } from '$lib/utils/time';
+	import { ensureUTC, formatTimeSync, parseEventDate } from '$lib/utils/time';
 	import { exportToCSV, exportToPDF, type ExportRecord } from '$lib/utils/attendanceExport';
 
 	/**
@@ -321,7 +321,11 @@
 					first_name: entry.first_name,
 					last_name: entry.last_name,
 					...(kind === 'present'
-						? { time: entry.scan_datetime ? formatTimeSync(new Date(entry.scan_datetime)) : '-' }
+						? {
+									time: entry.scan_datetime
+										? formatTimeSync(new Date(ensureUTC(entry.scan_datetime)))
+										: '-'
+								}
 						: {})
 				});
 			}
@@ -755,7 +759,7 @@
 															class="rounded-md bg-primary/10 px-2.5 py-1 text-xs text-primary tabular-nums"
 														>
 															{entry.scan_datetime
-																? formatTimeSync(new Date(entry.scan_datetime))
+																? formatTimeSync(new Date(ensureUTC(entry.scan_datetime)))
 																: '—'}
 														</span>
 													{:else}

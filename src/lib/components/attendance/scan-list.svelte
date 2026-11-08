@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { ScanLine } from '@lucide/svelte';
 	import { Skeleton } from '$lib/components/ui/skeleton';
-	import { formatTimeSync } from '$lib/utils/time';
+	import { ensureUTC, formatTimeSync } from '$lib/utils/time';
 	import PersonRow from './person-row.svelte';
 	import EmptyState from '$lib/components/common/empty-state.svelte';
 	import type { RosterEntry } from '$lib/api/attendance';
@@ -50,7 +50,9 @@
 				{#snippet trailing()}
 					<div class="flex items-center gap-2">
 						<span class="text-[11px] font-semibold text-muted-foreground tabular-nums">
-							{scan.scan_datetime ? formatTimeSync(new Date(scan.scan_datetime)) : '—'}
+							{scan.scan_datetime
+								? formatTimeSync(new Date(ensureUTC(scan.scan_datetime)))
+								: '—'}
 						</span>
 						<span class="h-2 w-2 rounded-full bg-(--stat-success)"></span>
 					</div>
