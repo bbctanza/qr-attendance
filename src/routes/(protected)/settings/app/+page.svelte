@@ -47,9 +47,12 @@
 
 	// Check if user is a guest
 	const isGuest = $derived(userRole === 'guest');
-	// Kiosk mode changes what the device this browser is running on does on every boot -
-	// restricted the same way Access Directory and Audit Logs are.
-	const canToggleKiosk = $derived(userRole === 'admin' || userRole === 'developer');
+	// Kiosk mode changes what the device this browser is running on does on every boot.
+	// Staff run the check-in table day to day, so they can set a device into or out of
+	// kiosk mode too - only guests are excluded.
+	const canToggleKiosk = $derived(
+		userRole === 'admin' || userRole === 'developer' || userRole === 'staff'
+	);
 
 	/** Both directions are gated: turning it ON commits a device to kiosk behaviour on its
 	 *  next boot, and turning it OFF is already gated on /scan itself - this is the second
@@ -57,8 +60,8 @@
 	 *  been on the kiosk screen at all. */
 	async function toggleKioskMode(enabled: boolean) {
 		// Only the OFF direction is password-gated. Turning it on already requires being
-		// logged in as Admin/Developer to see this card at all (canToggleKiosk, above) - a
-		// second password prompt right after that is friction standing in for security it
+		// logged in as Admin/Developer/Staff to see this card at all (canToggleKiosk, above) -
+		// a second password prompt right after that is friction standing in for security it
 		// isn't adding. Turning it off is the direction that matters: the kiosk screen is
 		// meant to be touched by anyone at the table, which is the whole reason /scan's own
 		// "Exit kiosk" control asks for it there.
