@@ -8,7 +8,9 @@
 		AlertTriangle
 	} from '@lucide/svelte';
 	import TimedButton from '$lib/components/timed-button.svelte';
-	import { fade } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
+	import { cubicIn, cubicOut } from 'svelte/easing';
+	import { dur } from '$lib/utils/motion';
 	import type { ScanQueueState, ScanRejection } from '$lib/utils/scanQueue';
 
 	/**
@@ -80,9 +82,16 @@
 </script>
 
 {#if isOpen}
+	<!--
+		It used to fade in over 150ms and then vanish on a single frame, because there was no
+		out transition at all - and the disappearance is the half a person actually notices.
+		Kept short: this lands in front of someone with a queue behind them, so the budget is
+		about a fifth of a second in and less out. Matches the native kiosk's result card.
+	-->
 	<div
 		class="pointer-events-auto fixed inset-0 z-[150] flex items-center justify-center p-4 md:p-6"
-		in:fade={{ duration: 150 }}
+		in:fade={{ duration: dur(120) }}
+		out:fade={{ duration: dur(130) }}
 		role="status"
 		aria-live="assertive"
 	>
@@ -101,8 +110,14 @@
 			></div>
 		{/if}
 
+		<!--
+			Asymmetric easing: `cubicOut` decelerates into place so the card reads as arriving,
+			`cubicIn` accelerates away so the exit feels faster than its duration.
+		-->
 		<div
 			class="pointer-events-auto relative z-10 w-full max-w-sm rounded-3xl border border-border/40 bg-card shadow-2xl md:max-w-md"
+			in:scale={{ start: 0.92, opacity: 0, duration: dur(190), easing: cubicOut }}
+			out:scale={{ start: 0.96, opacity: 0, duration: dur(130), easing: cubicIn }}
 		>
 			<!-- Queue depth: lets the operator see a backlog building rather than guessing. -->
 			{#if state.queueDepth > 0}

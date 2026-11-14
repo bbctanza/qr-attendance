@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { KeyRound, Loader2, TriangleAlert, ArrowLeft, ShieldCheck } from '@lucide/svelte';
+	import { KeyRound, Loader2, ShieldCheck, QrCode } from '@lucide/svelte';
+	import GearButton from './gear-button.svelte';
 	import { Input } from '$lib/components/ui/input';
 	import { PinInput } from '$lib/components/ui/pin-input';
 	import { Button } from '$lib/components/ui/button';
@@ -27,11 +28,13 @@
 	 */
 	let {
 		ondone,
-		onusepassword
+		onusepassword,
+		onsettings
 	}: {
 		/** Hands over to the runtime; false means the session did not come up. */
 		ondone: () => Promise<boolean>;
 		onusepassword: () => void;
+		onsettings: () => void;
 	} = $props();
 
 	let step = $state<1 | 2>(1);
@@ -107,6 +110,20 @@
 	<div class="absolute inset-0 bg-white/60"></div>
 
 	<div class="relative z-10 w-full max-w-md">
+		<!--
+			The system's mark, in the same chip the web app's /login uses. A kiosk being set
+			up is the one screen a person stands and reads, and it should say which system
+			they are binding this machine to before it asks them for a code.
+		-->
+		<div class="mb-6 flex flex-col items-center text-center">
+			<div
+				class="flex h-16 w-16 items-center justify-center rounded-2xl border border-border
+					bg-card text-primary shadow-2xl shadow-primary/20"
+			>
+				<QrCode class="h-8 w-8" />
+			</div>
+		</div>
+
 		<form
 			onsubmit={pair}
 			class="rounded-[var(--radius)] border border-border bg-card p-8 shadow-xl"
@@ -222,4 +239,19 @@
 			{/if}
 		</form>
 	</div>
+
+	<!--
+		The kiosk's own settings control, in the place it always sits. Fullscreen, start-on-boot
+		and the clock get set while the machine is still on a desk, which is before any of this
+		has happened - but that is a reason to reach Settings here, not a reason for a second
+		kind of button.
+
+		Both gestures land on Settings: the long press exists to keep a queue from reconfiguring
+		an unattended kiosk, and the quick panel holds controls for a scan session. Neither
+		applies to a device that has not been paired yet.
+
+		Rendered inside the forced-light wrapper, not beside it, so `text-muted-foreground/40`
+		resolves against the light palette this screen forces rather than the device's own theme.
+	-->
+	<GearButton onquick={onsettings} onsettings={onsettings} />
 </div>

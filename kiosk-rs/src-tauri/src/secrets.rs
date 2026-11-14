@@ -16,7 +16,13 @@
 use keyring::Entry;
 
 /// Namespaces the entries so they are identifiable in the OS credential UI.
-const SERVICE: &str = "com.cvsu.qrkiosk";
+///
+/// Kept in step with the bundle identifier in `tauri.conf.json` by hand - nothing enforces
+/// it. Changing either one strands what the other wrote: this string names the Credential
+/// Manager entries holding the session encryption key, and the identifier names the WebView2
+/// data folder holding the ciphertext those keys decrypt. Half a rename signs the device out
+/// just as surely as a whole one, but leaves an orphaned credential behind as well.
+const SERVICE: &str = "com.bbctavt.qrkiosk";
 
 fn entry(key: &str) -> Result<Entry, String> {
     Entry::new(SERVICE, key).map_err(|e| format!("keyring unavailable: {e}"))

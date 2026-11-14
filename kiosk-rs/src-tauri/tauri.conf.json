@@ -1,8 +1,9 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Attendance Kiosk",
+  "productName": "BBCT-Attendance-Kiosk",
+  "mainBinaryName": "BBCT-Attendance-Kiosk",
   "version": "0.1.0",
-  "identifier": "com.cvsu.qrkiosk",
+  "identifier": "com.bbctavt.qrkiosk",
   "build": {
     "beforeDevCommand": "pnpm dev",
     "devUrl": "http://localhost:1420",
@@ -12,7 +13,7 @@
   "app": {
     "windows": [
       {
-        "title": "Attendance Kiosk",
+        "title": "BBCT-Attendance-Kiosk",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -28,6 +29,8 @@
   },
   "bundle": {
     "active": true,
+    "publisher": "BBCT-AVT-IT",
+    "copyright": "BBCT-AVT-IT",
     "targets": "all",
     "icon": [
       "icons/32x32.png",

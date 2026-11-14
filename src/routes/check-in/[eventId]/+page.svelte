@@ -22,7 +22,7 @@
 	import { goto } from '$app/navigation';
 	import { sanitizeText, sanitizeErrorMessage, sanitizeId } from '$lib/utils/security';
 	import { devTools } from '$lib/stores/dev';
-	import { playBeep, setupAudioUnlock } from '$lib/utils/beep';
+	import { playAccepted, playSuccess, playError, setupAudioUnlock } from '$lib/utils/beep';
 
 	const eventId = $page.params.eventId;
 	let event = $state<AttendanceEvent | null>(null);
@@ -166,7 +166,8 @@
 	}
 
 	function onScanSuccess(decodedText: string, decodedResult: any) {
-		playBeep(); // Play beep on successful scan
+		// The read, not the check-in - the same "I have you" tick the staff scanner gives.
+		playAccepted();
 		stopScanner();
 		// Sanitize scanned data to prevent injection attacks
 		memberId = sanitizeId(decodedText);
@@ -191,8 +192,7 @@
 
 			if ($devTools.bypassEventTimeValidation) {
 				// Mock RPC response
-				playBeep(1000, 150); // Higher pitch beep for success
-				setTimeout(() => playBeep(1000, 150), 150); // Double beep
+				playSuccess();
 				checkInStatus = 'success';
 				statusMessage = `Successfully checked in (Mock Mode)`;
 				memberId = ''; // Reset input
@@ -213,21 +213,20 @@
 			}
 
 			if (data && data.success) {
-				playBeep(1000, 150); // Higher pitch beep for success
-				setTimeout(() => playBeep(1000, 150), 150); // Double beep
+				playSuccess();
 				checkInStatus = 'success';
 				// Sanitize the success message from RPC
 				statusMessage = sanitizeText(data.message, 200);
 				memberId = ''; // Reset input
 			} else {
-				playBeep(400, 300); // Lower pitch beep for error
+				playError();
 				checkInStatus = 'error';
 				// Sanitize the error message from RPC
 				statusMessage = sanitizeText(data?.message || 'Check-in failed.', 200);
 			}
 		} catch (err: any) {
 			console.error(err);
-			playBeep(400, 300); // Error beep
+			playError();
 			checkInStatus = 'error';
 			// Sanitize error message to prevent information disclosure
 			statusMessage = sanitizeErrorMessage(err);

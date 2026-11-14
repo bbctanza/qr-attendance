@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { CheckCircle2, AlertCircle, XCircle, CloudOff } from '@lucide/svelte';
-	import { fade } from 'svelte/transition';
+	import { fade, scale } from 'svelte/transition';
+	import { cubicIn, cubicOut } from 'svelte/easing';
+	import { dur } from '$lib/kiosk/motion';
 	import { kiosk } from '$lib/kiosk/state.svelte';
 	import { formatClock } from '$lib/kiosk/format';
 	import type { ScanResult } from '$lib/kiosk/types';
@@ -55,17 +57,40 @@
 	);
 </script>
 
+<!--
+	Short on purpose. This lands in front of somebody mid-queue with people behind them, so
+	the budget is about a fifth of a second in and less out - enough that the card arrives
+	rather than appears, and nowhere near enough to be something anyone waits through.
+
+	The backdrop and the card transition separately, rather than fading the whole overlay as
+	one. That is what lets the card scale while the dim stays flat, and it is also what keeps
+	back-to-back scans clean: `+page.svelte` keys this component on the result, so a second
+	scan during the first card mounts a new instance while the old one is still leaving. Two
+	overlays fading as a unit would stack their dimming and flash darker in the middle; two
+	backdrops cross-fading compose to slightly *lighter*, which reads as a swap instead of a
+	glitch.
+-->
 <div
 	class="pointer-events-none fixed inset-0 z-[150] flex items-center justify-center p-4 md:p-6"
-	in:fade={{ duration: 150 }}
 	role="status"
 	aria-live="assertive"
 >
-	<div class="absolute inset-0 bg-black/80 backdrop-blur-sm"></div>
+	<div
+		class="absolute inset-0 bg-black/80 backdrop-blur-sm"
+		in:fade={{ duration: dur(120) }}
+		out:fade={{ duration: dur(120) }}
+	></div>
 
+	<!--
+		Asymmetric: it comes in from slightly small with `cubicOut`, which decelerates into
+		place and reads as arriving; it leaves with `cubicIn`, which accelerates away and gets
+		out of the way of the next person faster than its duration suggests.
+	-->
 	<div
 		class="relative z-10 w-full max-w-sm rounded-3xl border border-border/40 bg-card shadow-2xl
 			md:max-w-md"
+		in:scale={{ start: 0.92, opacity: 0, duration: dur(190), easing: cubicOut }}
+		out:scale={{ start: 0.96, opacity: 0, duration: dur(130), easing: cubicIn }}
 	>
 		<div class="space-y-6 p-6 sm:p-8">
 			<div class="flex justify-center">

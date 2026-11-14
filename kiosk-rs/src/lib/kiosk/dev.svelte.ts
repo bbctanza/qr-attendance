@@ -38,6 +38,15 @@ interface DevState {
 	 * one rather than the only lock.
 	 */
 	unlocked: boolean;
+	/**
+	 * Where the floating dev button sits, as fractions of the free space (0-1), not pixels.
+	 *
+	 * A kiosk is the one app guaranteed to change resolution under you - it is fullscreened
+	 * onto whatever display it is plugged into. Pixels saved on a 1920-wide screen put the
+	 * button off the edge of a 1366-wide one; fractions survive it.
+	 */
+	fabX: number;
+	fabY: number;
 }
 
 /** Taps needed, and the point at which Android starts counting down out loud. */
@@ -46,12 +55,22 @@ const COUNTDOWN_FROM = 4;
 /** A pause longer than this starts the count again, so stray taps never accumulate. */
 const TAP_RESET_MS = 2000;
 
+/** A stored position that is missing, not a number, or out of range falls back. */
+function clamp01(value: unknown, fallback: number): number {
+	if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+	return Math.min(1, Math.max(0, value));
+}
+
 function load(): DevState {
 	const base: DevState = {
 		bypassEventTimeValidation: false,
 		forceOffline: false,
 		panelPinned: false,
-		unlocked: false
+		unlocked: false,
+		// Lower left by default: the settings gear owns the lower right, and a kiosk's scan
+		// content is centred, so the left margin is the empty corner.
+		fabX: 0.04,
+		fabY: 0.78
 	};
 	if (typeof localStorage === 'undefined') return base;
 
@@ -63,7 +82,9 @@ function load(): DevState {
 			bypassEventTimeValidation: parsed.bypassEventTimeValidation === true,
 			forceOffline: parsed.forceOffline === true,
 			panelPinned: parsed.panelPinned === true,
-			unlocked: parsed.unlocked === true
+			unlocked: parsed.unlocked === true,
+			fabX: clamp01(parsed.fabX, base.fabX),
+			fabY: clamp01(parsed.fabY, base.fabY)
 		};
 	} catch {
 		return base;
@@ -96,6 +117,16 @@ class DevTools {
 
 	setPinned(on: boolean) {
 		this.state.panelPinned = on;
+		this.persist();
+	}
+
+	get fab() {
+		return { x: this.state.fabX, y: this.state.fabY };
+	}
+
+	setFabPosition(x: number, y: number) {
+		this.state.fabX = Math.min(1, Math.max(0, x));
+		this.state.fabY = Math.min(1, Math.max(0, y));
 		this.persist();
 	}
 

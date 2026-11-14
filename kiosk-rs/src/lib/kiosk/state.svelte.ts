@@ -2,13 +2,15 @@ import type { KioskEvent, KioskSettings, ScanResult, Screen, SharedSettings } fr
 import { attendanceApi, type KioskEventRow, type ScanRpcResult } from '$lib/api/attendance';
 import { offlineQueue } from './offline-queue';
 import { currentIdentity, signOut, type KioskIdentity } from './auth';
-import { clearPin } from './pin';
+import { clearPin, loadPin, storePin } from './pin';
+import { sendHeartbeat } from './heartbeat';
 import { SHARED_DEFAULTS, applySharedSettings, loadSharedSettings } from './settings';
 import { readShellState, setAutostart, setFullscreen, supported as shellSupported } from './shell';
 import { loadSettings as loadStoredSettings, saveSettings as persistSettings } from './settings-store';
 import { dev } from './dev.svelte';
 import { supabase } from '$lib/supabase';
 import { setBeepVolume } from './beep';
+import { startWatchAction } from './format';
 import {
 	playAccepted,
 	playDuplicate,
@@ -47,6 +49,33 @@ const COUNT_POLL_MS = 15_000;
  * device the backlog would sit until someone happened to open Settings and tap Retry.
  */
 const QUEUE_RETRY_MS = 30_000;
+
+/**
+ * Event id used by the developer preview. Negative so it can never collide with a real row,
+ * and so anything that did reach the database with it would be obvious rather than subtle.
+ * Scans are refused outright while a preview runs - see `submit`.
+ */
+const PREVIEW_EVENT_ID = -1;
+
+/**
+ * The tone that goes with a result card.
+ *
+ * In one place because it was previously in two, and the second one was silence: the
+ * developer previews drew the card and played nothing, which made them useless for the part
+ * that matters most. Once a kiosk is on a door nobody is reading the card - staff are three
+ * metres away listening for whether the beep was the good one, so the tone is the half of
+ * the feedback that actually has to be checked.
+ *
+ * Not used by the two failure paths in `process` that play `playError()`: a scan that could
+ * not even be queued is a device fault, which is deliberately a different sound from a code
+ * the server refused.
+ */
+function playToneFor(outcome: ScanResult['outcome'], queued: boolean) {
+	if (queued) playQueued();
+	else if (outcome === 'success') playSuccess();
+	else if (outcome === 'duplicate') playDuplicate();
+	else playRejected();
+}
 
 /**
  * The part of the settings that is actually saved. Fullscreen and start-on-boot live in the
@@ -102,6 +131,27 @@ class KioskRuntime {
 
 	activeEvent = $state<KioskEvent | null>(null);
 	nextEvent = $state<KioskEvent | null>(null);
+
+	/**
+	 * Start-watch bookkeeping. Plain fields, not `$state`: nothing renders them, and making
+	 * them reactive would mean every tick invalidated anything that touched the runtime.
+	 */
+	private lastEventRefreshAt = 0;
+	private firedForStart: string | null = null;
+
+	/**
+	 * True while the developer event-sequence preview is driving the screens.
+	 *
+	 * Reactive because the floating dev panel shows it; load-bearing because the 60s poll
+	 * would otherwise overwrite the fake states halfway through the sequence.
+	 */
+	previewingEvents = $state(false);
+
+	/** Seconds left before an armed preview fires, or 0. Drawn on the floating dev button. */
+	armingSeconds = $state(0);
+	private armTimer: ReturnType<typeof setInterval> | null = null;
+	/** Bumped to abandon a running sequence - see `abortEventPreview`. */
+	private previewSeq = 0;
 	result = $state<ScanResult | null>(null);
 
 	/** Ongoing events, for the "pin to a specific event" picker in Settings. */
@@ -249,10 +299,77 @@ class KioskRuntime {
 		return true;
 	}
 
+	/**
+	 * Called once a second from the page's clock, after `now` is set.
+	 *
+	 * The 60s event poll is right for noticing that somebody scheduled something, and far too
+	 * slow for the start of an event: the screen could hold "Starting now" for a full minute
+	 * after the event had begun, so the handoff into scanning played at an arbitrary moment
+	 * instead of on the beat. This tightens the loop around the start time and nowhere else -
+	 * see `startWatchAction`, which owns the rule and is tested on its own.
+	 */
+	noteTick() {
+		if (this.previewingEvents) return;
+		const action = startWatchAction(
+			this.nextEvent?.start_datetime ?? null,
+			this.now.getTime(),
+			this.lastEventRefreshAt,
+			this.firedForStart
+		);
+		if (action !== 'refresh') return;
+
+		// Recorded before the await, so a slow request cannot stack up a second one behind it.
+		this.lastEventRefreshAt = this.now.getTime();
+		const start = this.nextEvent?.start_datetime ?? null;
+		if (start && new Date(start).getTime() <= this.now.getTime()) this.firedForStart = start;
+
+		void this.refreshEvents();
+	}
+
+	/**
+	 * Check in with the server and act on what it says.
+	 *
+	 * This is the half of Revoke and Reset PIN that lives on the device. Both are rows in
+	 * `kiosk_devices` until something here reads them back, which is why a revoked kiosk
+	 * carried on scanning and a reset PIN left the old one working at the door.
+	 */
+	private async pulse() {
+		const beat = await sendHeartbeat();
+		if (!beat) return;
+
+		// Not revoked - no device row at all. That is the escape hatch in Settings → Account,
+		// where the kiosk runs on a person's login. Signing that out would punish a supported
+		// feature. See `Heartbeat.paired`.
+		if (!beat.paired) return;
+
+		if (beat.status === 'revoked') {
+			console.warn('[kiosk] this device was revoked; signing out');
+			await this.signOutDevice();
+			return;
+		}
+
+		// Reset PIN arrives here or nowhere.
+		if (beat.pinHash && beat.pinSalt) {
+			const current = await loadPin();
+			if (!current || current.hash !== beat.pinHash || current.salt !== beat.pinSalt) {
+				await storePin({ hash: beat.pinHash, salt: beat.pinSalt });
+			}
+		}
+
+		// A rename in the web app should reach the device's own header, not just the list.
+		if (beat.name && beat.name !== this.settings.deviceName) {
+			this.applyOperational({ deviceName: beat.name });
+		}
+	}
+
 	/** Start polling and sync. Called after boot, and again after a first-boot sign-in. */
 	async beginSession() {
 		await this.refreshEvents();
 		if (this.connected) void this.flushQueue();
+
+		// Once immediately: a device revoked while it was switched off should find out on
+		// boot, not up to a minute into an event.
+		void this.pulse();
 
 		// Clear first so a sign-in after boot can't leave two sets of timers running.
 		this.stop();
@@ -260,6 +377,10 @@ class KioskRuntime {
 			setInterval(() => {
 				void this.refreshEvents();
 				void this.refreshShared();
+				// Shares the event poll rather than adding a timer. The web app already tells
+				// admins the device "applies it the next time it checks in", and a minute is
+				// what that sentence promises.
+				void this.pulse();
 			}, EVENT_POLL_MS)
 		);
 		this.timers.push(setInterval(() => void this.refreshCount(), COUNT_POLL_MS));
@@ -292,7 +413,12 @@ class KioskRuntime {
 	}
 
 	async refreshEvents() {
+		// A preview owns the event state until it finishes and restores it.
+		if (this.previewingEvents) return;
 		const seq = ++this.eventsSeq;
+		// Counts against the start watch's rate limit however it was triggered, so the regular
+		// poll and the tick cannot land on top of each other in the final minute.
+		this.lastEventRefreshAt = Date.now();
 		try {
 			// Before reading: statuses only advance when a client asks. See the API comment.
 			await attendanceApi.refreshEventStatuses();
@@ -356,7 +482,11 @@ class KioskRuntime {
 	 */
 	submit(code: string) {
 		const trimmed = code.trim();
-		if (!trimmed || !this.scanning) return;
+		// A preview drives `activeEvent` to a fake row, so `scanning` is true without a real
+		// event behind it. Taking a scan then would either write against an event id that does
+		// not exist or silently drop somebody's check-in. Neither is acceptable at a door, so
+		// the preview simply does not accept scans.
+		if (!trimmed || !this.scanning || this.previewingEvents) return;
 
 		const windowMs = this.settings.debounceSeconds * 1000;
 		// Drop entries that have aged out. They never blocked anything - the check below is
@@ -452,9 +582,7 @@ class KioskRuntime {
 		try {
 			const rpc = await attendanceApi.scanMember(code, event.event_id, at);
 			const result = this.toResult(rpc, code, at);
-			if (result.outcome === 'success') playSuccess();
-			else if (result.outcome === 'duplicate') playDuplicate();
-			else playRejected();
+			playToneFor(result.outcome, result.queued);
 			this.show(result);
 			// Trust the server's count rather than incrementing locally.
 			if (rpc.success) void this.refreshCount();
@@ -557,6 +685,23 @@ class KioskRuntime {
 			const state = await readShellState();
 			this.settings.fullscreenLock = state.fullscreen;
 		}
+	}
+
+	/**
+	 * Hand the machine back to whoever is standing at it.
+	 *
+	 * Drops OS fullscreen and stops it being re-applied, which is the whole of what "kiosk
+	 * mode" is at the window level - the app keeps running, signed in, still scanning if an
+	 * event is live. It deliberately does **not** quit: a kiosk that closes itself at a door
+	 * is one somebody has to find a keyboard and a mouse to restart, and start-on-boot means
+	 * the next power cycle brings it back regardless.
+	 *
+	 * Start-on-boot is left alone on purpose. Exiting to the desktop once, to install an
+	 * update or check a cable, is not a decision about what the machine does tomorrow.
+	 */
+	async exitKioskMode() {
+		await this.setFullscreenLock(false);
+		this.screen = 'scan';
 	}
 
 	/** Same for start-on-boot: write, then read back what the OS accepted. */
@@ -686,9 +831,110 @@ class KioskRuntime {
 	 * Show a result card without a scan, so its readability can be judged at the real screen
 	 * and distance. Writes nothing and touches no counters.
 	 */
+	/**
+	 * Count down, then run - the floating dev panel's one-press contract.
+	 *
+	 * Every preview puts something on screen that covers the panel you just pressed, so
+	 * firing immediately means the first thing you see is your own finger in the way. Three
+	 * seconds is enough to close the panel, step back, and watch the thing you came to look
+	 * at from where it is actually read: across the room.
+	 *
+	 * Pressing again while a countdown is running cancels it, which is also how you back out.
+	 */
+	armPreview(run: () => void, seconds = 3) {
+		// Settings covers the screens every preview draws on, so leaving it is part of
+		// previewing. Only when nothing is half-edited: losing a draft to a debug button
+		// would be a worse surprise than the preview not running.
+		if (this.screen === 'settings' && !this.dirty) {
+			this.discardDraft();
+			this.screen = 'scan';
+		}
+
+		if (this.armingSeconds > 0) {
+			this.cancelArmedPreview();
+			return;
+		}
+
+		this.armingSeconds = seconds;
+		this.armTimer = setInterval(() => {
+			this.armingSeconds -= 1;
+			if (this.armingSeconds > 0) return;
+			this.cancelArmedPreview();
+			run();
+		}, 1000);
+	}
+
+	cancelArmedPreview() {
+		if (this.armTimer) clearInterval(this.armTimer);
+		this.armTimer = null;
+		this.armingSeconds = 0;
+	}
+
+	/** Abandon a running event sequence. Its own `finally` puts the real events back. */
+	abortEventPreview() {
+		this.previewSeq += 1;
+	}
+
+	/**
+	 * Walk all four event states end to end, so the transitions can be judged without
+	 * scheduling a real event and waiting for it.
+	 *
+	 * The timings are the point: the countdown is set six seconds out so it is seen *running*
+	 * and then crossing zero on its own, which is the moment the handoff into scanning is
+	 * built around. Driving the states directly rather than through the clock would skip
+	 * exactly the transition this exists to show.
+	 *
+	 * Real event data is suspended for the duration (`previewingEvents`) and restored at the
+	 * end, then re-read - a preview must not leave a kiosk believing in an event that does
+	 * not exist.
+	 */
+	async previewEventSequence() {
+		if (this.previewingEvents) return;
+		this.previewingEvents = true;
+		const seq = ++this.previewSeq;
+
+		const beforeActive = this.activeEvent;
+		const beforeNext = this.nextEvent;
+		// Resolves false when the preview was abandoned while it was waiting, so each step can
+		// stop rather than keep painting fake events over a kiosk that has moved on.
+		const step = async (ms: number) => {
+			await new Promise((resolve) => setTimeout(resolve, ms));
+			return seq === this.previewSeq;
+		};
+		const fake = (startMsFromNow: number, checkedIn = 0): KioskEvent => ({
+			event_id: PREVIEW_EVENT_ID,
+			event_name: 'Preview Event',
+			start_datetime: new Date(Date.now() + startMsFromNow).toISOString(),
+			checked_in: checkedIn
+		});
+
+		try {
+			this.activeEvent = null;
+			this.nextEvent = null;
+			if (!(await step(2_000))) return;
+
+			// Six seconds out: long enough to read "Up next" and watch the seconds tick.
+			this.nextEvent = fake(6_000);
+			if (!(await step(6_000))) return;
+
+			// The countdown has crossed zero on its own by now, so the screen is on
+			// "Starting now" - the same pause a real kiosk sits in while the server flips
+			// the event to ongoing.
+			if (!(await step(1_500))) return;
+
+			this.activeEvent = fake(0, 42);
+			await step(5_000);
+		} finally {
+			this.activeEvent = beforeActive;
+			this.nextEvent = beforeNext;
+			this.previewingEvents = false;
+			void this.refreshEvents();
+		}
+	}
+
 	previewResult(kind: 'success' | 'duplicate' | 'rejected' | 'queued') {
 		const at = new Date();
-		this.show({
+		const result: ScanResult = {
 			outcome: kind === 'queued' ? 'success' : kind,
 			member_name: kind === 'rejected' ? null : 'Test Member',
 			member_code: kind === 'rejected' ? null : 'PREVIEW-0001',
@@ -696,7 +942,14 @@ class KioskRuntime {
 			at,
 			queued: kind === 'queued',
 			reason: kind === 'rejected' ? "This code isn't registered for this event." : null
-		});
+		};
+
+		// Through the same mapping the real scan path uses, so the preview cannot tell you
+		// the tones are fine while the kiosk plays something else. Still subject to the Beep
+		// volume setting - at 0 this is silent, which is the correct answer rather than a
+		// preview that overrides the device's own configuration.
+		playToneFor(result.outcome, result.queued);
+		this.show(result);
 	}
 
 	/**
@@ -713,6 +966,12 @@ class KioskRuntime {
 
 		// "Preview a result" leaves a card on screen with its own timer.
 		this.dismissResult();
+
+		// An armed countdown would otherwise fire after the switch said developer mode was
+		// off, and a running sequence would keep painting fake events over a kiosk whose
+		// test rig has supposedly been switched off.
+		this.cancelArmedPreview();
+		this.abortEventPreview();
 
 		// The bypass may have borrowed an upcoming event so the scanner could run outside
 		// event hours; re-resolve rather than wait up to a minute for the next poll.
@@ -760,6 +1019,7 @@ class KioskRuntime {
 		this.activeEvent = null;
 		this.nextEvent = null;
 		this.ongoing = [];
+		this.firedForStart = null;
 		this.draft = null;
 		this.screen = 'scan';
 		this.started = false;

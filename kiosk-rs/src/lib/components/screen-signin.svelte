@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Lock, Loader2 } from '@lucide/svelte';
+	import { Lock, Loader2, QrCode } from '@lucide/svelte';
+	import GearButton from './gear-button.svelte';
 	import { signIn, type KioskIdentity } from '$lib/kiosk/auth';
 	import { Input } from '$lib/components/ui/input';
 	import { Button } from '$lib/components/ui/button';
@@ -12,11 +13,13 @@
 	 */
 	let {
 		ondone,
-		onusepairing
+		onusepairing,
+		onsettings
 	}: {
 		/** Hands the resolved identity to the runtime; false means it could not start. */
 		ondone: (identity?: KioskIdentity | null) => Promise<boolean>;
 		onusepairing: () => void;
+		onsettings: () => void;
 	} = $props();
 
 	let email = $state('');
@@ -65,6 +68,16 @@
 	<div class="absolute inset-0 bg-white/60"></div>
 
 	<div class="relative z-10 w-full max-w-md">
+		<!-- The system's mark, in the same chip the web app's /login uses. -->
+		<div class="mb-6 flex justify-center">
+			<div
+				class="flex h-16 w-16 items-center justify-center rounded-2xl border border-border
+					bg-card text-primary shadow-2xl shadow-primary/20"
+			>
+				<QrCode class="h-8 w-8" />
+			</div>
+		</div>
+
 	<form
 		onsubmit={submit}
 		class="w-full rounded-[var(--radius)] border border-border bg-card p-8 shadow-xl"
@@ -131,4 +144,7 @@
 		</button>
 	</form>
 	</div>
+
+	<!-- Same control, same corner, same reasons as the pair screen. -->
+	<GearButton onquick={onsettings} onsettings={onsettings} />
 </div>

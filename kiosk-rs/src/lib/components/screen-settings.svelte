@@ -77,16 +77,35 @@
 	type SectionId = 'device' | 'input' | 'event' | 'sync' | 'account' | 'about' | 'dev';
 
 	/**
+	 * Settings has to work on a device that is not signed in.
+	 *
+	 * A kiosk is configured before it is paired, not after: it has to be put into fullscreen,
+	 * told to start with the machine, and given the right clock format while it is still
+	 * sitting on a desk. Locking all of that behind a session meant the only way to reach it
+	 * was to pair the device first, which is backwards.
+	 *
+	 * What stays out: Event, Sync and Account are all about a signed-in device and have
+	 * nothing to show without one. **Developer Tools is excluded deliberately** - its flags
+	 * change how scans behave, and the gate on them is the settings PIN, which an unpaired
+	 * device does not have. Nothing left in here touches attendance data or an account, so
+	 * nothing left in here needs a credential the device cannot yet check.
+	 */
+	const signedOut = $derived(!kiosk.identity);
+	const SIGNED_OUT_SECTIONS: SectionId[] = ['device', 'input', 'about'];
+
+	/**
 	 * Developer Tools is unlocked by tapping the version seven times (see dev.svelte.ts), not
 	 * by the signed-in account's role - debugging should not cost the audit trail.
 	 */
-	const isDeveloper = $derived(dev.unlocked);
+	const isDeveloper = $derived(dev.unlocked && !signedOut);
 
 	/** What the version row says back after a tap. Cleared after a moment, like a toast. */
 	let tapMessage = $state<string | null>(null);
 	let tapTimer: ReturnType<typeof setTimeout> | null = null;
 
 	function tapVersion() {
+		// The unlock gesture is part of Developer Tools, so it is out for the same reason.
+		if (signedOut) return;
 		const result = dev.tapVersion();
 		if (!result) return;
 		tapMessage = result.message;
@@ -114,10 +133,14 @@
 	];
 
 	/** Developer Tools is appended, not inserted, so the ordinary sections never shift. */
+	const visibleBase = $derived(
+		signedOut ? baseSections.filter((s) => SIGNED_OUT_SECTIONS.includes(s.id)) : baseSections
+	);
+
 	const sections = $derived(
 		isDeveloper
 			? [
-					...baseSections,
+					...visibleBase,
 					{
 						id: 'dev' as SectionId,
 						label: 'Developer Tools',
@@ -125,10 +148,18 @@
 						blurb: 'Debug & test features. Nothing here is written to attendance data.'
 					}
 				]
-			: baseSections
+			: visibleBase
 	);
 
 	let active = $state<SectionId>('device');
+
+	/**
+	 * Signing out while a now-hidden section is open would leave `current` undefined and take
+	 * the whole screen down with it. Fall back rather than crash.
+	 */
+	$effect(() => {
+		if (!sections.some((s) => s.id === active)) active = 'device';
+	});
 	let tabs: HTMLButtonElement[] = [];
 
 	const current = $derived(sections.find((s) => s.id === active)!);
@@ -237,6 +268,14 @@
 					{/if}
 				</button>
 			{/each}
+
+			{#if signedOut}
+				<!-- Says why the list is short. Three categories with no explanation reads as a
+					 broken screen; naming what is missing and what brings it back does not. -->
+				<p class="hidden px-4 pt-3 text-xs leading-snug text-muted-foreground md:block">
+					Event, Sync and Account appear once this device is paired.
+				</p>
+			{/if}
 		</div>
 
 		<div
@@ -627,9 +666,25 @@
 							{/snippet}
 						</SettingRow>
 
-						<SettingRow label="Exit kiosk mode" description="Returns this device to a normal desktop.">
+						<!--
+							Was a button with no handler at all. It now does what it says: drops
+							fullscreen so the desktop is reachable. It does not quit the app -
+							see `exitKioskMode`.
+						-->
+						<SettingRow
+							label="Exit kiosk mode"
+							description="Leaves fullscreen so the desktop is reachable. The app keeps running and stays signed in."
+						>
 							{#snippet control()}
-								<Button variant="destructive" size="lg" class="h-tap px-5 text-base">Exit kiosk</Button>
+								<Button
+									variant="destructive"
+									size="lg"
+									class="h-tap px-5 text-base"
+									disabled={!kiosk.shell}
+									onclick={() => void kiosk.exitKioskMode()}
+								>
+									Exit kiosk
+								</Button>
 							{/snippet}
 						</SettingRow>
 					{:else if active === 'dev'}
@@ -684,27 +739,55 @@
 							{/snippet}
 						</SettingRow>
 
+						<!--
+							These close Settings and count down before firing, because the result card
+							renders on the scan screen - which this one replaces. Pressed from here they
+							used to do nothing visible at all: the card appeared and timed out behind
+							this panel. The floating dev button is the better home for them; this stays
+							so the control someone already knows about does what it says.
+						-->
 						<SettingRow
 							label="Preview a result"
-							description="Shows each result card at full size, to check it reads from across a room."
+							description="Closes Settings, waits three seconds, then shows the card at full size."
 						>
 							{#snippet control()}
 								<div class="flex flex-wrap justify-end gap-2">
-									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.previewResult('success')}>
+									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.armPreview(() => kiosk.previewResult('success'))}>
 										Success
 									</Button>
-									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.previewResult('duplicate')}>
+									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.armPreview(() => kiosk.previewResult('duplicate'))}>
 										Duplicate
 									</Button>
-									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.previewResult('rejected')}>
+									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.armPreview(() => kiosk.previewResult('rejected'))}>
 										Rejected
 									</Button>
-									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.previewResult('queued')}>
+									<Button variant="outline" class="h-tap px-4 text-base" onclick={() => kiosk.armPreview(() => kiosk.previewResult('queued'))}>
 										Queued
 									</Button>
 								</div>
 							{/snippet}
 						</SettingRow>
+
+						<SettingRow
+							label="Preview the event sequence"
+							description="Walks nothing scheduled → up next → starting now → scanning, about 15s. Real events are suspended and restored; scans are refused while it runs."
+						>
+							{#snippet control()}
+								<Button
+									variant="outline"
+									class="h-tap px-4 text-base"
+									disabled={kiosk.previewingEvents}
+									onclick={() => kiosk.armPreview(() => void kiosk.previewEventSequence())}
+								>
+									{kiosk.previewingEvents ? 'Running…' : 'Run'}
+								</Button>
+							{/snippet}
+						</SettingRow>
+
+						<SettingRow
+							label="Floating dev button"
+							description="With developer options on, a draggable bug button sits over the scan screen. Its panel opens beside it rather than over the screen, so previews can be watched while the controls stay reachable."
+						></SettingRow>
 
 						<SettingRow
 							label="Last error"

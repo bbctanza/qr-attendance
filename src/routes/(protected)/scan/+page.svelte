@@ -35,7 +35,8 @@
 		PanelRightOpen
 	} from '@lucide/svelte';
 	import { useSidebar } from '$lib/components/ui/sidebar';
-	import { fly } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
+	import { dur } from '$lib/utils/motion';
 	import { toast } from 'svelte-sonner';
 	import { Avatar, AvatarImage, AvatarFallback } from '$lib/components/ui/avatar';
 	import { ScrollArea } from '$lib/components/ui/scroll';
@@ -46,7 +47,6 @@
 	import { Html5Qrcode } from 'html5-qrcode';
 	import { devTools } from '$lib/stores/dev';
 	import {
-		playBeep,
 		setupAudioUnlock,
 		playAccepted,
 		playSuccess,
@@ -1039,9 +1039,10 @@
 			}
 		}
 
-		// Success beep for batch submission
-		playBeep(1000, 150);
-		setTimeout(() => playBeep(1000, 150), 150);
+		// The shared vocabulary, not a hand-rolled copy of it: this was literally
+		// playSuccess() inlined, which meant the batch path kept the old tone when the
+		// vocabulary was retuned.
+		playSuccess();
 
 		toast.success(`Successfully checked in ${successCount} members`, { id: toastId });
 		batchList = []; // Clear
@@ -1899,15 +1900,25 @@
 			somehow both are true at once this still wins - standby should never be hidden
 			behind a stale fullscreen scanner view.
 		-->
+		<!--
+			The overlay's own fade is the handoff into scanning. When the event goes live this
+			block simply stopped rendering and the scanner underneath appeared on a single
+			frame, which reads as a glitch rather than as the system responding to the
+			schedule. Out is quicker than in: getting out of the way of a queue matters more
+			than easing into standby.
+		-->
 		<div
 			class="fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-background to-muted"
+			in:fade={{ duration: dur(350) }}
+			out:fade={{ duration: dur(250) }}
 		>
 			<div class="absolute inset-x-0 top-0 flex items-center justify-between px-10 py-7">
 				<div class="flex items-center gap-2.5">
+					<!-- The system's own mark rather than the letters "QR" set in a box. -->
 					<div
-						class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-primary text-[14px] font-extrabold text-primary-foreground"
+						class="flex h-[34px] w-[34px] items-center justify-center rounded-[9px] bg-primary text-primary-foreground"
 					>
-						QR
+						<QrCode class="h-[18px] w-[18px]" />
 					</div>
 					<div>
 						<div class="text-[13px] font-bold">{$systemSettings.siteName || siteConfig.name}</div>
@@ -1923,91 +1934,132 @@
 				</div>
 			</div>
 
-			{#if nextEvent && kioskCountdown}
-				<div class="max-w-[820px] text-center">
-					<div class="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
-						Up next
-					</div>
-					<div class="mt-2.5 text-5xl font-extrabold tracking-tight text-foreground">
-						{nextEvent.event_name}
-					</div>
-					<div class="mt-2 text-lg text-muted-foreground">
-						{formatTimeSync(new Date(ensureUTC(nextEvent.start_datetime)))}
-					</div>
-
-					<div class="mt-12 flex items-center justify-center gap-4">
-						<div class="min-w-[108px]">
-							<div class="text-6xl font-black text-primary tabular-nums">
-								{pad2(kioskCountdown.hours)}
-							</div>
-							<div
-								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
-							>
-								Hours
-							</div>
-						</div>
-						<div class="-mt-4 text-4xl font-light text-border">:</div>
-						<div class="min-w-[108px]">
-							<div class="text-6xl font-black text-primary tabular-nums">
-								{pad2(kioskCountdown.minutes)}
-							</div>
-							<div
-								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
-							>
-								Minutes
-							</div>
-						</div>
-						<div class="-mt-4 text-4xl font-light text-border">:</div>
-						<div class="min-w-[108px]">
-							<div class="text-6xl font-black text-primary tabular-nums">
-								{pad2(kioskCountdown.seconds)}
-							</div>
-							<div
-								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
-							>
-								Seconds
-							</div>
-						</div>
-					</div>
-
-					<div class="mt-9 text-sm text-muted-foreground">
-						Scanning opens automatically the moment the event goes live - nothing to tap.
-					</div>
-				</div>
-			{:else if nextEvent && kioskEventOverdue}
-				<!-- The countdown's third state, not its last tick: 00:00:00 would sit there
-				     forever if the event's status hasn't flipped to ongoing yet, and reads as
-				     the kiosk having frozen rather than as "any second now." -->
-				<div class="max-w-[620px] text-center">
-					<div class="flex items-center justify-center gap-2.5">
-						<span class="h-2.5 w-2.5 animate-pulse rounded-full bg-primary"></span>
-						<span class="text-xs font-bold tracking-[0.14em] text-primary uppercase">
-							Starting now
-						</span>
-					</div>
-					<div class="mt-3 text-5xl font-extrabold tracking-tight text-foreground">
-						{nextEvent.event_name}
-					</div>
-					<div class="mt-3 text-sm text-muted-foreground">
-						Waiting on the scanner to pick it up - this takes a moment, not a tap.
-					</div>
-				</div>
-			{:else}
-				<!-- Genuinely different copy, not the countdown with zeroes in it - a 00:00:00
-				     reads as broken, not as "nothing is scheduled." -->
-				<div class="max-w-[620px] text-center">
+			<!--
+				Grid stack: during a change both states are mounted for a moment, and as normal
+				flow siblings the outgoing one would shove the incoming one down the screen
+				mid-fade. Sharing one cell keeps them on top of each other, centred, while they
+				swap. Auto rows are correct here - unlike the kiosk's full-screen stack, these
+				blocks should size to their content and let the parent flex centre them.
+			-->
+			<div class="grid [&>*]:col-start-1 [&>*]:row-start-1 [&>*]:place-self-center">
+				{#if nextEvent && kioskCountdown}
 					<div
-						class="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border bg-card shadow-xs"
-					>
-						<Calendar class="h-8 w-8 text-muted-foreground" />
+					class="max-w-[820px] text-center"
+					in:fly={{ y: 8, duration: dur(350) }}
+					out:fade={{ duration: dur(200) }}
+				>
+						<div class="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
+							Up next
+						</div>
+						<div class="mt-2.5 text-5xl font-extrabold tracking-tight text-foreground">
+							{nextEvent.event_name}
+						</div>
+						<div class="mt-2 text-lg text-muted-foreground">
+							{formatTimeSync(new Date(ensureUTC(nextEvent.start_datetime)))}
+						</div>
+
+						<div class="mt-12 flex items-center justify-center gap-4">
+							<div class="min-w-[108px]">
+								<div class="text-6xl font-black text-primary tabular-nums">
+									{pad2(kioskCountdown.hours)}
+								</div>
+								<div
+									class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
+								>
+									Hours
+								</div>
+							</div>
+							<div class="-mt-4 text-4xl font-light text-border">:</div>
+							<div class="min-w-[108px]">
+								<div class="text-6xl font-black text-primary tabular-nums">
+									{pad2(kioskCountdown.minutes)}
+								</div>
+								<div
+									class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
+								>
+									Minutes
+								</div>
+							</div>
+							<div class="-mt-4 text-4xl font-light text-border">:</div>
+							<div class="min-w-[108px]">
+								<!--
+									Only the seconds move, matching the native kiosk. Hours and minutes
+									change so rarely that animating them adds nothing, and three ticking
+									columns turn an unattended screen into a slot machine. The invisible
+									copy holds the box open - the animated one is absolute, so without
+									it this collapses to zero height.
+								-->
+								<div
+									class="relative overflow-hidden text-6xl font-black text-primary tabular-nums"
+								>
+									<span class="invisible" aria-hidden="true">
+										{pad2(kioskCountdown.seconds)}
+									</span>
+									{#key kioskCountdown.seconds}
+										<span
+											class="absolute inset-0"
+											in:fly={{ y: 14, duration: dur(150) }}
+											out:fly={{ y: -14, duration: dur(150) }}
+										>
+											{pad2(kioskCountdown.seconds)}
+										</span>
+									{/key}
+								</div>
+								<div
+									class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
+								>
+									Seconds
+								</div>
+							</div>
+						</div>
+
+						<div class="mt-9 text-sm text-muted-foreground">
+							Scanning opens automatically the moment the event goes live - nothing to tap.
+						</div>
 					</div>
-					<div class="mt-6 text-[32px] font-extrabold">Nothing scheduled right now</div>
-					<div class="mt-2.5 text-[15px] leading-relaxed text-muted-foreground">
-						The kiosk keeps watching - as soon as an event is scheduled and its start time
-						arrives, this screen updates on its own.
+				{:else if nextEvent && kioskEventOverdue}
+					<!-- The countdown's third state, not its last tick: 00:00:00 would sit there
+					     forever if the event's status hasn't flipped to ongoing yet, and reads as
+					     the kiosk having frozen rather than as "any second now." -->
+					<div
+					class="max-w-[620px] text-center"
+					in:fly={{ y: 8, duration: dur(350) }}
+					out:fade={{ duration: dur(200) }}
+				>
+						<div class="flex items-center justify-center gap-2.5">
+							<span class="h-2.5 w-2.5 animate-pulse rounded-full bg-primary"></span>
+							<span class="text-xs font-bold tracking-[0.14em] text-primary uppercase">
+								Starting now
+							</span>
+						</div>
+						<div class="mt-3 text-5xl font-extrabold tracking-tight text-foreground">
+							{nextEvent.event_name}
+						</div>
+						<div class="mt-3 text-sm text-muted-foreground">
+							Waiting on the scanner to pick it up - this takes a moment, not a tap.
+						</div>
 					</div>
-				</div>
-			{/if}
+				{:else}
+					<!-- Genuinely different copy, not the countdown with zeroes in it - a 00:00:00
+					     reads as broken, not as "nothing is scheduled." -->
+					<div
+					class="max-w-[620px] text-center"
+					in:fly={{ y: 8, duration: dur(350) }}
+					out:fade={{ duration: dur(200) }}
+				>
+						<div
+							class="mx-auto flex h-[72px] w-[72px] items-center justify-center rounded-[20px] border bg-card shadow-xs"
+						>
+							<Calendar class="h-8 w-8 text-muted-foreground" />
+						</div>
+						<div class="mt-6 text-[32px] font-extrabold">Nothing scheduled right now</div>
+						<div class="mt-2.5 text-[15px] leading-relaxed text-muted-foreground">
+							The kiosk keeps watching - as soon as an event is scheduled and its start time
+							arrives, this screen updates on its own.
+						</div>
+					</div>
+				{/if}
+			</div>
 
 			<button
 				type="button"

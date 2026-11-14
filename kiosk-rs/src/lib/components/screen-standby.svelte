@@ -2,6 +2,8 @@
 	import { kiosk } from '$lib/kiosk/state.svelte';
 	import { countdownTo, formatClock, formatDay, pad2 } from '$lib/kiosk/format';
 	import { Calendar } from '@lucide/svelte';
+	import { fade, fly } from 'svelte/transition';
+	import { dur } from '$lib/kiosk/motion';
 
 	/**
 	 * Standby, matching the web app's kiosk screen (its scan page, `{#if $kioskMode.enabled}`
@@ -40,9 +42,18 @@
 	class="flex flex-1 flex-col items-center justify-center overflow-hidden
 		bg-gradient-to-b from-background to-muted px-8 text-center"
 >
-	<div class="drift">
+	<!--
+		Grid stack: during a change both states are mounted for a moment, and as normal flow
+		siblings the outgoing one would push the incoming one down the screen mid-fade. Sharing
+		one cell keeps them on top of each other, centred, while they swap.
+	-->
+	<div class="drift grid [&>*]:col-start-1 [&>*]:row-start-1 [&>*]:place-self-center">
 		{#if kiosk.nextEvent && countdown}
-			<div class="max-w-[820px]">
+			<div
+				class="max-w-[820px]"
+				in:fly={{ y: 8, duration: dur(350) }}
+				out:fade={{ duration: dur(200) }}
+			>
 				<div class="text-xs font-bold tracking-[0.14em] text-muted-foreground uppercase">
 					Up next
 				</div>
@@ -59,8 +70,31 @@
 							<div class="-mt-4 text-4xl font-light text-border" aria-hidden="true">:</div>
 						{/if}
 						<div class="min-w-[108px]">
-							<div class="text-6xl font-black text-primary tabular-nums">
-								{pad2(unit.value)}
+							<div
+								class="relative overflow-hidden text-6xl font-black text-primary tabular-nums"
+							>
+								<!--
+									Only the seconds move. Hours and minutes change so rarely that
+									animating them adds nothing, and a column of three ticking
+									digits turns an unattended screen into a slot machine.
+
+									The invisible copy holds the box open: the animated ones are
+									absolute, so without it this collapses to zero height.
+								-->
+								{#if unit.label === 'Seconds'}
+									<span class="invisible" aria-hidden="true">{pad2(unit.value)}</span>
+									{#key unit.value}
+										<span
+											class="absolute inset-0"
+											in:fly={{ y: 14, duration: dur(150) }}
+											out:fly={{ y: -14, duration: dur(150) }}
+										>
+											{pad2(unit.value)}
+										</span>
+									{/key}
+								{:else}
+									{pad2(unit.value)}
+								{/if}
 							</div>
 							<div
 								class="mt-1.5 text-xs font-bold tracking-[0.08em] text-muted-foreground uppercase"
@@ -76,7 +110,15 @@
 				</div>
 			</div>
 		{:else if overdue}
-			<div class="max-w-[620px]">
+			<!--
+				The first half of the event-start handoff: the countdown lifts away and this
+				rises in behind it, a beat before the scan screen takes over.
+			-->
+			<div
+				class="max-w-[620px]"
+				in:fly={{ y: 8, duration: dur(350) }}
+				out:fade={{ duration: dur(200) }}
+			>
 				<div class="flex items-center justify-center gap-2.5">
 					<span class="h-2.5 w-2.5 animate-pulse rounded-full bg-primary"></span>
 					<span class="text-xs font-bold tracking-[0.14em] text-primary uppercase">
@@ -93,7 +135,11 @@
 		{:else}
 			<!-- Genuinely different copy, not the countdown with zeroes in it: 00:00:00 reads
 				 as broken rather than as "nothing is scheduled". -->
-			<div class="max-w-[620px]">
+			<div
+				class="max-w-[620px]"
+				in:fly={{ y: 8, duration: dur(350) }}
+				out:fade={{ duration: dur(200) }}
+			>
 				<!-- With no event there is no countdown to show, which left this screen with a
 					 paragraph and nothing else. The wall clock takes that space instead: it is the
 					 one thing an idle kiosk can usefully say, and a second-ticking clock is also
