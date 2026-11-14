@@ -19,8 +19,16 @@
 
 <AlertDialogPortal {...portalProps}>
 	<AlertDialogOverlay />
+	<!--
+		Escape closes, on every modal in the app. Set explicitly rather than left to a library
+		default, and because this component is now used for forms as well as confirmations —
+		where being unable to back out with the key everyone reaches for is just a trap. On a
+		destructive confirm, Escape still resolves to Cancel, which is the safe direction.
+		A caller can override it: restProps spreads after this.
+	-->
 	<AlertDialogPrimitive.Content
 		bind:ref
+		escapeKeydownBehavior="close"
 		data-slot="alert-dialog-content"
 		class={cn(
 			// inset-x-4, not a max-w-based margin: every page on this component passes its own

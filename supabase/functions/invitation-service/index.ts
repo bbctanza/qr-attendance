@@ -355,6 +355,137 @@ Deno.serve(async (req) => {
 
 		const db = createClient(supabaseUrl, serviceRoleKey);
 
+		// -------------------------------------------------------------------
+		// pair-device  —  the ONLY action reachable without a session
+		// -------------------------------------------------------------------
+		//
+		// A kiosk being paired has no account yet; that is the entire point. It is handled
+		// before caller resolution because every line below this assumes a signed-in user.
+		//
+		// What stands in for authentication is the code itself: 8 characters of Crockford
+		// base32 issued by an admin, single-use, expiring in ten minutes, with its own attempt
+		// counter. Those four properties are the security boundary for an endpoint that can
+		// mint an auth user, so none of them is optional.
+		{
+			const earlyBody = await req.clone().json().catch(() => ({}));
+			if ((earlyBody as { action?: string }).action === 'pair-device') {
+				const { code, deviceName } = earlyBody as { code?: string; deviceName?: string };
+				if (!code || !deviceName?.trim()) {
+					throw new AccessError('A pairing code and a device name are required.', 400);
+				}
+
+				const normalised = code.toUpperCase().replace(/[^0-9A-Z]/g, '');
+
+				const { data: pairing } = await db
+					.from('kiosk_pairing_codes')
+					.select('*')
+					.eq('code', normalised)
+					.maybeSingle();
+
+				// One message for every failure mode: a caller holding a guess must not learn
+				// whether a code exists, has expired, or has already been used.
+				const refuse = () =>
+					new AccessError('That pairing code is not valid.', 400, 'bad_pairing_code');
+
+				if (!pairing) throw refuse();
+
+				await db
+					.from('kiosk_pairing_codes')
+					.update({ attempts: (pairing.attempts ?? 0) + 1 })
+					.eq('code', normalised);
+
+				if (pairing.consumed_at) throw refuse();
+				if (new Date(pairing.expires_at).getTime() < Date.now()) throw refuse();
+				if ((pairing.attempts ?? 0) >= 10) throw refuse();
+
+				// The device's own auth user. The password is random, never returned and never
+				// typed - the kiosk keeps the session, not a credential.
+				const deviceId = crypto.randomUUID();
+				const email = `kiosk+${deviceId}@${new URL(supabaseUrl).hostname}`;
+				const password = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+					.map((b) => b.toString(16).padStart(2, '0'))
+					.join('');
+
+				const { data: created, error: createError } = await db.auth.admin.createUser({
+					email,
+					password,
+					email_confirm: true,
+					user_metadata: { kiosk_device: true, device_name: deviceName.trim() }
+				});
+				if (createError || !created.user) {
+					throw new AccessError('Could not create the device identity.', 500);
+				}
+
+				// handle_new_user() lands anything uninvited as 'guest'; a kiosk needs a resolved
+				// role for scan_member_transaction, so set it explicitly.
+				await db
+					.from('profiles')
+					.update({ role: 'staff', full_name: `Kiosk — ${deviceName.trim()}` })
+					.eq('id', created.user.id);
+
+				const { error: deviceError } = await db.from('kiosk_devices').insert({
+					id: deviceId,
+					name: deviceName.trim(),
+					auth_user_id: created.user.id,
+					pin_hash: pairing.pin_hash,
+					pin_salt: pairing.pin_salt,
+					paired_by: pairing.created_by,
+					paired_by_email: pairing.created_by_email
+				});
+				if (deviceError) {
+					// Never leave an orphan identity behind that nothing can revoke.
+					await db.auth.admin.deleteUser(created.user.id);
+					throw new AccessError('Could not register the device.', 500);
+				}
+
+				await db
+					.from('kiosk_pairing_codes')
+					.update({ consumed_at: new Date().toISOString(), consumed_by: deviceId })
+					.eq('code', normalised);
+
+				// Logged here rather than from a browser: the kiosk pairs itself anonymously, so
+				// this is the only place that knows it happened.
+				const pairedAt = new Date().toISOString();
+				await db.from('audit_logs').insert([
+					{
+						entity_type: 'user',
+						entity_id: created.user.id,
+						action: 'create',
+						change_diff: {
+							kiosk_paired: { before: null, after: deviceName.trim() }
+						},
+						user_id: pairing.created_by,
+						user_email: pairing.created_by_email ?? 'system',
+						user_role: 'admin',
+						timestamp: pairedAt,
+						ip_address: null,
+						user_agent: null,
+						reason: `Kiosk "${deviceName.trim()}" paired using a code issued by ${pairing.created_by_email ?? 'an admin'}.`,
+						tags: ['kiosk-device', 'pairing'],
+						is_anonymized: false,
+						created_at: pairedAt
+					}
+				]);
+
+				// Sign in as the new device on a separate anon client, so the service-role
+				// credentials on `db` are untouched for the rest of this request.
+				const authClient = createClient(supabaseUrl, anonKey);
+				const { data: signIn, error: signInError } =
+					await authClient.auth.signInWithPassword({ email, password });
+				if (signInError || !signIn.session) {
+					throw new AccessError('Device created but sign-in failed.', 500);
+				}
+
+				return json({
+					success: true,
+					deviceId,
+					session: signIn.session,
+					pinHash: pairing.pin_hash,
+					pinSalt: pairing.pin_salt
+				});
+			}
+		}
+
 		const accessToken = authHeader.replace('Bearer ', '');
 		const {
 			data: { user },
@@ -481,6 +612,78 @@ Deno.serve(async (req) => {
 
 			return json({ accounts: enriched, invitations: invitations ?? [], users: enriched });
 		}
+
+		// -------------------------------------------------------------------
+		// device-heartbeat  —  called by a kiosk about itself
+		// -------------------------------------------------------------------
+		//
+		// Above the elevation guard on purpose: a kiosk authenticates with its own device
+		// session and has no password to confirm with, so it could never satisfy it. It is
+		// not an admin action either - it reads and writes exactly one row, the device's own,
+		// matched on `auth_user_id = caller.id`.
+		if (action === 'device-heartbeat') {
+			// Called by the device itself, not an admin: it proves who it is with its own
+			// session, and may only ever see its own row.
+			const { appVersion } = body as { appVersion?: string };
+
+			const { data: device } = await db
+				.from('kiosk_devices')
+				.select('id, status, pin_hash, pin_salt, name')
+				.eq('auth_user_id', caller.id)
+				.maybeSingle();
+
+			if (!device) return json({ success: true, paired: false });
+
+			await db
+				.from('kiosk_devices')
+				.update({ last_seen_at: new Date().toISOString(), app_version: appVersion ?? null })
+				.eq('id', device.id);
+
+			// Returning status and the PIN is what makes revoke and reset-PIN actually
+			// propagate - without this they would only ever be rows in a table.
+			return json({
+				success: true,
+				paired: true,
+				status: device.status,
+				name: device.name,
+				pinHash: device.pin_hash,
+				pinSalt: device.pin_salt
+			});
+		}
+
+
+		// -------------------------------------------------------------------
+		// list-devices  —  read-only, admin-gated
+		// -------------------------------------------------------------------
+		// Read-only, so it sits with list-directory above the guard: looking at the device
+		// list is not a change to access, and asking for a password to view a list is the
+		// kind of friction that trains people to type it without thinking.
+		if (action === 'list-pairing-codes') {
+			assertIsAdmin(caller);
+			const { data, error } = await db
+				.from('kiosk_pairing_codes')
+				// Never the hashes: an admin has no use for them.
+				.select('code, created_at, created_by_email, expires_at, consumed_at, consumed_by')
+				.order('created_at', { ascending: false })
+				.limit(100);
+			if (error) throw error;
+			return json({ success: true, codes: data ?? [] });
+		}
+
+		if (action === 'list-devices') {
+			assertIsAdmin(caller);
+			const { data, error } = await db
+				.from('kiosk_devices')
+				// Never the PIN hash: an admin has no use for it, and it should not sit in a
+				// browser's memory or network log.
+				.select(
+					'id, name, status, paired_at, paired_by_email, last_seen_at, app_version, revoked_at'
+				)
+				.order('paired_at', { ascending: false });
+			if (error) throw error;
+			return json({ success: true, devices: data ?? [] });
+		}
+
 
 		// Everything past this point mutates access and needs both admin rights and a
 		// live elevation.
@@ -769,6 +972,101 @@ Deno.serve(async (req) => {
 			if (deleteError) throw deleteError;
 
 			return json({ success: true, removed: { email: target.email, role: target.role } });
+		}
+
+		// -------------------------------------------------------------------
+		// Kiosk devices  —  kiosk-rs/PLAN.md section 8
+		// -------------------------------------------------------------------
+		if (action === 'create-pairing-code') {
+			assertIsAdmin(caller);
+
+			// No device name here any more. Whoever stands at the kiosk knows which door it is
+			// on; an admin issuing a code from another room is guessing. The name arrives with
+			// `pair-device`.
+			const { pinHash, pinSalt } = body as { pinHash?: string; pinSalt?: string };
+			// The PIN is hashed in the browser and never travels or lands here in the clear.
+			if (!pinHash || !pinSalt) throw new AccessError('A PIN is required.', 400);
+
+			// Crockford base32: no O/0 and no I/1/L, because someone reads this across a room.
+			const alphabet = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+			const bytes = crypto.getRandomValues(new Uint8Array(8));
+			const code = Array.from(bytes, (b) => alphabet[b % alphabet.length]).join('');
+
+			const { error } = await db.from('kiosk_pairing_codes').insert({
+				code,
+				pin_hash: pinHash,
+				pin_salt: pinSalt,
+
+				created_by: caller.id,
+				created_by_email: caller.email
+			});
+			if (error) throw error;
+
+			const expiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+			return json({ success: true, code, expiresAt });
+		}
+
+		if (action === 'rename-device') {
+			assertIsAdmin(caller);
+			const { deviceId, name } = body as { deviceId?: string; name?: string };
+			if (!deviceId || !name?.trim()) throw new AccessError('A device and a name are required.', 400);
+
+			const { error } = await db
+				.from('kiosk_devices')
+				.update({ name: name.trim() })
+				.eq('id', deviceId);
+			if (error) throw error;
+			return json({ success: true });
+		}
+
+		if (action === 'reset-device-pin') {
+			assertIsAdmin(caller);
+			const { deviceId, pinHash, pinSalt } = body as {
+				deviceId?: string;
+				pinHash?: string;
+				pinSalt?: string;
+			};
+			if (!deviceId || !pinHash || !pinSalt) throw new AccessError('A device and a PIN are required.', 400);
+
+			const { error } = await db
+				.from('kiosk_devices')
+				.update({ pin_hash: pinHash, pin_salt: pinSalt })
+				.eq('id', deviceId);
+			if (error) throw error;
+			// The device picks this up on its next heartbeat; it does not take effect instantly.
+			return json({ success: true });
+		}
+
+		if (action === 'revoke-device') {
+			assertIsAdmin(caller);
+			const { deviceId } = body as { deviceId?: string };
+			if (!deviceId) throw new AccessError('Device not specified.', 400);
+
+			const { data: device } = await db
+				.from('kiosk_devices')
+				.select('auth_user_id, name')
+				.eq('id', deviceId)
+				.maybeSingle();
+			if (!device) throw new AccessError('That device no longer exists.', 404);
+
+			// Ban the identity rather than delete it: attendance_scans and audit_logs reference
+			// this user, and the history of who recorded what must survive the device.
+			const { error: banError } = await db.auth.admin.updateUserById(device.auth_user_id, {
+				ban_duration: '876000h'
+			});
+			if (banError) throw banError;
+
+			const { error } = await db
+				.from('kiosk_devices')
+				.update({
+					status: 'revoked',
+					revoked_at: new Date().toISOString(),
+					revoked_by: caller.id
+				})
+				.eq('id', deviceId);
+			if (error) throw error;
+
+			return json({ success: true, revoked: { name: device.name } });
 		}
 
 		throw new AccessError(`Unknown action "${action}".`, 400, 'unknown_action');

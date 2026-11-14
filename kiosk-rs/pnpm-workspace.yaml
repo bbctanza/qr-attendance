@@ -1,0 +1,4 @@
+# Marks kiosk-rs as its own pnpm root. Without this, pnpm walks up to the web app's
+# pnpm-workspace.yaml and writes kiosk dependencies into the web app's lockfile - an
+# install here would then be able to break the web app's build.
+packages: []

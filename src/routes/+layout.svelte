@@ -156,6 +156,14 @@
 			return [{ name: 'Options', href: '/settings' }, { name: 'App Settings' }];
 		if (path === '/settings/access')
 			return [{ name: 'Options', href: '/settings' }, { name: 'Access Directory' }];
+		if (path === '/settings/devices/history')
+			return [
+				{ name: 'Options', href: '/settings' },
+				{ name: 'Kiosk Devices', href: '/settings/devices' },
+				{ name: 'History' }
+			];
+		if (path === '/settings/devices')
+			return [{ name: 'Options', href: '/settings' }, { name: 'Kiosk Devices' }];
 		if (path === '/settings/dev')
 			return [{ name: 'Options', href: '/settings' }, { name: 'Developer Tools' }];
 		if (path === '/settings/audit-logs')

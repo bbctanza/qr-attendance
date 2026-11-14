@@ -18,7 +18,8 @@
 		ShieldAlert,
 		Construction,
 		Pencil,
-		ChartNoAxesCombined
+		ChartNoAxesCombined,
+		MonitorSmartphone
 	} from '@lucide/svelte';
 	import { supabase } from '$lib/supabase';
 	import { endCurrentSession } from '$lib/utils/sessions';
@@ -240,6 +241,13 @@
 				label="App Settings"
 				description="Preferences & Notifications"
 				icon={Settings}
+			/>
+
+			<SettingsTile
+				href="/settings/devices"
+				label="Kiosk Devices"
+				description="Pair & manage attendance kiosks"
+				icon={MonitorSmartphone}
 			/>
 
 			{#if user.role === 'Developer'}
